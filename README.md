@@ -27,12 +27,12 @@
 
 ## 🏁 Telemetry Setup
 
-To use this lab, you must first enable telemetry recording in **Le Mans Ultimate**:
+To use this lab, you must first enable telemetry recording in **Le Mans Ultimate** to record telemetry data:
 
 1.  Open **Le Mans Ultimate**.
-2.  Go to **Settings** → **Gameplay** → **Difficulty**.
-3.  Set **Telemetry Recording** to **"All"** (or "Timed").
-4.  Data will be saved to your DuckDB database automatically by the game.
+2.  Go to **Settings** → **Controls** → **Gameplay**.
+3.  Set **Telemetry Recording** to any bottom you like.
+4.  Data will be saved to \Steam\steamapps\common\Le Mans Ultimate\UserData\Telemetry.
 
 <p align="center">
   <img src="screenshots/setting_up_telemetry_recording.png" width="600" alt="Telemetry Recording Setup"/>
