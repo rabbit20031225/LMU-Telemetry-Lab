@@ -1,0 +1,57 @@
+# ===========================
+# Python
+# ===========================
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# ===========================
+# Node / Frontend
+# ===========================
+node_modules/
+frontend/node_modules/
+desktop/node_modules/
+frontend/dist/
+dist-electron/
+
+# ===========================
+# Large Data Files
+# ===========================
+DuckDB_data/
+*.duckdb
+*.parquet
+*.csv
+fused_data_*/
+
+# ===========================
+# Logs & Debug
+# ===========================
+*.log
+backend_debug.log
+backend_test_out*.txt
+backend_verify_*.txt
+
+# ===========================
+# Build Artifacts
+# ===========================
+*.spec.bak
+build/
+
+# ===========================
+# OS & Editor
+# ===========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ===========================
+# Env / Secrets
+# ===========================
+.env
+.env.local

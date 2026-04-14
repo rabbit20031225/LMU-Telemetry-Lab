@@ -1,0 +1,1 @@
+uvx mcp-server-duckdb --db-path"C:\Users\rabbit\Desktop\antigravity project\DuckDB_investigation"

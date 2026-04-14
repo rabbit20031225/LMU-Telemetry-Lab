@@ -1,0 +1,13 @@
+# Core API
+fastapi>=0.111.0,<1.0
+uvicorn[standard]>=0.29.0,<1.0
+python-multipart>=0.0.9
+
+# Data
+duckdb>=1.0.0
+pandas>=2.2.0
+numpy>=1.26.0
+pyarrow>=16.0.0
+
+# Build (dev only)
+pyinstaller>=6.6.0

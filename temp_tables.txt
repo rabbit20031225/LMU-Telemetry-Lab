@@ -1,0 +1,102 @@
+--- TABLES AND ROW COUNTS ---
+Table: ABS                            Count: 6329
+Table: ABSLevel                       Count: 1
+Table: Ambient Temperature            Count: 1376
+Table: AntiStall Activated            Count: 1
+Table: Best LapTime                   Count: 4
+Table: Best Sector1                   Count: 4
+Table: Best Sector2                   Count: 4
+Table: Brake Bias Rear                Count: 1
+Table: Brake Migration                Count: 1
+Table: Brake Pos                      Count: 68794
+Table: Brake Pos Unfiltered           Count: 68794
+Table: Brake Thickness                Count: 13759
+Table: Brakes Air Temp                Count: 68794
+Table: Brakes Force                   Count: 68794
+Table: Brakes Temp                    Count: 68794
+Table: channelsList                   Count: 56
+Table: CloudDarkness                  Count: 1
+Table: Clutch Pos                     Count: 68794
+Table: Clutch Pos Unfiltered          Count: 68794
+Table: Clutch RPM                     Count: 137587
+Table: Current LapTime                Count: 7
+Table: Current Sector                 Count: 29
+Table: Current Sector1                Count: 7
+Table: Current Sector2                Count: 7
+Table: Engine Max RPM                 Count: 1
+Table: Engine Oil Temp                Count: 9656
+Table: Engine RPM                     Count: 137587
+Table: Engine Water Temp              Count: 9656
+Table: eventsList                     Count: 42
+Table: FFB Output                     Count: 137587
+Table: Finish Status                  Count: 2
+Table: Front3rdDeflection             Count: 137587
+Table: FrontFlapActivated             Count: 1
+Table: FrontRideHeight                Count: 137587
+Table: Fuel Level                     Count: 27518
+Table: FuelMixtureMap                 Count: 1
+Table: G Force Lat                    Count: 13759
+Table: G Force Long                   Count: 13759
+Table: G Force Vert                   Count: 13759
+Table: Gear                           Count: 690
+Table: GPS Latitude                   Count: 13759
+Table: GPS Longitude                  Count: 13759
+Table: GPS Speed                      Count: 13759
+Table: GPS Time                       Count: 137587
+Table: Ground Speed                   Count: 137587
+Table: Headlights State               Count: 1
+Table: In Pits                        Count: 1
+Table: Lap                            Count: 10
+Table: Lap Dist                       Count: 13759
+Table: Lap Time                       Count: 9
+Table: Last Sector1                   Count: 9
+Table: Last Sector2                   Count: 9
+Table: LastImpactMagnitude            Count: 5
+Table: LaunchControlActive            Count: 1
+Table: metadata                       Count: 12
+Table: Minimum Path Wetness           Count: 1
+Table: OffpathWetness                 Count: 1
+Table: OverheatingState               Count: 2752
+Table: Path Lateral                   Count: 13759
+Table: Rear3rdDeflection              Count: 137587
+Table: RearFlapActivated              Count: 1
+Table: RearFlapLegalStatus            Count: 1
+Table: RearRideHeight                 Count: 137587
+Table: Regen Rate                     Count: 137587
+Table: RideHeights                    Count: 137587
+Table: Sector1 Flag                   Count: 36
+Table: Sector2 Flag                   Count: 23
+Table: Sector3 Flag                   Count: 33
+Table: SoC                            Count: 27518
+Table: Speed Limiter                  Count: 3
+Table: Steering Pos                   Count: 137587
+Table: Steering Pos Unfiltered        Count: 137587
+Table: Steering Shaft Torque          Count: 137587
+Table: SurfaceTypes                   Count: 9288
+Table: Susp Pos                       Count: 137587
+Table: TC                             Count: 1431
+Table: TCCut                          Count: 1
+Table: TCLevel                        Count: 1
+Table: TCSlipAngle                    Count: 1
+Table: Throttle Pos                   Count: 68794
+Table: Throttle Pos Unfiltered        Count: 68794
+Table: Time Behind Next               Count: 2752
+Table: Total Dist                     Count: 13759
+Table: Track Edge                     Count: 13759
+Table: Track Temperature              Count: 1376
+Table: Turbo Boost Pressure           Count: 137587
+Table: Tyres Wear                     Count: 13759
+Table: TyresCarcassTemp               Count: 6880
+Table: TyresCompound                  Count: 1
+Table: TyresPressure                  Count: 13759
+Table: TyresRimTemp                   Count: 68794
+Table: TyresRubberTemp                Count: 13759
+Table: TyresTempCentre                Count: 137587
+Table: TyresTempLeft                  Count: 137587
+Table: TyresTempRight                 Count: 137587
+Table: Virtual Energy                 Count: 27518
+Table: Wheel Speed                    Count: 137587
+Table: WheelsDetached                 Count: 1
+Table: Wind Heading                   Count: 1376
+Table: Wind Speed                     Count: 1376
+Table: Yellow Flag State              Count: 1

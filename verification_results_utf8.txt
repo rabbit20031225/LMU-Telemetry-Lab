@@ -1,0 +1,10 @@
+ÿþFilename                                                               | Meta String               | Parsed | Final Lock
+-------------------------------------------------------------------------------------------------------------------
+Algarve International Circuit_P_2026-02-22T09_13_06Z.duckdb            | 527 (20) deg              | 527    | 527   
+Autodromo Nazionale Monza_P_2026-02-22T09_02_40Z.duckdb                | 336 (13) deg              | 336    | 336   
+Autodromo Nazionale Monza_P_2026-02-22T14_52_20Z.duckdb                | 404 (14.9) deg            | 404    | 404   
+Autodromo Nazionale Monza_R_2026-03-04T13_18_13Z.duckdb                | 524deg (18.5deg)          | 524    | 524   
+Circuit de la Sarthe_R_2026-01-09T07_53_31Z.duckdb                     | 524deg (18.5deg)          | 524    | 524   
+Circuit de Spa-Francorchamps_R_2026-02-28T04_33_36Z.duckdb             | 524deg (18.5deg)          | 524    | 524   
+Fuji Speedway_P_2026-02-07T08_26_51Z.duckdb                            | 524deg (18.5deg)          | 524    | 524   
+Sebring International Raceway_R_2026-02-05T08_36_44Z.duckdb            | 536 (18) deg              | 536    | 536   

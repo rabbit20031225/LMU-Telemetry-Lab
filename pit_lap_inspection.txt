@@ -1,0 +1,27 @@
+--- Lap Table ---
+        ts  value
+0   26.535      0
+1  272.440      1
+2  405.740      2
+3  533.580      3
+
+--- Lap Time Table ---
+        ts       value
+0   26.535    0.000000
+1  272.440  185.744690
+2  405.740  133.303619
+3  533.580  127.831085
+
+--- In Pits Table ---
+Row count: 3
+        ts  value
+0   26.535      0
+1  195.400      1
+2  248.380      0
+
+--- GPS Speed Info ---
+GPS Speed Row Count: 5101
+GPS Time Row Count: 51002
+
+Testing integration on 500000 points...
+Integration took 0.005258 seconds.

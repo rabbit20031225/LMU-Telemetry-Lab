@@ -1,0 +1,5 @@
+Inspecting Autodromo Nazionale Monza_R_2026-03-04T13_18_13Z.duckdb
+Lap 22 had In Pits = 1. Transitioning to stint 2
+Lap 40 had In Pits = 1. Transitioning to stint 3
+
+Total Stints Detected: 3

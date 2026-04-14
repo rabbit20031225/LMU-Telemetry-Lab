@@ -1,0 +1,7 @@
+=== 原本和 GPS Time 對齊的數據 (Continuous / 100Hz 延伸) ===
+數量: 55
+Ambient Temperature, Brake Pos, Brake Pos Unfiltered, Brake Thickness, Brakes Air Temp, Brakes Force, Brakes Temp, Clutch Pos, Clutch Pos Unfiltered, Clutch RPM, Engine Oil Temp, Engine RPM, Engine Water Temp, FFB Output, Front3rdDeflection, FrontRideHeight, Fuel Level, G Force Lat, G Force Long, G Force Vert, GPS Latitude, GPS Longitude, GPS Speed, Ground Speed, Lap Dist, OverheatingState, Path Lateral, Rear3rdDeflection, RearRideHeight, Regen Rate, RideHeights, SoC, Steering Pos, Steering Pos Unfiltered, Steering Shaft Torque, Susp Pos, Throttle Pos, Throttle Pos Unfiltered, Time Behind Next, Total Dist, Track Edge, Track Temperature, Turbo Boost Pressure, Tyres Wear, TyresCarcassTemp, TyresPressure, TyresRimTemp, TyresRubberTemp, TyresTempCentre, TyresTempLeft, TyresTempRight, Virtual Energy, Wheel Speed, Wind Heading, Wind Speed
+
+=== 根據時間戳記 (ts) 加上去的數據 (Event / High Precision) ===
+數量: 42
+ABS, ABSLevel, AntiStall Activated, Best LapTime, Best Sector1, Best Sector2, Brake Bias Rear, Brake Migration, CloudDarkness, Current LapTime, Current Sector, Current Sector1, Current Sector2, Engine Max RPM, Finish Status, FrontFlapActivated, FuelMixtureMap, Gear, Headlights State, In Pits, Lap, Lap Time, Last Sector1, Last Sector2, LastImpactMagnitude, LaunchControlActive, Minimum Path Wetness, OffpathWetness, RearFlapActivated, RearFlapLegalStatus, Sector1 Flag, Sector2 Flag, Sector3 Flag, Speed Limiter, SurfaceTypes, TC, TCCut, TCLevel, TCSlipAngle, TyresCompound, WheelsDetached, Yellow Flag State
