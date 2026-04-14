@@ -29,18 +29,91 @@ DuckDB_data/
 fused_data_*/
 
 # ===========================
-# Logs & Debug
+# Debug Output & Logs
 # ===========================
 *.log
-backend_debug.log
-backend_test_out*.txt
-backend_verify_*.txt
+*.txt
+*.html
+
+# ===========================
+# Data / Metadata JSON (root level)
+# ===========================
+session_metadata.json
+fused_metadata.json
+barcelona_meta.json
+final_results.json
+final_results_utf8.json
+elevation_diagnostics.json
 
 # ===========================
 # Build Artifacts
 # ===========================
 *.spec.bak
-build/
+
+# ===========================
+# Scratch / Temp
+# ===========================
+scratch/
+
+# ===========================
+# Analysis / Debug Python scripts (root)
+# Not part of the app, local development only
+# ===========================
+check_*.py
+inspect_*.py
+verify_*.py
+analyze_*.py
+dump_*.py
+export_*.py
+audit_*.py
+calc_*.py
+filter_*.py
+extract_*.py
+data_fusion*.py
+find_*.py
+investigate_*.py
+compare_*.py
+deep_tire_audit.py
+parquet_to_csv.py
+update_*.py
+list_data_sources.py
+get_data.py
+get_raw_data.py
+search_*.py
+test_sebring*.py
+app.py
+mock_3d_api.py
+duckdb_mcp_install.py
+
+# ===========================
+# Backend debug/analysis scripts (not in backend/app/)
+# ===========================
+backend/analyze_*.py
+backend/check_*.py
+backend/debug_*.py
+backend/diag*.py
+backend/diagnose_*.py
+backend/dump_*.py
+backend/export_*.py
+backend/find_*.py
+backend/fix_*.py
+backend/generate_*.py
+backend/inspect_*.py
+backend/list_*.py
+backend/refine_*.py
+backend/report_*.py
+backend/search_*.py
+backend/solve_*.py
+backend/spa_*.py
+backend/test_*.py
+backend/verify_*.py
+backend/cross_axis_lag.py
+backend/ax_results.txt
+backend/debug_log.txt
+backend/diag_log.txt
+backend/diag_log_specific.txt
+backend/diag_output.txt
+backend/telemetry.duckdb
 
 # ===========================
 # OS & Editor

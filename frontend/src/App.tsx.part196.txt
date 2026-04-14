@@ -1,9 +1,0 @@
-  const {
-    currentSessionId, fetchSessions,
-    laps, selectedLapIdx, referenceLapIdx, selectLap, setReferenceLap,
-    isLoading, loadingProgress, sessionMetadata,
-    telemetryData, selectedStint, fetchStint, cursorIndex,
-    isPlaying, updatePlayback, error,
-    activeProfileId, profiles, fetchProfiles,
-    setShowSettings, speedUnit, tempUnit
-  } = useTelemetryStore();
