@@ -1,3 +1,12 @@
+## 🟢 [2026-04-15] Telemetry v1.2.1 - 賽道數據同步 (LMU v1.3.1.2)
+*   **賽道庫大更新 (Track DB Expansion)**：
+    *   **資料同步**：全面對標 Le Mans Ultimate v1.3.1.2 遊戲數據。
+    *   **佈局補全**：新增 Paul Ricard (Layout 1A, 1A-V2, 1A-V2-Short, 3A)、Silverstone (International, National) 以及 Spa (Endurance) 的高程參考點。
+    *   **長度校準**：精確校準 Monza、Interlagos、Bahrain、Sebring 等賽道的佈局長度，誤差縮距至 1m 以內，顯著提升 Delta 計算穩定性。
+*   **文件同步**：新增 `lmu_track_list.md` 作為使用者查詢手冊。
+
+---
+
 ## 🟢 [2026-04-14] Telemetry v1.2.0 - 座標歸一化與數據 Self-Healing 重磅更新
 1. 
 2. ### 🌟 核心突破

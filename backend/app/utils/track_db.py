@@ -53,7 +53,7 @@ def find_track_in_registry(search_name: str):
     return None, None
 
 TRACK_REGISTRY = {
-    "Bahrain": {
+    "Bahrain International Circuit": {
         "aliases": ["Sakhir"],
         "layouts": {
             "Default": {
@@ -79,7 +79,7 @@ TRACK_REGISTRY = {
                     { "dist": 5412, "alt": 10.0, "corner": "Start/Finish" }
                 ]
             },
-            "Endurance": {
+            "Endurance Circuit": {
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish Line" },
                     { "dist": 450, "alt": 6.8, "corner": "T1 Apex" },
@@ -97,7 +97,7 @@ TRACK_REGISTRY = {
                     { "dist": 6299, "alt": 10.0, "corner": "Start/Finish Line" }
                 ]
             },
-            "Outer": {
+            "Outer Circuit": {
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish Line" },
                     { "dist": 250, "alt": 9.2, "corner": "T1 Braking" },
@@ -113,7 +113,7 @@ TRACK_REGISTRY = {
                     { "dist": 3543, "alt": 10.0, "corner": "Start/Finish Line" }
                 ]
             },
-            "Paddock": {
+            "Paddock Circuit": {
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish Line" },
                     { "dist": 1400, "alt": 21.2, "corner": "T4 Apex" },
@@ -121,13 +121,13 @@ TRACK_REGISTRY = {
                     { "dist": 1950, "alt": 15.5, "corner": "Paddock Link Mid (下坡)" },
                     { "dist": 2300, "alt": 12.0, "corner": "Re-joining GP T14" },
                     { "dist": 2700, "alt": 10.8, "corner": "T15 Exit" },
-                    { "dist": 3823, "alt": 10.0, "corner": "Start/Finish Line" }
+                    { "dist": 3705, "alt": 10.0, "corner": "Start/Finish Line" }
                 ]
             }
         }
     },
-    "Circuit de La Sarthe - Le Mans": {
-        "aliases": ["Le Mans", "Circuit de la Sarthe", "Sarthe"],
+    "Circuit de La Sarthe": {
+        "aliases": ["Le Mans", "Circuit de la Sarthe", "Sarthe", "Le Mans"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -157,7 +157,7 @@ TRACK_REGISTRY = {
                     { "dist": 13626, "alt": 51.0, "corner": "Start/Finish Line" }
                 ]
             },
-            "Mulsanne Circuit (no chicanes)": {
+            "Mulsanne Circuit": {
                 "ref_points": [
                     { "dist": 0, "alt": 51.0, "corner": "Start/Finish Line" },
                     { "dist": 250, "alt": 52.5, "corner": "Dunlop Curve Entry" },
@@ -189,8 +189,8 @@ TRACK_REGISTRY = {
             }
         }
     },
-    "Circuit Paul Ricard": {
-        "aliases": ["Le Castellet"],
+    "Paul Ricard": {
+        "aliases": ["Le Castellet", "Paul Ricard - ELMS"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -203,13 +203,65 @@ TRACK_REGISTRY = {
                     { "dist": 4100, "alt": 432.0, "corner": "Signes (最快的高速右彎 - 最低點)" },
                     { "dist": 4600, "alt": 434.0, "corner": "Double Droite du Beausset" },
                     { "dist": 5200, "alt": 437.0, "corner": "Bendor / Village" },
-                    { "dist": 5770, "alt": 438.0, "corner": "Start/Finish Line" }
+                    { "dist": 5842, "alt": 438.0, "corner": "Start/Finish Line" }
                 ]
+            },
+            "Layout 1A": { 
+                "ref_points": [
+                    { "dist": 0, "alt": 438.0, "corner": "Start of Lap (Main Straight)" },
+                    { "dist": 250, "alt": 437.0, "corner": "T1 Braking Zone" },
+                    { "dist": 380, "alt": 435.5, "corner": "T1 Apex (Verrerie - 對齊你的計時邏輯)" },
+                    { "dist": 600, "alt": 434.0, "corner": "T2 Apex" },
+                    { "dist": 1100, "alt": 440.0, "corner": "T3/T4 (Hotel/Camp)" },
+                    { "dist": 1600, "alt": 442.5, "corner": "T5 (Start of Mistral Straight)" },
+                    { "dist": 2500, "alt": 444.0, "corner": "Mistral Mid (High Point)" },
+                    { "dist": 3500, "alt": 438.0, "corner": "Approaching Signes" },
+                    { "dist": 4100, "alt": 432.0, "corner": "Signes Apex (Lowest Point)" },
+                    { "dist": 4600, "alt": 434.5, "corner": "Double Droite du Beausset" },
+                    { "dist": 5100, "alt": 436.0, "corner": "Bendor" },
+                    { "dist": 5450, "alt": 437.5, "corner": "T14 (Final Corner)" },
+                    { "dist": 5752, "alt": 438.0, "corner": "Lap End" }
+                ] },
+            "Layout 1A-V2": { 
+                "ref_points": [
+                    { "dist": 0, "alt": 438.0, "corner": "Start Line" },
+                    { "dist": 650, "alt": 435.5, "corner": "T1/T2 (Verrerie)" },
+                    { "dist": 1200, "alt": 440.0, "corner": "T3/T4" },
+                    { "dist": 1800, "alt": 442.5, "corner": "Mistral Entry" },
+                    { "dist": 2800, "alt": 444.0, "corner": "Mistral Chicane Approach" },
+                    { "dist": 3100, "alt": 438.0, "corner": "Chicane Apex (Downhill)" },
+                    { "dist": 4200, "alt": 432.0, "corner": "Signes (Lowest Point)" },
+                    { "dist": 4800, "alt": 434.5, "corner": "Beausset" },
+                    { "dist": 5842, "alt": 438.0, "corner": "Finish" }
+                ] 
+            },
+            "Layout 1A-V2-Short": { 
+                "ref_points": [
+                    { "dist": 0, "alt": 438.0, "corner": "Start of Lap" },
+                    { "dist": 380, "alt": 435.5, "corner": "T1 Apex" },
+                    { "dist": 1100, "alt": 440.0, "corner": "T3/T4" },
+                    { "dist": 2000, "alt": 444.5, "corner": "Mistral Straight (Short Version)" },
+                    { "dist": 2800, "alt": 440.0, "corner": "Short Cut Link Entry" },
+                    { "dist": 3200, "alt": 435.0, "corner": "Link Transition (Descent)" },
+                    { "dist": 3650, "alt": 433.0, "corner": "Re-joining Beausset (Lowest Point)" },
+                    { "dist": 4200, "alt": 435.5, "corner": "Bendor" },
+                    { "dist": 4800, "alt": 437.0, "corner": "T14/T15" },
+                    { "dist": 5227, "alt": 438.0, "corner": "Lap End" }
+                ] 
+            },
+            "Layout 3A": { 
+                "ref_points": [
+                    { "dist": 0, "alt": 438.0, "corner": "Start Line" },
+                    { "dist": 650, "alt": 435.0, "corner": "T1" },
+                    { "dist": 1200, "alt": 442.0, "corner": "Short Cut Link (T4 to T11)" },
+                    { "dist": 2000, "alt": 434.0, "corner": "Re-joining Beausset" },
+                    { "dist": 3793, "alt": 438.0, "corner": "Finish" }
+                ] 
             }
         }
     },
-    "COTA": {
-        "aliases": ["Circuit of the Americas", "Austin"],
+    "Circuit of the Americas": {
+        "aliases": ["COTA", "Austin"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -247,8 +299,8 @@ TRACK_REGISTRY = {
             }
         }
     },
-    "Fuji": {
-        "aliases": ["Fuji Speedway"],
+    "Fuji Speedway": {
+        "aliases": ["Fuji"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -282,8 +334,8 @@ TRACK_REGISTRY = {
             }
         }
     },
-    "Imola": {
-        "aliases": ["Autodromo Internazionale Enzo e Dino Ferrari"],
+    "Autodromo Internazionale Enzo e Dino Ferrari": {
+        "aliases": ["Imola"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -307,8 +359,8 @@ TRACK_REGISTRY = {
             }
         }
     },
-    "Interlagos": {
-        "aliases": ["Jose Carlos Pace", "Sao Paulo", "Autódromo José Carlos Pace", "Autodromo Jose Carlos Pace"],
+    "Autodromo Jose Carlos Pace": {
+        "aliases": ["Jose Carlos Pace", "Sao Paulo", "Autódromo José Carlos Pace", "Interlagos"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -325,12 +377,13 @@ TRACK_REGISTRY = {
                     { "dist": 3550, "alt": 750.0, "corner": "Mergulho (最後的小谷底)" },
                     { "dist": 3800, "alt": 768.5, "corner": "Junção (關鍵爬坡起點)" },
                     { "dist": 4100, "alt": 776.5, "corner": "Subida dos Boxes (全油門爬坡)" },
-                    { "dist": 4314, "alt": 780.0, "corner": "Start/Finish Line" }
+                    { "dist": 4309, "alt": 780.0, "corner": "Start/Finish Line" }
                 ]
             }
         }
     },
-    "Lusail (Qatar)": {
+    "Lusail International Circuit": {
+        "aliases": ["Qatar"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -366,8 +419,8 @@ TRACK_REGISTRY = {
             }
         }
     },
-    "Monza": {
-        "aliases": ["Autodromo Nazionale Monza"],
+    "Autodromo Nazionale Monza": {
+        "aliases": ["Monza"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -411,8 +464,8 @@ TRACK_REGISTRY = {
             }
         }
     },
-    "Portimao": {
-        "aliases": ["Algarve International Circuit", "Algarve"],
+    "Algarve International Circuit": {
+        "aliases": ["Portimao", "Algarve"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -436,7 +489,8 @@ TRACK_REGISTRY = {
             }
         }
     },
-    "Sebring": {
+    "Sebring International Raceway": {
+        "aliases": ["Sebring"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -476,27 +530,54 @@ TRACK_REGISTRY = {
         "layouts": {
             "Default": {
                 "ref_points": [
-                    { "dist": 0, "alt": 150.0, "corner": "Start/Finish" },
-                    { "dist": 450, "alt": 149.2, "corner": "Abbey/Farm" },
-                    { "dist": 850, "alt": 148.2, "corner": "The Loop (Lowest)" },
-                    { "dist": 1200, "alt": 149.5, "corner": "Aintree" },
-                    { "dist": 1800, "alt": 151.8, "corner": "Wellington Straight" },
-                    { "dist": 2200, "alt": 153.2, "corner": "Brooklands/Luffield" },
-                    { "dist": 2600, "alt": 154.5, "corner": "Woodcote" },
-                    { "dist": 2900, "alt": 155.8, "corner": "Copse (Highest)" },
-                    { "dist": 3300, "alt": 154.0, "corner": "Maggots" },
-                    { "dist": 3600, "alt": 152.5, "corner": "Becketts" },
-                    { "dist": 3900, "alt": 151.2, "corner": "Chapel" },
-                    { "dist": 4400, "alt": 150.5, "corner": "Hangar Straight" },
-                    { "dist": 5100, "alt": 152.8, "corner": "Stowe Apex" },
-                    { "dist": 5500, "alt": 151.5, "corner": "Vale/Club" },
-                    { "dist": 5891, "alt": 150.0, "corner": "Start/Finish" }
+                    { "dist": 0, "alt": 154.5, "corner": "Start of Lap (Near Woodcote Exit)" },
+                    { "dist": 200, "alt": 155.2, "corner": "Old National Straight" },
+                    { "dist": 380, "alt": 155.8, "corner": "T1 Apex (Copse - Highest Point)" },
+                    { "dist": 800, "alt": 154.0, "corner": "T2 (Maggots)" },
+                    { "dist": 1100, "alt": 152.5, "corner": "T3 (Becketts)" },
+                    { "dist": 1400, "alt": 151.2, "corner": "T4 (Chapel)" },
+                    { "dist": 2000, "alt": 150.5, "corner": "Hangar Straight" },
+                    { "dist": 2700, "alt": 152.8, "corner": "T7 (Stowe)" },
+                    { "dist": 3150, "alt": 151.2, "corner": "T8/T9 (Vale / Club)" },
+                    { "dist": 3550, "alt": 150.0, "corner": "Hamilton Straight (New Pits)" },
+                    { "dist": 3950, "alt": 149.2, "corner": "T12 (Abbey - 舊版 T1)" },
+                    { "dist": 4150, "alt": 148.8, "corner": "T13 (Farm Curve)" },
+                    { "dist": 4450, "alt": 148.0, "corner": "T15 (The Loop - Lowest Point)" },
+                    { "dist": 4700, "alt": 149.5, "corner": "T16 (Aintree)" },
+                    { "dist": 5200, "alt": 151.8, "corner": "Wellington Straight" },
+                    { "dist": 5550, "alt": 153.2, "corner": "Brooklands / Luffield" },
+                    { "dist": 5800, "alt": 154.5, "corner": "Woodcote Entry" },
+                    { "dist": 5890, "alt": 154.5, "corner": "Lap End / Crossing Line" }
                 ]
+            },
+            "International Circuit": { 
+                "ref_points": [
+                    { "dist": 0, "alt": 150.0, "corner": "Start Line (Hamilton Straight)" },
+                    { "dist": 450, "alt": 149.2, "corner": "Abbey / Farm" },
+                    { "dist": 850, "alt": 148.2, "corner": "The Loop (Lowest Point)" },
+                    { "dist": 1100, "alt": 149.5, "corner": "Aintree" },
+                    { "dist": 1300, "alt": 150.5, "corner": "Entering International Link" },
+                    { "dist": 1600, "alt": 152.0, "corner": "Link Mid (Crest)" },
+                    { "dist": 1900, "alt": 153.5, "corner": "Re-joining Stowe" },
+                    { "dist": 2300, "alt": 151.0, "corner": "Vale / Club" },
+                    { "dist": 2979, "alt": 150.0, "corner": "Finish" }
+                ] 
+            },
+            "National Circuit": { 
+                "ref_points": [
+                    { "dist": 0, "alt": 155.0, "corner": "Start Line (Woodcote/Copse)" },
+                    { "dist": 350, "alt": 155.8, "corner": "Copse Apex (Highest)" },
+                    { "dist": 600, "alt": 154.5, "corner": "Becketts Entry" },
+                    { "dist": 900, "alt": 152.0, "corner": "National Link (橫穿段)" },
+                    { "dist": 1400, "alt": 150.5, "corner": "Re-joining Brooklands" },
+                    { "dist": 1900, "alt": 153.5, "corner": "Luffield" },
+                    { "dist": 2639, "alt": 155.0, "corner": "Finish" }
+                ] 
             }
         }
     },
-    "Spa-Francorchamps": {
-        "aliases": ["Spa"],
+    "Circuit de Spa-Francorchamps": {
+        "aliases": ["Spa", "Spa-Francorchamps"],
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -522,11 +603,36 @@ TRACK_REGISTRY = {
                     { "dist": 6850, "alt": 408.0, "corner": "Bus Stop Chicane" },
                     { "dist": 7004, "alt": 410.0, "corner": "Start/Finish Line" }
                 ]
+            },
+            "Endurance Circuit": { 
+                "ref_points": [
+                    { "dist": 0, "alt": 410.0, "corner": "Start/Finish Line (F1 Pits)" },
+                    { "dist": 250, "alt": 412.5, "corner": "La Source (Turn 1)" },
+                    { "dist": 450, "alt": 390.0, "corner": "Endurance Pits Exit (下坡開始)" },
+                    { "dist": 700, "alt": 358.0, "corner": "Eau Rouge (全場最低點)" },
+                    { "dist": 800, "alt": 375.0, "corner": "Raidillon Compression (急陡坡)" },
+                    { "dist": 950, "alt": 398.0, "corner": "Raidillon Crest (盲彎坡頂)" },
+                    { "dist": 1400, "alt": 440.0, "corner": "Kemmel Straight (持續爬升)" },
+                    { "dist": 1850, "alt": 468.0, "corner": "Les Combes Braking (全場最高點)" },
+                    { "dist": 2100, "alt": 460.0, "corner": "Malmedy" },
+                    { "dist": 2550, "alt": 445.0, "corner": "Bruxelles (Rivage - 下坡髮夾彎)" },
+                    { "dist": 2900, "alt": 425.0, "corner": "Speaker's Corner (No Name)" },
+                    { "dist": 3400, "alt": 395.0, "corner": "Pouhon Entry (Double Gauche)" },
+                    { "dist": 3800, "alt": 388.0, "corner": "Pouhon Exit" },
+                    { "dist": 4350, "alt": 390.0, "corner": "Fagnes (Campus)" },
+                    { "dist": 4850, "alt": 375.0, "corner": "Stavelot Corner" },
+                    { "dist": 5250, "alt": 370.0, "corner": "Courbe Paul Frère" },
+                    { "dist": 5800, "alt": 385.0, "corner": "Blanchimont 1 (微上坡高速彎)" },
+                    { "dist": 6250, "alt": 395.0, "corner": "Blanchimont 2" },
+                    { "dist": 6700, "alt": 405.0, "corner": "Bus Stop Braking Zone" },
+                    { "dist": 6850, "alt": 408.0, "corner": "Bus Stop Chicane" },
+                    { "dist": 7004, "alt": 410.0, "corner": "Start/Finish Line" }
+                ] 
             }
         }
     },
-    "Circuit de Barcelona-Catalunya": {
-        "aliases": ["Circuit de Barcelona", "Catalunya"],
+    "Circuit de Barcelona": {
+        "aliases": ["Circuit de Barcelona", "Catalunya", "Circuit de Barcelona-Catalunya"],
         "layouts": {
             "Default": {
                 "ref_points": [
