@@ -54,30 +54,55 @@ To use this lab, you must first enable telemetry recording in **Le Mans Ultimate
 
 ### 🛠️ Feature Focus
 
+<p align="center"><b>1. Entry & Session Selection</b></p>
 <table align="center">
   <tr>
-    <td align="center"><b>2D Track Map (Expanded)</b></td>
-    <td align="center"><b>Heading-Up View (3D)</b></td>
+    <td><img src="screenshots/home_page.png" width="400" alt="Home Page"/></td>
+    <td><img src="screenshots/after_select_a_file.png" width="400" alt="Session Selected"/></td>
+  </tr>
+</table>
+
+<p align="center"><b>2. 2D Track Map Modes</b></p>
+<table align="center">
+  <tr>
+    <td align="center"><b>Static View</b></td>
+    <td align="center"><b>Follow View</b></td>
+    <td align="center"><b>Heading-Up</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/expand_2d_map.png" width="400"/></td>
+    <td><img src="screenshots/static_view.png" width="260"/></td>
+    <td><img src="screenshots/follow_view.png" width="260"/></td>
+    <td><img src="screenshots/heading_up_view.png" width="260"/></td>
+  </tr>
+</table>
+
+<p align="center"><b>3. Advanced 3D Visualization</b></p>
+<table align="center">
+  <tr>
+    <td align="center"><b>3D Follow View</b></td>
+    <td align="center"><b>3D Heading-Up</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/follow_view_3d.png" width="400"/></td>
     <td><img src="screenshots/heading_up_view_3d.png" width="400"/></td>
   </tr>
+</table>
+
+<p align="center"><b>4. Cross-Session Reference Analysis</b></p>
+<p align="center">
+  <img src="screenshots/with_reference_lap.png" width="800" alt="Reference Lap Comparison"/>
+  <br/><em>Comparison with ghost car and live delta HUD</em>
+</p>
+
+<p align="center"><b>5. Personalization & Settings</b></p>
+<table align="center">
   <tr>
-    <td align="center"><b>Input Overlap Control</b></td>
-    <td align="center"><b>Telemtry Settings</b></td>
-  </tr>
-  <tr>
-    <td><img src="screenshots/toggle_input_overlap.png" width="400"/></td>
-    <td><img src="screenshots/setting.png" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>User Profiles</b></td>
-    <td align="center"><b>MiniMap Integration</b></td>
+    <td align="center"><b>User Profile</b></td>
+    <td align="center"><b>Application Settings</b></td>
   </tr>
   <tr>
     <td><img src="screenshots/personal_profile.png" width="400"/></td>
-    <td><img src="screenshots/toggle_minimap.png" width="400"/></td>
+    <td><img src="screenshots/setting.png" width="400"/></td>
   </tr>
 </table>
 
