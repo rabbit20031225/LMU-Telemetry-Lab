@@ -8,7 +8,7 @@ __pycache__/
 *.pyd
 *.egg-info/
 dist/
-build/
+/build/
 
 # ===========================
 # Node / Frontend
@@ -32,6 +32,7 @@ fused_data_*/
 # Debug Output & Logs
 # ===========================
 *.log
+/backend/backend_debug.log
 *.txt
 *.html
 
@@ -49,6 +50,7 @@ elevation_diagnostics.json
 # Build Artifacts
 # ===========================
 *.spec.bak
+/build/
 
 # ===========================
 # Scratch / Temp

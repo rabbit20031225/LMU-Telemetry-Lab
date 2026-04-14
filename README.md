@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="desktop/build/icon.png" width="100" alt="LMU Telemetry Lab Logo"/>
+  <img src="frontend/public/lmu_logo.png" width="100" alt="LMU Telemetry Lab Logo"/>
   <h1>LMU Telemetry Lab</h1>
   <p>A professional race telemetry analysis tool for <strong>Le Mans Ultimate</strong></p>
   <p>
