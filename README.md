@@ -27,7 +27,42 @@
 
 ## 📸 Screenshots
 
-> *(Add screenshots here after first release)*
+### 🏎️ Professional Analysis Dashboard
+<p align="center">
+  <img src="screenshots/follow_view_3d.png" width="800" alt="3D Follow View"/>
+  <br/><em>Zero-lag 3D Track Map with Real-time Telemetry Overlay</em>
+</p>
+
+---
+
+### 🛠️ Feature Focus
+
+<table align="center">
+  <tr>
+    <td align="center"><b>2D Track Map (Expanded)</b></td>
+    <td align="center"><b>Heading-Up View (3D)</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/expand_2d_map.png" width="400"/></td>
+    <td><img src="screenshots/heading_up_view_3d.png" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Input Overlap Control</b></td>
+    <td align="center"><b>Telemtry Settings</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/toggle_input_overlap.png" width="400"/></td>
+    <td><img src="screenshots/setting.png" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>User Profiles</b></td>
+    <td align="center"><b>MiniMap Integration</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/personal_profile.png" width="400"/></td>
+    <td><img src="screenshots/toggle_minimap.png" width="400"/></td>
+  </tr>
+</table>
 
 ---
 

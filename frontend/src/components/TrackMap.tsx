@@ -1101,25 +1101,25 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             <div className="glass-content flex-1 flex flex-col relative z-10 w-full h-full">
                 {/* Title Overlay */}
                 {!isMiniMap && (
-                    <>
-                        <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] m-4 absolute top-0 left-0 z-10 pointer-events-auto drop-shadow-md transition-all duration-300 group-hover:text-white group-hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">Track Map</h3>
-                        
-                        {/* HUD: Top Center Telemetry (Parity with 3D) */}
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto">
-                            <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center shadow-2xl glass-container overflow-hidden" 
-                                onMouseMove={handleGlassMouseMove}>
-                                <div className="glass-content px-6 py-2.5 flex items-center">
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Dist</span>
-                                        <span className="text-[18px] font-black text-blue-400 tabular-nums tracking-tighter leading-none">
-                                            {carStats.dist !== null ? (carStats.dist / 1000).toFixed(2) : "--.--"}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">km</span>
-                                    </div>
+                    <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] m-4 absolute top-0 left-0 z-10 pointer-events-auto drop-shadow-md transition-all duration-300 group-hover:text-white group-hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">Track Map</h3>
+                )}
+                
+                {/* HUD: Top Center Telemetry (Parity with 3D) */}
+                {isExpanded && !isMiniMap && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto">
+                        <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center shadow-2xl glass-container overflow-hidden" 
+                            onMouseMove={handleGlassMouseMove}>
+                            <div className="glass-content px-6 py-2.5 flex items-center">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Dist</span>
+                                    <span className="text-[18px] font-black text-blue-400 tabular-nums tracking-tighter leading-none">
+                                        {carStats.dist !== null ? (carStats.dist / 1000).toFixed(2) : "--.--"}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">km</span>
                                 </div>
                             </div>
                         </div>
-                    </>
+                    </div>
                 )}
 
                 {/* Dynamic Telemetry Overlays */}
