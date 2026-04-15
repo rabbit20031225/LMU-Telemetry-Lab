@@ -105,10 +105,13 @@ export const SessionInfo: React.FC<SessionInfoProps> = ({ sessionMetadata, refer
         if (currentLap) {
             const trackTempChannel = telemetryData['Track Temperature'];
 
-            if (trackTempChannel && trackTempChannel.length > cursorIndex) {
-                const rawTemp = trackTempChannel[cursorIndex];
-                const displayTemp = tempUnit === 'f' ? (rawTemp * 1.8 + 32) : rawTemp;
-                trackTempDisplay = Math.round(displayTemp).toString();
+            const baseIdx = Math.floor(cursorIndex);
+            if (trackTempChannel && trackTempChannel.length > baseIdx) {
+                const rawTemp = trackTempChannel[baseIdx];
+                if (rawTemp !== undefined) {
+                    const displayTemp = tempUnit === 'f' ? (rawTemp * 1.8 + 32) : rawTemp;
+                    trackTempDisplay = Math.round(displayTemp).toString();
+                }
             }
         }
     }

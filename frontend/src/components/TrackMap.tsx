@@ -260,7 +260,8 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             lastValidLat = curLat;
             const curWidth = rawWidths[i];
             let draw = true;
-            if (sourceInPits[idx] > 0.5) draw = false;
+            const sourceInPitsSafe = sourceInPits;
+            if (sourceInPitsSafe && Array.isArray(sourceInPitsSafe) && sourceInPitsSafe[idx] > 0.5) draw = false;
             if (Math.abs(curLat) > curWidth * 2.5) draw = false;
 
             const degM = 111320;
@@ -768,8 +769,8 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
 
-            const b = brake[idx] || 0;
-            const t = throttle[idx] || 0;
+            const b = (brake && Array.isArray(brake)) ? (brake[idx] || 0) : 0;
+            const t = (throttle && Array.isArray(throttle)) ? (throttle[idx] || 0) : 0;
 
             if (isMiniMap) {
                 ctx.strokeStyle = 'rgba(150, 150, 150, 0.8)'; // Solid gray for mini-map
@@ -852,7 +853,9 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
         if (activeCursorIdx !== null && telemetryData) {
             const drawCursorAtIdx = (idx: number, color: string, radius: number, glow: boolean, sourceData: any, isArrow: boolean) => {
                 const baseIdx = Math.floor(idx);
-                const nextIdx = Math.min(sourceData['GPS Latitude']!.length - 1, baseIdx + 1);
+                const latitudeArray = sourceData['GPS Latitude'];
+                if (!latitudeArray || latitudeArray.length === 0) return;
+                const nextIdx = Math.min(latitudeArray.length - 1, baseIdx + 1);
                 const frac = idx - baseIdx;
 
                 const lat1 = sourceData['GPS Latitude']?.[baseIdx];
@@ -1065,8 +1068,8 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
         if (validEIdx === sIdx) return fallback;
 
         const currentIdx = smoothCursorIndex ?? cursorIndex;
-        const progress = (cursorIndex - sIdx) / (validEIdx - sIdx || 1);
-        const elapsed = Math.max(0, time[cursorIndex] - currentLap.startTime);
+        const progress = (currentIdx - sIdx) / (validEIdx - sIdx || 1);
+        const elapsed = Math.max(0, (time[Math.floor(currentIdx)] ?? 0) - currentLap.startTime);
         return { progress, currentTime: formatLapTime(elapsed) };
     }, [telemetryData, laps, selectedLapIdx, cursorIndex]);
 

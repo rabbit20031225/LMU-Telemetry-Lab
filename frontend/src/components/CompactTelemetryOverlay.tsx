@@ -44,26 +44,28 @@ export const CompactTelemetryOverlay = React.memo(({
 
         const getVal = (chan: string, alt?: string) => {
             const d = data[chan] || data[alt || ''];
-            if (!d) return 0;
-            return (d[idx] || 0) + ((d[nextIdx] || 0) - (d[idx] || 0)) * frac;
+            if (!Array.isArray(d)) return 0;
+            const v0 = d[idx] ?? 0;
+            const v1 = d[nextIdx] ?? v0;
+            return v0 + (v1 - v0) * frac;
         };
 
         const speedRaw = getVal('Ground Speed', 'Speed');
         const speed = speedUnit === 'mph' ? speedRaw * 0.621371 : speedRaw;
 
-        let gear = data['Gear'] ? data['Gear'][idx] : 'N';
+        let gear = (data['Gear'] && Array.isArray(data['Gear'])) ? (data['Gear'][idx] ?? 'N') : 'N';
 
         // --- Filter transient zeros (shift spikes) matching TelemetryChart logic ---
         if (gear === 0 && data['Gear']) {
             let prevNonZero = 0;
             // Look back up to 15 samples
             for (let j = idx - 1; j >= Math.max(0, idx - 15); j--) {
-                if (data['Gear'][j] !== 0) { prevNonZero = data['Gear'][j]; break; }
+                if (data['Gear']?.[j] !== 0) { prevNonZero = data['Gear']?.[j] ?? 0; break; }
             }
             let nextNonZero = 0;
             // Look ahead up to 15 samples
             for (let j = idx + 1; j < Math.min(idx + 15, data['Gear'].length); j++) {
-                if (data['Gear'][j] !== 0) { nextNonZero = data['Gear'][j]; break; }
+                if (data['Gear']?.[j] !== 0) { nextNonZero = data['Gear']?.[j] ?? 0; break; }
             }
             if (prevNonZero !== 0 && nextNonZero !== 0) {
                 gear = prevNonZero;

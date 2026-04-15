@@ -190,9 +190,9 @@ const FuelDashboard = memo(({ data, cursorIndex, fuelCapacity, theme = 'current'
     const nextIdx = Math.min(channel.length - 1, baseIdx + 1);
     const frac = cursorIndex - baseIdx;
 
-    const v1Raw = channel[baseIdx];
+    const v1Raw = Array.isArray(channel) ? channel[baseIdx] : undefined;
     const v1 = (typeof v1Raw === 'number') ? v1Raw : (Array.isArray(v1Raw) ? v1Raw[0] : 0);
-    const v2Raw = channel[nextIdx];
+    const v2Raw = Array.isArray(channel) ? channel[nextIdx] : undefined;
     const v2 = (typeof v2Raw === 'number') ? v2Raw : (Array.isArray(v2Raw) ? v2Raw[0] : v1);
 
     return v1 + (v2 - v1) * frac;
@@ -1292,6 +1292,7 @@ function App() {
                           if (!source || !source[chan] || idx === null) return null;
 
                           const channel = source[chan];
+                          if (!Array.isArray(channel)) return null;
                           const baseIdx = Math.floor(idx);
                           const nextIdx = Math.min(channel.length - 1, baseIdx + 1);
                           const frac = idx - baseIdx;
@@ -1310,8 +1311,9 @@ function App() {
                           for (let i = 0; i < arr.length; i++) if (arr[i] > m) m = arr[i];
                           return m;
                         };
-                        const maxSpeed = telemetryData?.['Ground Speed'] ? getMax(telemetryData['Ground Speed']) : 300;
-                        const maxGear = telemetryData?.['Gear'] ? getMax(telemetryData['Gear']) : 8;
+
+                        const maxSpeed = (telemetryData?.['Ground Speed'] && Array.isArray(telemetryData['Ground Speed'])) ? getMax(telemetryData['Ground Speed']) : 300;
+                        const maxGear = (telemetryData?.['Gear'] && Array.isArray(telemetryData['Gear'])) ? getMax(telemetryData['Gear']) : 8;
                         const refIdx = dashboardSyncMode === 'time' ? referenceCursorIndex : referenceDeltaIndex;
                         const hasRef = (!!referenceTelemetryData || referenceLapIdx !== null) && refIdx !== null;
                         const refData = referenceTelemetryData || telemetryData;

@@ -383,7 +383,11 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const mainDist = telemetryData['Lap Dist'];
         const mainLapChan = telemetryData['Lap'];
         const currentLap = laps.find(l => l.lap === selectedLapIdx);
-        if (!mainTime || !currentLap || !mainLapChan) {
+
+        if (!mainTime || !mainDist || !currentLap || !mainLapChan) {
+            if (!mainDist && telemetryData && Object.keys(telemetryData).length > 0) {
+                console.warn("syncReferenceIndex: 'Lap Dist' channel missing from main telemetry data");
+            }
             set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null });
             return;
         }
@@ -417,7 +421,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             return;
         }
 
-        const findIndexInChannelRange = (channel: number[], target: number, s: number, e: number) => {
+        const findIndexInChannelRange = (channel: number[] | undefined, target: number, s: number, e: number) => {
+            if (!channel || s === -1 || e === -1 || isNaN(target)) return s;
             let low = s, high = e;
             while (low <= high) {
                 const mid = (low + high) >>> 1;
@@ -428,6 +433,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             const idxB = Math.max(s, Math.min(e, low));
             if (idxA === idxB) return idxA;
             const vA = channel[idxA], vB = channel[idxB];
+            if (vA === undefined || vB === undefined) return idxA;
             const span = vB - vA;
             return idxA + (span > 0 ? (target - vA) / span : 0);
         };
@@ -439,17 +445,21 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         // TIME SYNC (For Ghost Car Position & Telemetry Values)
         const t1 = mainTime[baseIdx];
         const t2 = mainTime[nextIdx];
-        const curAbsTime = t1 + (t2 - t1) * frac;
-        const mainElapsed = curAbsTime - mainTime[curLineS];
+        if (t1 === undefined) {
+            set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null });
+            return;
+        }
+        const curAbsTime = t1 + ((t2 !== undefined) ? (t2 - t1) * frac : 0);
+        const mainElapsed = curAbsTime - (mainTime[curLineS] || 0);
 
         const targetRefTime = refTime[refLineS] + mainElapsed;
         const finalTimeIdx = findIndexInChannelRange(refTime, targetRefTime, refLineS, refLineE);
 
         // DISTANCE SYNC (For Delta Calculation)
-        const d1 = mainDist[baseIdx] || 0;
-        const d2 = mainDist[nextIdx] || 0;
+        const d1 = mainDist[baseIdx] ?? 0;
+        const d2 = mainDist[nextIdx] ?? d1;
         const currentTotalDist = d1 + (d2 - d1) * frac;
-        const relDist = currentTotalDist - mainDist[curLineS];
+        const relDist = currentTotalDist - (mainDist[curLineS] ?? 0);
 
         const targetRefDist = refDist[refLineS] + relDist;
         const finalDeltaIdx = findIndexInChannelRange(refDist, targetRefDist, refLineS, refLineE);
@@ -460,6 +470,11 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const fracD = finalDeltaIdx - baseD;
 
         const rt1 = refTime[baseD], rt2 = refTime[nextD];
+        if (rt1 === undefined || rt2 === undefined) {
+            set({ referenceCursorIndex: finalTimeIdx, referenceDeltaIndex: finalDeltaIdx, liveDelta: null });
+            return;
+        }
+
         const refAbsTimeAtSameDist = rt1 + fracD * (rt2 - rt1);
         const refElapsed = refAbsTimeAtSameDist - refTime[refLineS];
 

@@ -3,7 +3,7 @@
   <h1>LMU Telemetry Lab</h1>
   <p>A professional race telemetry analysis tool for <strong>Le Mans Ultimate</strong></p>
   <p>
-    <img src="https://img.shields.io/badge/version-1.2.1-blue" />
+    <img src="https://img.shields.io/badge/version-1.2.2-blue" />
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey" />
     <img src="https://img.shields.io/badge/license-MIT-green" />
     <img src="https://img.shields.io/badge/data-LMU_v1.3.1.2-orange" />

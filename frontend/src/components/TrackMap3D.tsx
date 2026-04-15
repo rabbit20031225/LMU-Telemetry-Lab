@@ -68,7 +68,7 @@ const getCarTransform = (telemetryData: any, cursorIndex: number | null, smoothC
     const lat2 = lats[nextIdx];
     const lon2 = lons[nextIdx];
 
-    if (lat1 === undefined || lon1 === undefined) return null;
+    if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return null;
 
     const lat = lat1 + (lat2 - lat1) * frac;
     const lon = lon1 + (lon2 - lon1) * frac;
@@ -93,10 +93,12 @@ const getCarTransform = (telemetryData: any, cursorIndex: number | null, smoothC
         }
     } else {
         let z = 0;
-        if (alt && alt[baseIdx] !== undefined) {
+        if (alt && Array.isArray(alt)) {
             const z1 = alt[baseIdx];
             const z2 = alt[nextIdx];
-            z = ((z1 + (z2 - z1) * frac) - zBase) * zScale;
+            if (z1 !== undefined) {
+                z = ((z1 + (z2 !== undefined ? (z2 - z1) * frac : 0)) - zBase) * zScale;
+            }
         }
         targetZ = z;
     }
@@ -120,7 +122,7 @@ const getCarTransform = (telemetryData: any, cursorIndex: number | null, smoothC
         const lookAheadSteps = Math.min(5, Math.max(1, trackPoints.length - 1));
         const nextIdx = (trackClosestIdx + lookAheadSteps) % trackPoints.length;
         const p2 = trackPoints[nextIdx];
-        if (p1.x !== undefined && p2.x !== undefined) {
+        if (p1 && p2 && p1.x !== undefined && p2.x !== undefined) {
             const dx = p2.x - p1.x;
             const dy = p2.y - p1.y;
             const dist2D = Math.sqrt(dx * dx + dy * dy);
@@ -684,8 +686,9 @@ export const TrackMap3D = () => {
 
         if (validEIdx === sIdx) return fallback;
 
-        const progress = (cursorIndex - sIdx) / (validEIdx - sIdx || 1);
-        const elapsed = Math.max(0, (time[cursorIndex] || 0) - startTime);
+        const currentIdx = smoothCursorIndex ?? cursorIndex;
+        const progress = (currentIdx - sIdx) / (validEIdx - sIdx || 1);
+        const elapsed = Math.max(0, (time[Math.floor(currentIdx)] || 0) - startTime);
         return { progress, currentTime: formatLapTime(elapsed) };
     }, [telemetryData, lapBounds, cursorIndex]);
 

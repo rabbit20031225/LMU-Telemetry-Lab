@@ -1,3 +1,14 @@
+## 🟢 [2026-04-15] Telemetry v1.2.2 - 穩定性加固與平滑播放修復 (Hardened Update)
+*   **系統穩定性防禦 (System Hardening)**：
+    *   **深度防禦機制 (Zero-Tolerance Audit)**：針對 COTA 等特殊 Session 檔案常見的「數據渠道缺失」問題，進行了全域性的加固。即使在單圈數據不完全的情況下，介面也能優雅降級顯示為 "--" 而非崩潰。
+    *   **全域索引邊界檢查**：為 `F1Dashboard`、`TrackMap`、`TrackMap3D` 以及其餘裝飾性組件補齊了數十處數值取值安全鎖。
+*   **平滑播放修復 (Smooth Playback Fix)**：
+    *   **時間顯示校正**：解決了 v1.2.0 平滑播放功能引入的「浮點數索引偏移」問題。透過強制取整 (Math.floor)，修復了播放時 Hud 與時間軸數字卡在 `0:00.000` 的 Bug。
+*   **介面清理 (Code Polish)**：
+    *   優化 `App.tsx` 的數據取值 helper 效能，移除冗餘的邏輯開銷。
+
+---
+
 ## 🟢 [2026-04-15] Telemetry v1.2.1 - 賽道數據同步 (LMU v1.3.1.2)
 *   **賽道庫大更新 (Track DB Expansion)**：
     *   **資料同步**：全面對標 Le Mans Ultimate v1.3.1.2 遊戲數據。

@@ -61,25 +61,22 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     // Helper: Linear Interpolation
     const interp = (xTarget: Float64Array | number[], xSource: Float64Array | number[], ySource: Float64Array | number[]) => {
         const yResult = new Float64Array(xTarget.length);
+        if (xSource.length === 0 || ySource.length === 0) return yResult;
         let srcIdx = 0;
         for (let i = 0; i < xTarget.length; i++) {
             const x = xTarget[i];
-            while (srcIdx < xSource.length - 1 && xSource[srcIdx + 1] < x) {
+            while (srcIdx < xSource.length - 1 && (xSource[srcIdx + 1] ?? -Infinity) < x) {
                 srcIdx++;
             }
             const x0 = xSource[srcIdx];
             const x1 = xSource[srcIdx + 1];
             const y0 = ySource[srcIdx];
             const y1 = ySource[srcIdx + 1];
-            if (x1 === undefined) {
-                yResult[i] = y0;
-            } else if (x0 === undefined) {
-                yResult[i] = y0;
-            } else if (x1 - x0 === 0) {
-                yResult[i] = y0;
+            if (x1 === undefined || x0 === undefined || x1 - x0 === 0) {
+                yResult[i] = y0 ?? 0;
             } else {
                 const t = (x - x0) / (x1 - x0);
-                yResult[i] = y0 + t * (y1 - y0);
+                yResult[i] = (y0 ?? 0) + t * ((y1 ?? y0 ?? 0) - (y0 ?? 0));
             }
         }
         return yResult;
@@ -318,7 +315,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 return;
             }
 
-            const val = uplotRef.current?.data[1][idx];
+            const val = uplotRef.current?.data[1]?.[idx];
             if (valueRef.current) {
                 const displayVal = val != null ? (channel === 'Time Delta' ? (val > 0 ? "+" : "") + val.toFixed(3) : Math.round(val).toFixed(0)) : "-";
                 valueRef.current.textContent = `${displayVal}`;
@@ -338,18 +335,19 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             }
 
             if (uplotRef.current && uplotRef.current.data.length > 2 && channel !== 'Time Delta') {
-                const refVal = uplotRef.current.data[2][idx];
+                const refVal = uplotRef.current.data[2]?.[idx];
                 if (refValueRef.current) {
                     const displayVal = refVal != null ? Math.round(refVal).toFixed(0) : "-";
                     refValueRef.current.textContent = `${displayVal}`;
                 }
             }
 
-            if (showLapTime && timeRef.current) {
-                const t = currentTime[idx] - lapStartTime;
+            if (showLapTime && timeRef.current && currentTime) {
+                const baseIdx = Math.floor(idx);
+                const t = (currentTime[baseIdx] ?? 0) - lapStartTime;
                 let refT = 0, delta = 0, hasRef = false;
-                if (refTimeAligned && refTimeAligned.length > idx) {
-                    refT = refTimeAligned[idx];
+                if (refTimeAligned && refTimeAligned.length > baseIdx) {
+                    refT = refTimeAligned[baseIdx] ?? 0;
                     delta = t - refT;
                     hasRef = true;
                 }
