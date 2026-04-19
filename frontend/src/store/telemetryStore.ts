@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import type { Session, Lap, TelemetryData, SessionMetadata, Profile, ChartConfig } from '../types';
 import { apiClient } from '../api/client';
@@ -78,13 +77,37 @@ export interface TelemetryState {
     selectedWheel: string | null;  // NEW
     customWheels: { id: string, name: string, data: string }[];
     telemetryHistorySeconds: number; // NEW
-    editOverlapMode: boolean;
+    zScale: number; // For 3D Map elevation scaling
+    editHudMode: boolean;
+    isMapMaximized: boolean; // NEW
     overlapConfig: {
         current: { x: number; y: number };
         reference: { x: number; y: number };
         scale: number;
     };
-    isMapMaximized: boolean; // NEW
+    overlapConfigMaximized: {
+        current: { x: number; y: number };
+        reference: { x: number; y: number };
+        scale: number;
+    };
+    hudRects: Record<string, {
+        id: string;
+        left: number;   // %
+        right: number;  // %
+        top: number;    // %
+        bottom: number; // %
+        active: boolean;
+    }>;
+    hudVisibility: {
+        overlap: boolean;
+        vehicleInfo: boolean;
+        trackInfo: boolean;
+        analysisLaps: boolean;
+        dataCharts: boolean;
+    };
+    parentDimensions: { width: number; height: number }; // NEW: For absolute pixel math
+    showReferenceBrowser: boolean;
+    maximizedSidebarMode: 'hud' | 'data_sources'; // NEW: For navigating within maximized sidebar
 
     // Actions
     setSpeedUnit: (unit: 'kmh' | 'mph') => void;
@@ -93,6 +116,7 @@ export interface TelemetryState {
     setCameraMode: (mode: 'static' | 'follow' | 'heading-up') => void;
     setFollowZoom: (zoom: number) => void;
     setShow3DLab: (show: boolean) => void; // NEW
+    setShowReferenceBrowser: (show: boolean) => void;
     setLeftSidebarCollapsed: (collapsed: boolean) => void;
     setRightPanelCollapsed: (collapsed: boolean) => void;
     setChartConfigs: (configs: ChartConfig[]) => void;
@@ -107,10 +131,15 @@ export interface TelemetryState {
     setSelectedWheel: (wheel: string | null) => void;  // NEW
     setCustomWheels: (wheels: { id: string, name: string, data: string }[]) => void;
     setTelemetryHistorySeconds: (seconds: number) => void; // NEW
-    setEditOverlapMode: (is: boolean) => void;
-    updateOverlapConfig: (config: Partial<TelemetryState['overlapConfig']>) => void;
-    resetOverlapConfig: () => void;
+    setZScale: (scale: number) => void; // NEW
+    setEditHudMode: (is: boolean) => void;
+    updateOverlapConfig: (config: Partial<{ current: { x: number; y: number }; reference: { x: number; y: number }; scale: number }>) => void;
+    updateHudRect: (id: string, rect: { left: number; right: number; top: number; bottom: number; active: boolean }, dims?: { width: number; height: number }) => void;
+    validateHudLayout: () => void;
+    resetHudConfigs: () => void;
+    setHudVisibility: (key: keyof TelemetryState['hudVisibility'], visible: boolean) => void;
     setIsMapMaximized: (is: boolean) => void;
+    setMaximizedSidebarMode: (mode: 'hud' | 'data_sources') => void; // NEW
 
     fetchSessions: () => Promise<void>;
     selectSession: (sessionId: string) => Promise<void>;
@@ -202,9 +231,16 @@ const BUILT_IN_PRESETS: ChartPreset[] = [
 ];
 
 
+// Default HUD Configs (Only Overlap remains configurable)
 const DEFAULT_OVERLAP_CONFIG = {
     current: { x: 15, y: 70 },
     reference: { x: 85, y: 70 },
+    scale: 0.8
+};
+
+const DEFAULT_OVERLAP_CONFIG_MAXIMIZED = {
+    current: { x: 38, y: 85 },
+    reference: { x: 62, y: 85 },
     scale: 1.0
 };
 
@@ -235,6 +271,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     loadingProgress: null,
     isListLoading: false, // For Non-Blocking Operations (Session List)
     error: null,
+    showReferenceBrowser: false,
     isPlaying: false,
     playbackSpeed: 1,
     smoothCursorIndex: null,
@@ -262,9 +299,21 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     selectedWheel: localStorage.getItem('selected_steering_wheel') || null,
     customWheels: JSON.parse(localStorage.getItem('custom_steering_wheels') || '[]'),
     telemetryHistorySeconds: parseFloat(localStorage.getItem('telemetry_history_seconds') || '1.0'),
-    editOverlapMode: false,
+    zScale: 1.0,
+    editHudMode: false,
     isMapMaximized: false,
     overlapConfig: JSON.parse(localStorage.getItem('overlap_config') || JSON.stringify(DEFAULT_OVERLAP_CONFIG)),
+    overlapConfigMaximized: JSON.parse(localStorage.getItem('overlap_config_maximized') || JSON.stringify(DEFAULT_OVERLAP_CONFIG_MAXIMIZED)),
+    hudRects: {},
+    hudVisibility: JSON.parse(localStorage.getItem('hud_visibility') || JSON.stringify({
+        overlap: true,
+        vehicleInfo: false,
+        trackInfo: true,
+        analysisLaps: false,
+        dataCharts: false
+    })),
+    parentDimensions: { width: 1920, height: 1080 },
+    maximizedSidebarMode: 'hud',
 
     setSpeedUnit: (unit) => {
         localStorage.setItem('speed_unit', unit);
@@ -293,22 +342,140 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         localStorage.setItem('telemetry_history_seconds', rounded.toString());
         set({ telemetryHistorySeconds: rounded });
     },
-    setEditOverlapMode: (is) => set({ editOverlapMode: is }),
-    updateOverlapConfig: (config) => {
-        const current = get().overlapConfig;
-        const newConfig = { ...current, ...config };
-        localStorage.setItem('overlap_config', JSON.stringify(newConfig));
-        set({ overlapConfig: newConfig });
+    setZScale: (scale) => set({ zScale: scale }),
+    setEditHudMode: (is) => set({ editHudMode: is }),
+    updateOverlapConfig: (config) => set((state) => {
+        const isMax = state.isMapMaximized;
+        const targetConfigKey = isMax ? 'overlapConfigMaximized' : 'overlapConfig';
+        const storageKey = isMax ? 'overlap_config_maximized' : 'overlap_config';
+
+        const currentConfig = state[targetConfigKey];
+        const newConfig = {
+            ...currentConfig,
+            current: config.current ? { ...currentConfig.current, ...config.current } : currentConfig.current,
+            reference: config.reference ? { ...currentConfig.reference, ...config.reference } : currentConfig.reference,
+            scale: config.scale !== undefined ? config.scale : currentConfig.scale,
+        };
+        localStorage.setItem(storageKey, JSON.stringify(newConfig));
+        return { [targetConfigKey]: newConfig };
+    }),
+    updateHudRect: (id, rect, dims) => set((state) => {
+        const nextState: any = {
+            hudRects: { ...state.hudRects, [id]: { ...rect, id } }
+        };
+        if (dims) {
+            nextState.parentDimensions = dims;
+        }
+        return nextState;
+    }),
+    validateHudLayout: () => {
+        const state = get();
+        const rects = state.hudRects;
+        const isMax = state.isMapMaximized;
+        const vis = state.hudVisibility;
+
+        // Authoritative cx/cy always comes from the STORE CONFIG
+        const getConfigCenter = (id: string): { x: number; y: number } | null => {
+            switch (id) {
+                case 'overlap': return isMax ? state.overlapConfigMaximized.current : state.overlapConfig.current;
+                case 'overlapRef': return isMax ? state.overlapConfigMaximized.reference : state.overlapConfig.reference;
+                default: return null;
+            }
+        };
+
+        const PRIORITY: { id: string; active: boolean }[] = [
+            { id: 'overlap', active: vis.overlap },
+            { id: 'overlapRef', active: vis.overlap },
+        ];
+
+        const settled: Record<string, { left: number; right: number; top: number; bottom: number }> = {};
+        const updates: Partial<typeof state> = {};
+        const parentW = state.parentDimensions.width;
+        const parentH = state.parentDimensions.height;
+
+        for (const { id, active } of PRIORITY) {
+            const rect = rects[id];
+            const center = getConfigCenter(id);
+            if (!rect || !rect.active || !active || !center) continue;
+
+            const halfWPct = (rect.right - rect.left) / 2;
+            const halfHPct = (rect.bottom - rect.top) / 2;
+
+            const cx = center.x;
+            const cy = center.y;
+
+            let newX = cx;
+            let newY = cy;
+
+            const EDGE_MARGIN = 0.8; // % gap between HUD and screen edge
+            const HUD_GAP = 0.4; // % gap between adjacent HUDs
+
+            // SIDEBAR AVOIDANCE (Maximized Mode Only)
+            const MIN_LEFT_PCT = isMax ? (380 / parentW) * 100 : EDGE_MARGIN;
+
+            // 1. Boundary clamp
+            newX = Math.max(halfWPct + MIN_LEFT_PCT, Math.min(100 - halfWPct - EDGE_MARGIN, cx));
+            newY = Math.max(halfHPct + EDGE_MARGIN, Math.min(100 - halfHPct - EDGE_MARGIN, cy));
+
+            // 2. Collision avoidance with other settled HUDs
+            for (const vRect of Object.values(settled)) {
+                const candidate = {
+                    left: newX - halfWPct, right: newX + halfWPct,
+                    top: newY - halfHPct, bottom: newY + halfHPct,
+                };
+                const overlapping = !(
+                    candidate.right < vRect.left || candidate.left > vRect.right ||
+                    candidate.bottom < vRect.top || candidate.top > vRect.bottom
+                );
+                if (overlapping) {
+                    const downY = vRect.bottom + halfHPct + HUD_GAP;
+                    if (downY <= 100 - halfHPct - EDGE_MARGIN) { newY = downY; break; }
+                }
+            }
+
+            settled[id] = { left: newX - halfWPct, right: newX + halfWPct, top: newY - halfHPct, bottom: newY + halfHPct };
+            if (Math.abs(newX - cx) < 0.05 && Math.abs(newY - cy) < 0.05) continue;
+
+            const base = isMax ? state.overlapConfigMaximized : state.overlapConfig;
+            const key = isMax ? 'overlapConfigMaximized' : 'overlapConfig';
+            const sk = isMax ? 'overlap_config_maximized' : 'overlap_config';
+            const existing = (updates as any)[key] || base;
+            const posKey = id === 'overlap' ? 'current' : 'reference';
+            const updated = { ...existing, [posKey]: { x: newX, y: newY } };
+            localStorage.setItem(sk, JSON.stringify(updated));
+            (updates as any)[key] = updated;
+        }
+
+        if (Object.keys(updates).length > 0) set(updates as any);
     },
-    resetOverlapConfig: () => {
-        localStorage.setItem('overlap_config', JSON.stringify(DEFAULT_OVERLAP_CONFIG));
-        set({ overlapConfig: DEFAULT_OVERLAP_CONFIG });
+    resetHudConfigs: () => set((state) => {
+        const isMax = state.isMapMaximized;
+        const overlapStorage = isMax ? 'overlap_config_maximized' : 'overlap_config';
+
+        localStorage.setItem(overlapStorage, JSON.stringify(isMax ? DEFAULT_OVERLAP_CONFIG_MAXIMIZED : DEFAULT_OVERLAP_CONFIG));
+
+        return {
+            [isMax ? 'overlapConfigMaximized' : 'overlapConfig']: isMax ? DEFAULT_OVERLAP_CONFIG_MAXIMIZED : DEFAULT_OVERLAP_CONFIG
+        };
+    }),
+    setHudVisibility: (key, visible) => {
+        const newVisibility = { ...get().hudVisibility, [key]: visible };
+        localStorage.setItem('hud_visibility', JSON.stringify(newVisibility));
+
+        // Legacy support mapping for showTelemetryOverlay
+        if (key === 'overlap') {
+            set({ showTelemetryOverlay: visible });
+        }
+
+        set({ hudVisibility: newVisibility });
     },
     setIsMapMaximized: (is) => set({ isMapMaximized: is }),
+    setMaximizedSidebarMode: (mode) => set({ maximizedSidebarMode: mode }),
     setIsProcessingTrack: (is: boolean) => set({ isProcessingTrack: is }),
+    setShowReferenceBrowser: (show: boolean) => set({ showReferenceBrowser: show }),
     setShow3DLab: (show) => {
         const { track3DData, selectedLapIdx, selectedStint, fetch3DTrack, laps, telemetryData } = get();
-        
+
         // Pause and Reset main progress
         let startIdx = null;
         if (selectedLapIdx !== null && telemetryData && telemetryData['Time']) {
@@ -319,20 +486,20 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             }
         }
 
-        set({ 
-            show3DLab: show, 
+        set({
+            show3DLab: show,
             isPlaying: false,
             cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
             smoothCursorIndex: startIdx !== null ? startIdx : get().cursorIndex
         });
-        
+
         // Proactive load: if switching to 3D and data is missing, trigger fetch immediately
         if (show) {
             if (!track3DData && selectedLapIdx !== null) {
                 set({ isLoading: true });
                 fetch3DTrack(selectedLapIdx, selectedStint);
             }
-            
+
             // NEW: Also check for reference track if already selected
             const { referenceLapIdx, referenceLap, fetchReference3DTrack, referenceTrack3DData } = get();
             if (!referenceTrack3DData && (referenceLapIdx !== null || referenceLap)) {
@@ -556,8 +723,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const { activeProfileId } = get();
         if (!activeProfileId) return;
 
-        set(state => ({ 
-            isLoading: true, 
+        set(state => ({
+            isLoading: true,
             loadingCount: state.loadingCount + 1,
             loadingProgress: null,
             error: null,
@@ -624,10 +791,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         } finally {
             set(state => {
                 const newCount = Math.max(0, state.loadingCount - 1);
-                return { 
-                    loadingCount: newCount, 
+                return {
+                    loadingCount: newCount,
                     isLoading: newCount > 0,
-                    loadingProgress: newCount === 0 ? null : state.loadingProgress 
+                    loadingProgress: newCount === 0 ? null : state.loadingProgress
                 };
             });
         }
@@ -689,8 +856,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         } finally {
             set(state => {
                 const newCount = Math.max(0, state.loadingCount - 1);
-                return { 
-                    loadingCount: newCount, 
+                return {
+                    loadingCount: newCount,
                     isLoading: newCount > 0
                 };
             });
@@ -728,7 +895,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
     setReferenceLap: (lapIdx: number | null) => {
         const { laps, selectedLapIdx, telemetryData } = get();
-        
+
         // Pause and reset main progress
         let startIdx = null;
         if (selectedLapIdx !== null && telemetryData && telemetryData['Time']) {
@@ -739,10 +906,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             }
         }
 
-        set({ 
-            referenceLapIdx: lapIdx, 
-            referenceTelemetryData: null, 
-            referenceLap: null, 
+        set({
+            referenceLapIdx: lapIdx,
+            referenceTelemetryData: null,
+            referenceLap: null,
             referenceSessionMetadata: null,
             isPlaying: false,
             cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
@@ -764,10 +931,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         }
 
         if (!lap) {
-            set({ 
-                referenceLap: null, 
-                referenceTelemetryData: null, 
-                referenceLapIdx: null, 
+            set({
+                referenceLap: null,
+                referenceTelemetryData: null,
+                referenceLapIdx: null,
                 referenceSessionMetadata: null,
                 isPlaying: false,
                 cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
@@ -778,10 +945,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
         // if it's the same session and same stint, just treat as internal ref
         if (lap.sessionId === currentSessionId && lap.stint === selectedStint) {
-            set({ 
-                referenceLapIdx: lap.lap, 
-                referenceLap: null, 
-                referenceTelemetryData: null, 
+            set({
+                referenceLapIdx: lap.lap,
+                referenceLap: null,
+                referenceTelemetryData: null,
                 referenceSessionMetadata: null,
                 isPlaying: false,
                 cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
@@ -791,11 +958,11 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         }
 
         // Otherwise, fetch separate telemetry & metadata
-        set(state => ({ 
-            isLoading: true, 
-            loadingCount: state.loadingCount + 1, 
-            referenceLapIdx: null, 
-            referenceLap: lap, 
+        set(state => ({
+            isLoading: true,
+            loadingCount: state.loadingCount + 1,
+            referenceLapIdx: null,
+            referenceLap: lap,
             referenceSessionMetadata: null,
             isPlaying: false,
             cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
@@ -806,7 +973,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
                 apiClient.getTelemetry(lap.sessionId, lap.stint, 10, undefined, activeProfileId || "guest"),
                 apiClient.getLaps(lap.sessionId, activeProfileId || "guest")
             ]);
-            
+
             set({ referenceTelemetryData: data, referenceSessionMetadata: sessionData.metadata });
 
             // 3D SYNC: Fetch reference 3D track if in lab mode
@@ -1063,7 +1230,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
     togglePlayback: () => {
         const { isPlaying, cursorIndex, telemetryData, laps, selectedLapIdx } = get();
-        
+
         // RECOVERY: If we're about to play but cursor is missing (common with race conditions)
         if (!isPlaying && telemetryData && selectedLapIdx !== null && cursorIndex === null) {
             const time = telemetryData['Time'];

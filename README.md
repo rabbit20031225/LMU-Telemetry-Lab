@@ -3,7 +3,7 @@
   <h1>LMU Telemetry Lab</h1>
   <p>A professional race telemetry analysis tool for <strong>Le Mans Ultimate</strong></p>
   <p>
-    <img src="https://img.shields.io/badge/version-1.2.2-blue" />
+    <img src="https://img.shields.io/badge/version-1.3.0-blue" />
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey" />
     <img src="https://img.shields.io/badge/license-MIT-green" />
     <img src="https://img.shields.io/badge/data-LMU_v1.3.1.2-orange" />
@@ -14,12 +14,13 @@
 
 ## ✨ Features
 
+- 🖥️ **Maximized Analytics Dashboard** — Full-screen integrated engine for 2D/3D deep analysis
 - 📊 **Telemetry Charts** — Multi-channel overlay with zoom, cursor sync, and lap comparison
 - 🗺️ **2D / 3D Track Map** — GPS-based racing line with heatmap (throttle / brake / coast)
 - 👻 **Ghost Car** — Visualize two laps simultaneously in 3D with position sync
 - 🔄 **Cross-Session Reference Lap** — Compare laps across different sessions or stints
 - 🎡 **Steering Wheel View** — Real-time steering angle with customizable wheel skins
-- 📺 **Compact Telemetry HUD** — Draggable, resizable live delta overlay on the 3D map
+- 📺 **Modular HUD System** — Reconfigurable, draggable overlays for live track & car data
 - 💾 **Session Management** — Upload, rename, delete DuckDB sessions with multi-profile support
 - 🧑‍💻 **Multi-Profile** — Individual accounts with separate data access and avatar
 - ⚡ **Self-Healing Playback** — Auto-detects and corrects non-zero-start telemetry data

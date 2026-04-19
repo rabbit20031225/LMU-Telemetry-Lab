@@ -151,7 +151,7 @@ export const FileManager: React.FC = () => {
     return (
         <div className="flex flex-col h-full bg-transparent text-gray-300 font-sans">
             {/* Header */}
-            <div className="pl-4 pr-[10px] pt-4 pb-2 flex flex-col gap-2">
+            <div className="pl-4 pr-[10px] pt-4 pb-0 flex flex-col gap-1">
                 <div className="flex items-center gap-3">
                     <div className="p-1.5 bg-blue-500/10 rounded-lg border border-blue-500/20">
                         <Database size={16} className="text-blue-400" />
@@ -196,7 +196,7 @@ export const FileManager: React.FC = () => {
                 </div>
             </div>
 
-            <div className="pl-4 pr-[10px] py-2">
+            <div className="px-4 pt-1 pb-1">
                 <div
                     className={`group relative glass-container p-6 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer ring-1 ring-inset 
                         ${isDragging
@@ -231,7 +231,7 @@ export const FileManager: React.FC = () => {
             </div>
 
             {/* List Header & Search */}
-            <div className="pl-4 pr-[10px] pb-3">
+            <div className="px-4 pt-2 pb-2">
                 <div className="flex items-center justify-between mb-3 px-1">
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Stored Sessions</span>

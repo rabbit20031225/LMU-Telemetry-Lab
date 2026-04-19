@@ -1,11 +1,38 @@
-## 🟢 [2026-04-15] Telemetry v1.2.2 - 穩定性加固與平滑播放修復 (Hardened Update)
-*   **系統穩定性防禦 (System Hardening)**：
-    *   **深度防禦機制 (Zero-Tolerance Audit)**：針對 COTA 等特殊 Session 檔案常見的「數據渠道缺失」問題，進行了全域性的加固。即使在單圈數據不完全的情況下，介面也能優雅降級顯示為 "--" 而非崩潰。
-    *   **全域索引邊界檢查**：為 `F1Dashboard`、`TrackMap`、`TrackMap3D` 以及其餘裝飾性組件補齊了數十處數值取值安全鎖。
-*   **平滑播放修復 (Smooth Playback Fix)**：
-    *   **時間顯示校正**：解決了 v1.2.0 平滑播放功能引入的「浮點數索引偏移」問題。透過強制取整 (Math.floor)，修復了播放時 Hud 與時間軸數字卡在 `0:00.000` 的 Bug。
-*   **介面清理 (Code Polish)**：
-    *   優化 `App.tsx` 的數據取值 helper 效能，移除冗餘的邏輯開銷。
+## 🟢 [2026-04-19] Maximized Analytics Dashboard - Master Release (v1.3.0 Final)
+
+### 🌟 核心突破 / Key Breakthroughs
+*   **全螢幕垂直整合分析引擎 (Maximized Analytics Engine)**:
+    - **中文**: 實作了 2D 與 3D 模式的全螢幕視圖切換，整合了地圖導航、遙測分析與檔案管理。解決了跨維度 UI 狀態同步的難題，讓分析流程不再受限於單一視角。
+    - **English**: Implemented a full-screen analysis engine for both 2D and 3D modes, integrating map navigation, telemetry analytics, and file management. Resolved cross-view state synchronization, ensuring a seamless flow across dimensions.
+*   **模組化 HUD 系統與智能側邊欄 (Modular HUD & Smart Sidebar)**:
+    - **中文**: 開發了具備自定義位置、縮放與持久化的 HUD 系統（Track/Car Info, Analysis Laps, Data Charts）。導入智能側邊欄架構與 Framer Motion 動畫，實現介面重組時的物理級平滑感。
+    - **English**: Developed a modular HUD system (Track/Car Info, Analysis Laps, Data Charts) with custom positioning, scaling, and persistence. Introduced a Smart Sidebar architecture with Framer Motion for buttery-smooth layout transitions.
+*   **旗艦級玻璃視覺與性能優化 (Flagship Glass UI & performance)**:
+    - **中文**: 建立了 `glass-container-static` 規範，解決了 WebGL 環境下磨砂濾鏡的渲染 Bug。並透過 `will-change` 與佈局攔截技術，在複雜的玻璃疊加環境下依然達成 60FPS 的流暢操作手感。
+    - **English**: Established the `glass-container-static` standard, fixing backdrop-filter rendering bugs in WebGL contexts. Achieved 60FPS fluid interaction through will-change and layout-capture optimizations, even with complex glass layering.
+*   **數據與地圖深度鏈路 (Deep Data-Map Linkage)**:
+    - **中文**: 將 Data Sources (FileManager) 完整移植至最大化儀表板，優化了地圖 Minimap 規格與對稱佈局，實現了「一站式」的遙測分析體驗。
+    - **English**: Migrated Data Sources (FileManager) directly into the maximized dashboard, refined Minimap specifications and symmetrical layouts, delivering a true "one-stop" telemetry analytics experience.
+
+### 🚀 專案影響 / Impact
+*   **中文**: v1.3.0 的完成代表著 LMU Telemetry Lab 從基礎原型正式進化為具備高度自定義能力、極致視覺美感與穩定性能的專業級遙測分析工具。
+*   **English**: The completion of v1.3.0 marks the evolution of LMU Telemetry Lab from a prototype into a professional-grade telemetry tool featuring high customizability, premium aesthetics, and rock-solid performance.
+
+---
+
+## 🟢 [2026-04-15] Telemetry v1.2.2 - Hardened Stability & Playback Fix (穩定性加固與平滑播放修復)
+
+### 🌟 核心突破 / Key Breakthroughs
+*   **系統穩定性防禦 (System Hardening Defense)**:
+    *   **中文**: 針對 COTA 等特殊 Session 檔案進行全域審計，實作「零容忍」檢查機制。針對缺失的數據渠道實作安全取值鎖，介面現在能優雅降級顯示為 "--" 而非崩潰。
+    *   **English**: Performed a global audit for sparse session files (like COTA) and implemented a "zero-tolerance" safety mechanism. Added defensive locks for missing channels, allowing components to gracefully degrade to "--" instead of crashing.
+*   **平滑播放修復 (Smooth Playback Calibration)**:
+    *   **中文**: 修復了 v1.2.0 平滑播放導致的時間軸數字卡在 `0:00.000` 的 Bug。透過強制索引取整 (Math.floor)，確保播放時的時間顯示精確同步。
+    *   **English**: Resolved the "zero-time freeze" bug introduced by smooth playback in v1.2.0. By enforcing index floor-ing (Math.floor), playback time in the HUD and charts now correctly syncs during live playback.
+
+### 🚀 專案影響 / Impact
+*   **中文**: v1.2.2 顯著提升了在極端數據場景下的強健性，確保分析流程不因數據殘缺而中斷。
+*   **English**: v1.2.2 significantly boosts application resilience in edge-case data scenarios, ensuring analytics workflows remain uninterrupted despite malformed telemetry.
 
 ---
 

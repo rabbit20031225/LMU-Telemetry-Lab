@@ -3,15 +3,14 @@ import { useTelemetryStore } from '../store/telemetryStore';
 import type { SessionMetadata } from '../types';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 import { Tooltip } from './ui/Tooltip';
+import { getBrandLogoPath, getClassColor } from '../utils/carHelpers';
 
 interface CarInfoCardProps {
     metadata: SessionMetadata;
-    getBrandLogoPath: (name: string) => string;
-    getClassColor: (cls: string) => string;
     theme?: 'current' | 'reference';
 }
 
-const CarInfoCard: React.FC<CarInfoCardProps> = ({ metadata, getBrandLogoPath, getClassColor, theme = 'current' }) => {
+const CarInfoCard: React.FC<CarInfoCardProps> = ({ metadata, theme = 'current' }) => {
     const isRef = theme === 'reference';
     const accentColor = isRef ? 'text-amber-500' : 'text-blue-400';
     const hoverAccentColor = isRef ? 'group-hover:text-amber-400' : 'group-hover:text-blue-400';
@@ -76,11 +75,9 @@ interface SessionInfoProps {
     referenceMetadata?: SessionMetadata | null;
     getTrackFlagPath: (name: string) => string;
     getCountryFlagPath?: (name: string) => string;
-    getBrandLogoPath: (name: string) => string;
-    getClassColor: (cls: string) => string;
 }
 
-export const SessionInfo: React.FC<SessionInfoProps> = ({ sessionMetadata, referenceMetadata, getTrackFlagPath, getCountryFlagPath, getBrandLogoPath, getClassColor }) => {
+export const SessionInfo: React.FC<SessionInfoProps> = ({ sessionMetadata, referenceMetadata, getTrackFlagPath, getCountryFlagPath }) => {
     const telemetryData = useTelemetryStore(state => state.telemetryData);
     const cursorIndex = useTelemetryStore(state => state.cursorIndex);
     const selectedLapIdx = useTelemetryStore(state => state.selectedLapIdx);
@@ -175,8 +172,6 @@ export const SessionInfo: React.FC<SessionInfoProps> = ({ sessionMetadata, refer
                 <div className="flex flex-col gap-2">
                     <CarInfoCard
                         metadata={sessionMetadata}
-                        getBrandLogoPath={getBrandLogoPath}
-                        getClassColor={getClassColor}
                         theme="current"
                     />
 
@@ -184,8 +179,6 @@ export const SessionInfo: React.FC<SessionInfoProps> = ({ sessionMetadata, refer
                         <div className="animate-in fade-in slide-in-from-top-4 duration-500">
                             <CarInfoCard
                                 metadata={referenceMetadata}
-                                getBrandLogoPath={getBrandLogoPath}
-                                getClassColor={getClassColor}
                                 theme="reference"
                             />
                         </div>

@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, memo } from 'react';
+import { MapTransitionOverlay } from './components/MapTransitionOverlay';
 import { useTelemetryStore } from './store/telemetryStore';
 import { FileManager } from './components/FileManager';
 import { TelemetryChart } from './components/TelemetryChart';
 import { TrackMap } from './components/TrackMap';
 import { ReferenceLapBrowser } from './components/ReferenceLapBrowser';
+import { AnalysisLapsWidget } from './components/AnalysisLapsWidget';
 import { Search } from 'lucide-react';
 import { TrackMap3D } from './components/TrackMap3D';
 import { LapSelect } from './components/LapSelect';
@@ -293,6 +295,7 @@ function App() {
   const speedUnit = useTelemetryStore(state => state.speedUnit);
   const tempUnit = useTelemetryStore(state => state.tempUnit);
   const chartConfigs = useTelemetryStore(state => state.chartConfigs);
+  const isProcessingTrack = useTelemetryStore(state => state.isProcessingTrack);
   const show3DLab = useTelemetryStore(state => state.show3DLab);
   const setShow3DLab = useTelemetryStore(state => state.setShow3DLab);
   const isLeftSidebarCollapsed = useTelemetryStore(state => state.isLeftSidebarCollapsed);
@@ -389,7 +392,10 @@ function App() {
   // States for coordinated map animations
   const [shouldRenderSidebarMap, setShouldRenderSidebarMap] = useState(true);
   const [isAnimatingSidebarMap, setIsAnimatingSidebarMap] = useState(true);
-  const [showReferenceBrowser, setShowReferenceBrowser] = useState(false);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  // Remote showReferenceBrowser state moved to store
+  const showReferenceBrowser = useTelemetryStore(state => state.showReferenceBrowser);
+  const setShowReferenceBrowser = useTelemetryStore(state => state.setShowReferenceBrowser);
   const [shouldRenderExpandedMap, setShouldRenderExpandedMap] = useState(false);
   const [isAnimatingExpandedMap, setIsAnimatingExpandedMap] = useState(false);
 
@@ -442,6 +448,35 @@ function App() {
     }
   }, [show3DLab, isMapExpanded]);
 
+  const [isSwitchingDimension, setIsSwitchingDimension] = useState(false);
+  const dimensionSwitchTimer = useRef<number | null>(null);
+
+  // Trigger loading state for 2D/3D Dimension switching
+  useEffect(() => {
+    // Only trigger if we are already in expanded mode (to avoid double loading when first maximizing)
+    if (isMapExpanded) {
+      setIsSwitchingDimension(true);
+      dimensionSwitchTimer.current = Date.now();
+    }
+  }, [show3DLab, isMapExpanded]); // Dependency on show3DLab
+
+  // Dynamic clear loading state based on actual backend data completion
+  useEffect(() => {
+    let timer: any;
+    if (isSwitchingDimension && !isLoading && !isProcessingTrack) {
+      let elapsed = 0;
+      if (dimensionSwitchTimer.current) {
+        elapsed = Date.now() - dimensionSwitchTimer.current;
+      }
+      // Enforce at least 300ms display time to avoid flicker
+      const remainingTime = Math.max(0, 300 - elapsed);
+      timer = setTimeout(() => {
+        setIsSwitchingDimension(false);
+      }, remainingTime);
+    }
+    return () => clearTimeout(timer);
+  }, [isSwitchingDimension, isLoading, isProcessingTrack]);
+
   // Escape key listener for Maximize Mode
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -482,8 +517,6 @@ function App() {
   const [trackMapHeight, setTrackMapHeight] = useState(DEFAULT_TRACK_MAP_HEIGHT);
 
   const [expandedMapHeight, setExpandedMapHeight] = useState(DEFAULT_EXPANDED_MAP_HEIGHT);
-
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isDraggingMap, setIsDraggingMap] = useState(false);
   const [isResizingTrackMap, setIsResizingTrackMap] = useState(false);
   const [isDraggingExpandedMap, setIsDraggingExpandedMap] = useState(false);
@@ -823,11 +856,8 @@ function App() {
                   sessionMetadata={sessionMetadata}
                   referenceMetadata={referenceSessionMetadata}
                   getTrackFlagPath={getTrackFlagPath}
-                  getBrandLogoPath={getBrandLogoPath}
-                  getClassColor={getClassColor}
                 />
               )}
-
               {/* Lap Controls (Middle of Sidebar) */}
               {currentSessionId && laps.length > 0 && (
                 <div className="mb-3 p-4 glass-container glass-expand-pixel rounded-2xl border border-white/25 flex flex-col gap-3 hover:shadow-[0_0_30px_rgba(255,255,255,0.05)] transition-all duration-300 group/analysis" onMouseMove={handleGlassMouseMove}>
@@ -835,102 +865,14 @@ function App() {
                     <div className="flex items-center justify-between">
                       <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] px-1 group-hover/analysis:text-white transition-colors">Analysis Laps</h3>
                     </div>
-
-                    {(() => {
-                      const uniqueStints = Array.from(new Set(laps.map(l => l.stint).filter(Boolean))) as number[];
-                      if (uniqueStints.length > 1) {
-                        return (
-                          <div className="flex flex-col gap-1.5 mb-2">
-                            {uniqueStints.map(stint => {
-                              const stintLaps = laps.filter(l => l.stint === stint);
-                              const totalLaps = stintLaps.length;
-                              const totalTime = stintLaps.reduce((acc, l) => acc + l.duration, 0);
-                              const totalFuel = stintLaps.reduce((acc, l) => acc + (l.fuelUsed || 0), 0);
-
-                              const hrs = Math.floor(totalTime / 3600);
-                              const mins = Math.floor((totalTime % 3600) / 60);
-                              const secs = (totalTime % 60).toFixed(0).padStart(2, '0');
-                              const timeStr = hrs > 0 ? `${hrs}:${mins.toString().padStart(2, '0')}:${secs}` : `${mins}:${secs}`;
-
-                              return (
-                                <button
-                                  key={stint}
-                                  onClick={() => fetchStint(stint)}
-                                  disabled={isLoading}
-                                  className={`flex flex-row items-center justify-between text-left px-3 py-2.5 rounded-xl border transition-all glass-container group/stint ${selectedStint === stint
-                                    ? 'bg-blue-600/30 border-blue-400 text-white shadow-[0_0_20px_rgba(37,99,235,0.2)]'
-                                    : 'border-white/15 text-gray-400 hover:text-white'
-                                    }`}
-                                  onMouseMove={handleGlassMouseMove}
-                                >
-                                  <div className="glass-content flex flex-row items-center justify-between w-full">
-                                    <span className="font-bold text-[13px] w-14">Stint {stint}</span>
-                                    <span className="font-mono text-[11px] text-gray-300 w-14 text-center bg-black/30 rounded px-1 py-0.5">{totalLaps} Laps</span>
-                                    <span className="font-mono text-[11px] text-gray-300 w-[60px] flex items-center justify-center gap-1"><img src="/delta.png" className="w-2.5 h-2.5 opacity-60" />{timeStr}</span>
-                                    <span className="font-mono text-[11px] text-gray-400 w-16 flex items-center justify-end gap-1"><img src="/fuel.png" className="w-2.5 h-2.5 opacity-60" />{totalFuel.toFixed(1)} L</span>
-                                  </div>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-
-                    {(() => {
-                      const displayLaps = selectedStint
-                        ? laps.filter(l => l.stint === selectedStint)
-                        : laps;
-                      const formatDuration = (s: number) => {
-                        const mins = Math.floor(s / 60);
-                        const secs = (s % 60).toFixed(3);
-                        return `${mins}:${secs.padStart(6, '0')}`;
-                      };
-
-                      return (
-                        <>
-                          <LapSelect
-                            label="Current"
-                            value={selectedLapIdx}
-                            onChange={selectLap}
-                            laps={displayLaps}
-                            borderColor="border-[#3b82f6]"
-                            labelColor="text-[#3b82f6]"
-                          />
-                          <div className="flex gap-2 items-end">
-                            <div className="flex-1">
-                              <LapSelect
-                                label="Reference"
-                                value={referenceLapIdx}
-                                onChange={setReferenceLap}
-                                laps={displayLaps}
-                                borderColor="border-[#daa520]"
-                                labelColor="text-[#daa520]"
-                                showNone={true}
-                                className={referenceLapIdx === null && !referenceLap ? 'is-reference-none' : ''}
-                                placeholder={referenceLap ? `Lap ${referenceLap.lap} - ${formatDuration(referenceLap.duration)} ${referenceLap.fuelUsed ? `[${referenceLap.fuelUsed.toFixed(1)}L]` : ''}` : undefined}
-                              />
-                            </div>
-                            <Tooltip text="BROWSE SESSIONS" position="top">
-                              <button
-                                onClick={() => setShowReferenceBrowser(true)}
-                                className="mb-1 p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-blue-400 transition-all group/browser-btn"
-                              >
-                                <Search className="w-4 h-4 opacity-50 group-hover/browser-btn:opacity-100 transition-opacity" />
-                              </button>
-                            </Tooltip>
-                          </div>
-
-                        </>
-                      );
-                    })()}
+                    
+                    <AnalysisLapsWidget />
                   </div>
                 </div>
               )}
             </div>
 
-            < div className="mt-auto p-4 border-t border-white/5 bg-transparent">
+            <div className="mt-auto p-4 border-t border-white/5 bg-transparent">
               <button
                 onClick={() => setShowFileManager(true)}
                 className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-gray-500 rounded-2xl border border-white/10 shadow-lg flex items-center justify-center gap-2 font-black text-[12px] uppercase tracking-[0.2em] transition-all hover:text-white ring-1 ring-inset ring-white/5 glass-container group"
@@ -1129,8 +1071,10 @@ function App() {
                       }}
                     >
                       <div className="flex-1 relative min-h-0">
+                        {/* Loading Overlay for Dimension Switching */}
+                        <MapTransitionOverlay isVisible={isSwitchingDimension} />
                         {show3DLab ? (
-                          <TrackMap3D />
+                          <TrackMap3D onToggleExpand={() => setIsMapExpanded(false)} />
                         ) : (
                           <TrackMap
                             key={`expanded-${currentSessionId}`}
@@ -1254,7 +1198,7 @@ function App() {
                             key={`sidebar-${currentSessionId}`}
                             isExpanded={false}
                             onToggleExpand={() => setIsMapExpanded(true)}
-                            isMiniMap={false}
+                            isMiniMap={false} // Reverted: It needs controls, we use isExpanded constraint to block HUD instead
                             isAnimating={!isAnimatingSidebarMap}
                           />
                         </div>

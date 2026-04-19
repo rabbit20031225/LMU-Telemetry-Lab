@@ -1,13 +1,20 @@
 import React, { Suspense, useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, PerspectiveCamera, Float, Stars, Bounds, Center, Line, Edges } from '@react-three/drei';
 import * as THREE from 'three';
 import { useTelemetryStore } from '../store/telemetryStore';
-import { Layers, MousePointer2, Move3d, RotateCcw, Play, Pause, Compass, Target, Navigation, Maximize2, Minimize2, Activity } from 'lucide-react';
+import { Layers, MousePointer2, Move3d, RotateCcw, Play, Pause, Compass, Target, Navigation, Maximize2, Minimize2, Activity, ChevronRight, Check, ChevronDown } from 'lucide-react';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 import { Tooltip } from './ui/Tooltip';
 import { TrackMap } from './TrackMap';
 import { CompactTelemetryOverlay } from './CompactTelemetryOverlay';
+import { TrackInfoOverlay } from './TrackInfoOverlay';
+import { CarInfoOverlay } from './CarInfoOverlay';
+import { LapsSelectorOverlay } from './LapsSelectorOverlay';
+import { DataChartsOverlay } from './DataChartsOverlay';
+import { MaximizedDimensionToggle } from './MaximizedDimensionToggle';
+import { FileManager } from './FileManager';
 
 // Custom Icons matched with 2D TrackMap
 const MapIcon = ({ size = 20, className = "" }: { size?: number; className?: string }) => (
@@ -609,11 +616,11 @@ const CameraController = ({ viewMode, telemetryData, cursorIndex, smoothCursorIn
     return null;
 };
 
-export const TrackMap3D = () => {
+export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) => {
     const track3DData = useTelemetryStore(state => state.track3DData);
     const referenceTrack3DData = useTelemetryStore(state => state.referenceTrack3DData);
     const staticTrackBaseData = useTelemetryStore(state => state.staticTrackBaseData);
-    const [zScale, setZScale] = useState(1.0);
+    const zScale = useTelemetryStore(state => state.zScale);
     const [hoverInfo, setHoverInfo] = useState<{ p: any, pos: { x: number, y: number } } | null>(null);
     const [isHovering, setIsHovering] = useState(false);
     const [viewMode, setViewMode] = useState<'free' | 'follow' | 'headingUp'>('free');
@@ -639,25 +646,35 @@ export const TrackMap3D = () => {
     const playbackSpeed = useTelemetryStore(state => state.playbackSpeed);
     const setPlaybackSpeed = useTelemetryStore(state => state.setPlaybackSpeed);
     const setPlaybackProgress = useTelemetryStore(state => state.setPlaybackProgress);
+    const setZScale = useTelemetryStore(state => state.setZScale);
     const dashboardSyncMode = useTelemetryStore(state => state.dashboardSyncMode);
     const referenceDeltaIndex = useTelemetryStore(state => state.referenceDeltaIndex);
     const sessionMetadata = useTelemetryStore(state => state.sessionMetadata);
     const referenceSessionMetadata = useTelemetryStore(state => state.referenceSessionMetadata);
     const showTelemetryOverlay = useTelemetryStore(state => state.showTelemetryOverlay);
     const setShowTelemetryOverlay = useTelemetryStore(state => state.setShowTelemetryOverlay);
-    const editOverlapMode = useTelemetryStore(state => state.editOverlapMode);
-    const resetOverlapConfig = useTelemetryStore(state => state.resetOverlapConfig);
+    const hudVisibility = useTelemetryStore(state => state.hudVisibility);
+    const setHudVisibility = useTelemetryStore(state => state.setHudVisibility);
+    const editHudMode = useTelemetryStore(state => state.editHudMode);
+    const resetHudConfigs = useTelemetryStore(state => state.resetHudConfigs);
     const isMapMaximized = useTelemetryStore(state => state.isMapMaximized);
     const setIsMapMaximized = useTelemetryStore(state => state.setIsMapMaximized);
+    const maximizedSidebarMode = useTelemetryStore(state => state.maximizedSidebarMode);
+    const setMaximizedSidebarMode = useTelemetryStore(state => state.setMaximizedSidebarMode);
 
     const [isSpeedOpen, setIsSpeedOpen] = useState(false);
+    const [showHudMenu, setShowHudMenu] = useState(false);
     const speedMenuRef = useRef<HTMLDivElement>(null);
+    const hudMenuRef = useRef<HTMLDivElement>(null);
 
-    // Handle Click Outside for Speed Menu
+    // Handle Click Outside for Menus
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (speedMenuRef.current && !speedMenuRef.current.contains(event.target as Node)) {
                 setIsSpeedOpen(false);
+            }
+            if (hudMenuRef.current && !hudMenuRef.current.contains(event.target as Node)) {
+                setShowHudMenu(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -761,7 +778,7 @@ export const TrackMap3D = () => {
         // Trigger reset signal globally
         setResetKey(prev => prev + 1);
         setZScale(1.0);
-    }, []);
+    }, [setZScale]);
 
     const unifiedCenter = useMemo(() => {
         return staticTrackBaseData?.center || track3DData?.center;
@@ -770,7 +787,18 @@ export const TrackMap3D = () => {
     // DERIVE Racing Line points from API (Preferred) or local fusion (Fallback)
     const fusedRacingLinePoints = useMemo(() => {
         // COORDINATE ANCHOR: Use the height-corrected points from the API if available
-        if (track3DData?.racingLine && track3DData.racingLine.length > 0) {
+        if (track3DData?.racingLine && track3DData.racingLine.length > 0 && track3DData.center && unifiedCenter) {
+            const sourceCenter = track3DData.center;
+            if (sourceCenter.lat !== unifiedCenter.lat || sourceCenter.lon !== unifiedCenter.lon) {
+                const degM = 111320;
+                const dx = (sourceCenter.lon - unifiedCenter.lon) * unifiedCenter.lonScale * degM;
+                const dy = (sourceCenter.lat - unifiedCenter.lat) * degM;
+                return track3DData.racingLine.map(p => ({
+                    ...p,
+                    x: p.x + dx,
+                    y: p.y + dy
+                }));
+            }
             return track3DData.racingLine;
         }
 
@@ -804,7 +832,18 @@ export const TrackMap3D = () => {
     }, [telemetryData, selectedLapIdx, laps, track3DData, unifiedCenter]);
 
     const fusedReferenceRacingLinePoints = useMemo(() => {
-        if (referenceTrack3DData?.racingLine && referenceTrack3DData.racingLine.length > 0) {
+        if (referenceTrack3DData?.racingLine && referenceTrack3DData.racingLine.length > 0 && referenceTrack3DData.center && unifiedCenter) {
+            const sourceCenter = referenceTrack3DData.center;
+            if (sourceCenter.lat !== unifiedCenter.lat || sourceCenter.lon !== unifiedCenter.lon) {
+                const degM = 111320;
+                const dx = (sourceCenter.lon - unifiedCenter.lon) * unifiedCenter.lonScale * degM;
+                const dy = (sourceCenter.lat - unifiedCenter.lat) * degM;
+                return referenceTrack3DData.racingLine.map(p => ({
+                    ...p,
+                    x: p.x + dx,
+                    y: p.y + dy
+                }));
+            }
             return referenceTrack3DData.racingLine;
         }
 
@@ -928,13 +967,35 @@ export const TrackMap3D = () => {
 
             <div className="glass-content relative h-full w-full z-10 overflow-hidden rounded-2xl">
 
-                {/* Title Overlay */}
-                <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] m-5 absolute top-0 left-0 z-20 pointer-events-auto drop-shadow-md transition-all duration-300 group-hover:text-white group-hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">
-                    3D Track Map
-                </h3>
+                {/* Title & Z-Scale Overlay */}
+                <div className="absolute top-5 left-5 z-[200] flex items-center gap-6 pointer-events-auto">
+                    <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] drop-shadow-md transition-all duration-300 group-hover:text-white group-hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">
+                        3D Track Map
+                    </h3>
+
+                    {/* Z-Scale Horizontal Slider (Integrated next to title) */}
+                    <div className="flex items-center gap-3 pl-4 border-l border-white/10 h-4" onMouseDown={(e) => e.stopPropagation()}>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Z Scale</span>
+                        <div className="relative flex items-center h-4">
+                            <input
+                                type="range"
+                                min="0"
+                                max="2"
+                                step="0.05"
+                                value={zScale}
+                                onChange={(e) => setZScale(parseFloat(e.target.value))}
+                                className="w-16 accent-blue-500 bg-white/10 h-1.5 rounded-full appearance-none outline-none cursor-pointer"
+                                style={{
+                                    background: `linear-gradient(to right, #3b82f6 ${(zScale / 2) * 100}%, rgba(255,255,255,0.05) ${(zScale / 2) * 100}%)`
+                                }}
+                            />
+                        </div>
+                        <span className="text-[10px] font-mono font-black text-blue-400 w-6 opacity-80">{zScale.toFixed(1)}x</span>
+                    </div>
+                </div>
 
                 {/* HUD: Top Center Telemetry (Refined Alignment) */}
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto">
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto flex flex-col items-center gap-3">
                     <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center shadow-2xl glass-container overflow-hidden"
                         onMouseMove={handleGlassMouseMove}>
                         <div className="glass-content px-6 py-2.5 flex items-center gap-5">
@@ -955,6 +1016,11 @@ export const TrackMap3D = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Maximized Dimension Toggle */}
+                    {isMapMaximized && (
+                        <MaximizedDimensionToggle />
+                    )}
                 </div>
 
                 {/* HUD: Minimap (Top Right) - Fixed 5:3 Smaller */}
@@ -967,60 +1033,12 @@ export const TrackMap3D = () => {
                     </div>
                 </div>
 
-                {/* UI Overlay (Z Scale) */}
-                <div className="absolute top-16 left-5 z-10 flex flex-col items-start gap-4">
-                    <div className="bg-black/40 py-3 px-2.5 rounded-2xl border border-white/10 backdrop-blur-md shadow-[0_25px_50px_rgba(0,0,0,0.8)] glass-container" onMouseMove={handleGlassMouseMove}>
-                        <div className="glass-content flex flex-col items-center gap-3 w-full h-full">
-                            <div className="flex gap-2 items-center justify-center">
-                                <span className="text-slate-400 font-black text-[9px] uppercase tracking-widest leading-none drop-shadow-md" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-                                    Z Scale
-                                </span>
-
-                                {/* Vertical Slider Wrapper (Strict bounds to prevent layout stretch from CSS rotation) */}
-                                <div className="h-28 w-3 relative flex items-center justify-center">
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="2"
-                                        step="0.05"
-                                        value={zScale}
-                                        onChange={(e) => setZScale(parseFloat(e.target.value))}
-                                        className="absolute w-28 accent-blue-500 cursor-pointer -rotate-90 bg-white/10 h-1.5 rounded-full appearance-none outline-none"
-                                        style={{
-                                            background: `linear-gradient(to right, #3b82f6 ${(zScale / 2) * 100}%, rgba(255,255,255,0.05) ${(zScale / 2) * 100}%)`
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Dynamic Telemetry Overlays */}
-                {showTelemetryOverlay && (
-                    <>
-                        <CompactTelemetryOverlay
-                            data={telemetryData}
-                            cursorIndex={smoothCursorIndex}
-                            theme="current"
-                            carModel={sessionMetadata?.modelName}
-                        />
-
-                        {(referenceTelemetryData || referenceLapIdx !== null) && (
-                            <CompactTelemetryOverlay
-                                data={referenceTelemetryData || telemetryData}
-                                cursorIndex={dashboardSyncMode === 'distance' ? referenceDeltaIndex : referenceCursorIndex}
-                                theme="reference"
-                                carModel={referenceSessionMetadata?.modelName || sessionMetadata?.modelName}
-                            />
-                        )}
-                    </>
-                )}
+                {/* HUD OVERLAYS - MOVED TO END OF DOM */}
 
                 {/* Reset HUD Button - Top Left */}
-                <div className={`absolute top-4 left-4 z-[200] transition-all duration-300 ease-out transform ${editOverlapMode ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
+                <div className={`absolute top-4 left-4 z-[3000] transition-all duration-300 ease-out transform ${editHudMode ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
                     <button
-                        onClick={resetOverlapConfig}
+                        onClick={resetHudConfigs}
                         className="flex items-center justify-center gap-2 w-40 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all animate-in fade-in slide-in-from-left-4 duration-300 pointer-events-auto"
                     >
                         <RotateCcw size={14} />
@@ -1029,71 +1047,71 @@ export const TrackMap3D = () => {
                 </div>
 
                 {/* Floating Playback Controls (UNIFIED WITH 2D) */}
-                <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-[1100] w-full transition-all duration-500 transform origin-bottom scale-[0.85] group-hover:scale-100`}>
+                <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-[1100] w-full pointer-events-none transition-all duration-500 transform origin-bottom scale-[0.85] group-hover:scale-100`}>
                     {/* Controls Bar - Centered with focus-driven opacity fade */}
                     <div className="max-w-4xl mx-auto px-8 transition-opacity duration-300 opacity-40 group-hover:opacity-100">
-                        <div className="bg-black/60 px-6 py-2.5 rounded-full border border-white/10 backdrop-blur-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] glass-container w-full"
+                        <div className="bg-black/60 px-6 py-2.5 rounded-full border border-white/10 backdrop-blur-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] glass-container w-full pointer-events-auto"
                             onMouseMove={handleGlassMouseMove}>
                             <div className="glass-content flex items-center w-full gap-4 h-10">
                                 {/* Left: Playback Controls */}
                                 <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={togglePlayback}
-                                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 ${isPlaying ? 'bg-blue-600/20 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : 'bg-white/5 hover:bg-white/10 text-white'}`}
-                                    >
-                                        {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} className="ml-0.5" fill="currentColor" />}
-                                    </button>
-
-                                    <div className="relative group" ref={speedMenuRef}>
+                                    <Tooltip text={isPlaying ? "PAUSE" : "PLAY"} position="top">
                                         <button
-                                            onClick={() => setIsSpeedOpen(!isSpeedOpen)}
-                                            className="h-7 px-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-500 hover:text-white text-[10px] font-black transition-all flex items-center gap-1.5"
+                                            onClick={togglePlayback}
+                                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 ${isPlaying ? 'bg-blue-600/20 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : 'bg-white/5 hover:bg-white/10 text-white'}`}
                                         >
-                                            <span className={playbackSpeed !== 1.0 ? "text-blue-400" : ""}>{playbackSpeed}x</span>
+                                            {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} className="ml-0.5" fill="currentColor" />}
                                         </button>
+                                    </Tooltip>
 
-                                        {isSpeedOpen && (
-                                            <div className="absolute bottom-full left-0 mb-3 p-1 bg-slate-900/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl flex flex-col min-w-[80px] z-50">
-                                                {[0.1, 0.5, 1.0, 2.0, 5.0, 10.0].map(speed => (
-                                                    <button
-                                                        key={speed}
-                                                        onClick={() => {
-                                                            setPlaybackSpeed(speed);
-                                                            setIsSpeedOpen(false);
-                                                        }}
-                                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold text-left transition-all ${playbackSpeed === speed ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
-                                                    >
-                                                        {speed}x
-                                                    </button>
-                                                ))}
+                                    <div className="relative" ref={speedMenuRef}>
+                                        <Tooltip text="SPEED" position="top">
+                                            <button
+                                                onClick={() => setIsSpeedOpen(!isSpeedOpen)}
+                                                className={`h-7 px-3 min-w-[56px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-all flex items-center justify-center group/speed ${isSpeedOpen ? 'text-blue-400 bg-white/10 border-white/20' : 'text-slate-500 hover:text-white'}`}
+                                            >
+                                                <span className={`text-[10px] font-black ${playbackSpeed !== 1 ? 'text-blue-400' : ''}`}>{playbackSpeed}x</span>
+                                            </button>
+                                        </Tooltip>
+
+                                        <div
+                                            className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-16 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom ${isSpeedOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'}`}
+                                        >
+                                            <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
+                                                onMouseMove={handleGlassMouseMove}>
+                                                <div className="glass-content w-full h-full flex flex-col">
+                                                    {[4, 2, 1, 0.5].map(s => (
+                                                        <button
+                                                            key={s}
+                                                            onClick={() => { setPlaybackSpeed(s); setIsSpeedOpen(false); }}
+                                                            className={`px-2 py-1.5 text-[10px] font-bold transition-all text-center rounded-lg ${playbackSpeed === s ? 'bg-blue-600/30 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/10 border border-transparent'} hover:scale-110 active:scale-90 z-10`}
+                                                        >
+                                                            {s}x
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        )}
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Center: Timestamp & Progress (UNIFIED) */}
-                                <div className="flex items-center gap-4 flex-1 h-full">
-                                    <span className="text-blue-400 font-mono text-[12px] min-w-[80px] font-bold tracking-tighter text-center">
+                                <div className="flex-1 flex items-center gap-2.5">
+                                    <span className="text-[12px] font-mono text-blue-400 font-bold tracking-tighter drop-shadow-[0_0_8px_rgba(59,130,246,0.3)] select-none">
                                         {playbackProgress.currentTime}
                                     </span>
-
-                                    <div className="relative flex-1 h-1 group/timeline cursor-pointer">
-                                        <div className="absolute inset-0 bg-white/5 rounded-full" />
-                                        <div
-                                            className="absolute inset-y-0 left-0 bg-blue-500 rounded-full"
-                                            style={{ width: `${playbackProgress.progress * 100}%` }}
-                                        />
+                                    <div className="relative flex-1 h-6 flex items-center group/timeline">
                                         <input
                                             type="range"
                                             min="0"
                                             max="1"
                                             step="0.0001"
                                             value={playbackProgress.progress}
-                                            onChange={(e) => {
-                                                const p = parseFloat(e.target.value);
-                                                setPlaybackProgress(p);
+                                            onChange={(e) => setPlaybackProgress(parseFloat(e.target.value))}
+                                            className="w-full h-1 bg-white/5 rounded-full appearance-none cursor-pointer scale-y-75 group-hover/timeline:scale-y-125 transition-all outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0"
+                                            style={{
+                                                background: `linear-gradient(to right, #3b82f6 ${playbackProgress.progress * 100}%, rgba(255,255,255,0.02) ${playbackProgress.progress * 100}%)`
                                             }}
-                                            className="absolute inset-0 w-full h-6 -top-2.5 opacity-0 cursor-pointer z-10"
                                         />
                                     </div>
                                 </div>
@@ -1111,14 +1129,69 @@ export const TrackMap3D = () => {
                                         </button>
                                     </Tooltip>
 
-                                    <Tooltip text="OVERLAP" position="top">
-                                        <button
-                                            onClick={() => setShowTelemetryOverlay(!showTelemetryOverlay)}
-                                            className={`p-2 rounded-full transition-all ${showTelemetryOverlay ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                                    <div className="relative" ref={hudMenuRef}>
+                                        <Tooltip text={isMapMaximized ? "HUD SETUP" : "OVERLAP"} position="top">
+                                            <button
+                                                onClick={() => {
+                                                    if (isMapMaximized) setShowHudMenu(!showHudMenu);
+                                                    else setShowTelemetryOverlay(!showTelemetryOverlay);
+                                                }}
+                                                className={`h-7 px-2.5 rounded-lg transition-all border flex items-center gap-1.5 active:scale-95 ${showTelemetryOverlay ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.1)]' : 'text-slate-500 hover:text-white bg-white/5 border-white/5 hover:bg-white/10'}`}
+                                            >
+                                                <Activity size={16} />
+                                                {isMapMaximized && (
+                                                    <ChevronDown size={12} className={`transition-transform duration-300 ${showHudMenu ? 'rotate-180' : ''}`} />
+                                                )}
+                                            </button>
+                                        </Tooltip>
+
+                                        {/* HUD Selection Dropdown (Fullscreen Only) */}
+                                        <div
+                                            className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-40 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom z-[1100] ${isMapMaximized && showHudMenu ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'}`}
                                         >
-                                            <Activity size={18} />
-                                        </button>
-                                    </Tooltip>
+                                            <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
+                                                onMouseMove={handleGlassMouseMove}>
+                                                <div className="glass-content w-full h-full flex flex-col gap-0.5">
+                                                    {/* 1. Primary HUD (Draggable) */}
+                                                    <button
+                                                        onClick={() => setHudVisibility('overlap', !hudVisibility.overlap)}
+                                                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border hover:scale-105 active:scale-90 group ${hudVisibility.overlap ?
+                                                            'bg-blue-600/30 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]' :
+                                                            'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'
+                                                            }`}
+                                                    >
+                                                        <span className="text-[11px] font-bold">Telemetry Overlap</span>
+                                                    </button>
+
+                                                    {/* Divider */}
+                                                    <div className="mx-2 my-1 border-t border-white/10" />
+
+                                                    {/* 2. Sidebar HUDs (Fixed) */}
+                                                    {[
+                                                        { id: 'trackInfo', label: 'Track Info', active: true },
+                                                        { id: 'vehicleInfo', label: 'Car Info', active: true },
+                                                        { id: 'analysisLaps', label: 'Analysis Laps', active: true },
+                                                        { id: 'dataCharts', label: 'Data Charts', active: true },
+                                                    ].map((item) => (
+                                                        <button
+                                                            key={item.id}
+                                                            disabled={!item.active}
+                                                            onClick={() => setHudVisibility(item.id as any, !hudVisibility[item.id as keyof typeof hudVisibility])}
+                                                            className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border hover:scale-105 active:scale-90 group ${!item.active ? 'opacity-20 cursor-not-allowed border-transparent' :
+                                                                hudVisibility[item.id as keyof typeof hudVisibility] ?
+                                                                    'bg-blue-600/30 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]' :
+                                                                    'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'
+                                                                }`}
+                                                        >
+                                                            <span className="text-[11px] font-bold">
+                                                                {item.label}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     <Tooltip text="RESET VIEW" position="top">
                                         <button
@@ -1159,7 +1232,8 @@ export const TrackMap3D = () => {
 
                                     <div className="h-6 w-px bg-white/10 mx-1" />
 
-                                    <Tooltip text={isMapMaximized ? "MINIMIZE" : "MAXIMIZE"} position="top">
+
+                                    <Tooltip text={isMapMaximized ? "RESTORE" : "MAXIMIZE"} position="top">
                                         <button
                                             onClick={() => setIsMapMaximized(!isMapMaximized)}
                                             className={`p-2 rounded-full transition-all ${isMapMaximized ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
@@ -1259,6 +1333,143 @@ export const TrackMap3D = () => {
                     />
                 </Canvas>
 
+                {/* 1. Telemetry Overlap HUD */}
+                <div
+                    className={`absolute inset-0 pointer-events-none transition-all duration-500 transform z-[150] ${(isMapMaximized ? hudVisibility.overlap : showTelemetryOverlay)
+                        ? 'opacity-100 scale-100 translate-y-0'
+                        : 'opacity-0 scale-95 -translate-y-4 pointer-events-none'
+                        }`}
+                >
+                    <CompactTelemetryOverlay
+                        data={telemetryData}
+                        cursorIndex={smoothCursorIndex}
+                        theme="current"
+                        carModel={sessionMetadata?.modelName}
+                        isMiniMap={false}
+                    />
+
+                    {(referenceTelemetryData || referenceLapIdx !== null) && (
+                        <CompactTelemetryOverlay
+                            data={referenceTelemetryData || telemetryData}
+                            cursorIndex={dashboardSyncMode === 'distance' ? referenceDeltaIndex : referenceCursorIndex}
+                            theme="reference"
+                            carModel={referenceSessionMetadata?.modelName || sessionMetadata?.modelName}
+                            isMiniMap={false}
+                        />
+                    )}
+                </div>
+
+                {/* 2. Smart Sidebar */}
+                {isMapMaximized && (
+                    <div className={`absolute top-12 left-4 z-[200] w-[320px] flex flex-col gap-0 ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}`}>
+                        <AnimatePresence mode="popLayout">
+                            {maximizedSidebarMode === 'data_sources' ? (
+                                <motion.div
+                                    key="data-sources-panel"
+                                    initial={{ opacity: 0, x: -40 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -40 }}
+                                    transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+                                    className="pointer-events-auto flex flex-col gap-2 h-full w-full"
+                                >
+                                    <div className="flex-1 flex flex-col overflow-hidden rounded-2xl glass-container-static">
+                                        <FileManager />
+                                    </div>
+                                    <button
+                                        onClick={() => setMaximizedSidebarMode('hud')}
+                                        className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg backdrop-blur-md"
+                                    >
+                                        Return to Active Session
+                                    </button>
+                                </motion.div>
+                            ) : (
+                                <>
+                                    {hudVisibility.trackInfo && sessionMetadata && (
+                                        <motion.div
+                                            key="track-info-3d"
+                                            layout
+                                            initial={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, x: 0, height: 'auto', marginBottom: 12, scale: 1 }}
+                                            exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            transition={{
+                                                type: 'spring',
+                                                stiffness: 120,
+                                                damping: 20,
+                                                layout: { duration: 0.4 },
+                                                opacity: { duration: 0.3 }
+                                            }}
+                                            className="origin-left pointer-events-auto"
+                                        >
+                                            <TrackInfoOverlay
+                                                sessionMetadata={sessionMetadata}
+                                                referenceMetadata={referenceSessionMetadata}
+                                            />
+                                        </motion.div>
+                                    )}
+
+                                    {hudVisibility.vehicleInfo && sessionMetadata && (
+                                        <motion.div
+                                            key="vehicle-info-3d"
+                                            layout
+                                            initial={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, x: 0, height: 'auto', marginBottom: 12, scale: 1 }}
+                                            exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            transition={{
+                                                type: 'spring',
+                                                stiffness: 120,
+                                                damping: 20,
+                                                layout: { duration: 0.4 },
+                                                opacity: { duration: 0.3 }
+                                            }}
+                                            className="origin-left pointer-events-auto"
+                                        >
+                                            <CarInfoOverlay
+                                                sessionMetadata={sessionMetadata}
+                                                referenceMetadata={referenceSessionMetadata}
+                                            />
+                                        </motion.div>
+                                    )}
+
+                                    {hudVisibility.analysisLaps && (
+                                        <motion.div
+                                            key="analysis-laps-3d"
+                                            layout
+                                            initial={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, x: 0, height: 'auto', marginBottom: 12, scale: 1 }}
+                                            exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            transition={{
+                                                type: 'spring',
+                                                stiffness: 120,
+                                                damping: 20,
+                                                layout: { duration: 0.4 },
+                                                opacity: { duration: 0.3 }
+                                            }}
+                                            className="origin-left pointer-events-auto"
+                                        >
+                                            <LapsSelectorOverlay />
+                                        </motion.div>
+                                    )}
+                                </>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                )}
+
+                {/* 3. Data Charts (Right Sidebar) */}
+                <AnimatePresence>
+                    {isMapMaximized && hudVisibility.dataCharts && (
+                        <motion.div
+                            key="data-charts-sidebar-3d"
+                            initial={{ opacity: 0, x: 40, scale: 0.95 }}
+                            animate={{ opacity: 1, x: 0, scale: 1 }}
+                            exit={{ opacity: 0, x: 40, scale: 0.95 }}
+                            transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+                            className="absolute top-[170px] bottom-4 right-[-12px] z-[2000] pointer-events-none flex flex-col justify-end"
+                        >
+                            <DataChartsOverlay />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );

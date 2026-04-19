@@ -35,6 +35,8 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     const sessionMetadata = useTelemetryStore(state => state.sessionMetadata);
     const referenceSessionMetadata = useTelemetryStore(state => state.referenceSessionMetadata);
 
+    const hasReferenceData = (referenceLapIdx !== null || (referenceTelemetryData && referenceLap)) && referenceLapIdx !== selectedLapIdx;
+
     const chartRef = useRef<HTMLDivElement>(null);
     const uplotRef = useRef<uPlot | null>(null);
     const valueRef = useRef<HTMLSpanElement>(null);
@@ -498,7 +500,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
 
     return (
-        <div className="mb-2 rounded-2xl flex flex-col items-stretch glass-container-flat glass-expand-pixel transition-all duration-300 group min-w-0"
+        <div className="mb-0.5 rounded-2xl flex flex-col items-stretch glass-container-flat glass-expand-pixel transition-all duration-300 group min-w-0"
             onMouseEnter={() => { isHoveringRef.current = true; }}
             onMouseLeave={() => { 
                 isHoveringRef.current = false; 
@@ -521,34 +523,38 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
                 <div className={`flex items-center justify-between px-3 flex-shrink-0 cursor-pointer select-none relative z-10 ${isCollapsed ? 'h-full' : 'h-8'}`}
                     onClick={() => setIsCollapsed(!isCollapsed)}>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
                         <span className="px-2 py-0.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.2em]"
                             style={{ borderColor: getRGBA(color, 0.3), color: color, backgroundColor: getRGBA(color, 0.15) }}>
                             {alias || channel}
                         </span>
                         {isPlaying && (
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/30 animate-pulse">
-                                <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-                                <span className="text-[9px] font-black text-red-400 uppercase tracking-widest">Live</span>
+                            <div className="flex items-center gap-1 px-1.5 py-0.25 rounded-md bg-red-500/20 border border-red-500/30 animate-pulse">
+                                <div className="w-1 h-1 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                                <span className="text-[8px] font-black text-red-400 uppercase tracking-widest">Live</span>
                             </div>
                         )}
                         {showLapTime && <span ref={timeRef} className="text-[11px] font-mono font-bold text-yellow-500/80"></span>}
                     </div>
                     <div className="flex items-center gap-5">
-                        <div className="flex flex-col items-end">
-                            <div className="flex items-baseline gap-1.5">
-                                <span ref={valueRef} className="text-xl font-mono font-black text-white leading-none drop-shadow-md">-</span>
-                                {channel === 'Speed' || channel === 'Ground Speed' ? (
-                                    <span className="text-[10px] font-black text-gray-500 uppercase">{speedUnit === 'kmh' ? 'km/h' : 'mph'}</span>
-                                ) : (
-                                    unit && <span className="text-[10px] font-black text-gray-500 uppercase">{unit}</span>
-                                )}
-                            </div>
-                            {!isCollapsed && channel !== 'Time Delta' && (
-                                <div className="flex items-baseline gap-1.5 opacity-40">
-                                    <span ref={refValueRef} className="text-[11px] font-mono font-bold text-amber-500 leading-none"></span>
-                                    {unit && <span className="text-[9px] font-black text-gray-600 uppercase">{unit}</span>}
-                                </div>
+                        <div className="flex items-baseline gap-2">
+                            {/* Consolidated Values Stream: CURRENT | REFERENCE UNIT */}
+                            <span ref={valueRef} className="text-lg font-mono font-black text-white leading-none drop-shadow-md">-</span>
+                            
+                            {hasReferenceData && !isCollapsed && channel !== 'Time Delta' && (
+                                <>
+                                    <span className="text-gray-700 font-bold opacity-60 mx-[-2px]">|</span>
+                                    <span ref={refValueRef} className="text-lg font-mono font-black text-amber-500/70 leading-none drop-shadow-md"></span>
+                                </>
+                            )}
+
+                            {/* Prominent Unit Label */}
+                            {channel === 'Speed' || channel === 'Ground Speed' ? (
+                                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tighter">
+                                    {speedUnit === 'kmh' ? 'km/h' : 'mph'}
+                                </span>
+                            ) : (
+                                unit && <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tighter">{unit}</span>
                             )}
                         </div>
                         <button 

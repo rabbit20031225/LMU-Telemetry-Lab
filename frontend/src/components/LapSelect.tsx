@@ -13,15 +13,17 @@ interface LapSelectProps {
     showNone?: boolean;
     className?: string;
     placeholder?: string;
+    disabled?: boolean;
 }
 
 export const LapSelect: React.FC<LapSelectProps> = ({
-    label, value, onChange, laps, borderColor, labelColor, showNone = false, className, placeholder
+    label, value, onChange, laps, borderColor, labelColor, showNone = false, className, placeholder, disabled = false
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [shouldRender, setShouldRender] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     // Calculate fastest lap duration
     const validLaps = laps.filter(l => l.isValid);
@@ -43,6 +45,19 @@ export const LapSelect: React.FC<LapSelectProps> = ({
             return () => clearTimeout(timer);
         }
     }, [isOpen]);
+
+    // Stop native wheel propagation to prevent parent map from hijacking scroll
+    useEffect(() => {
+        const scrollDiv = scrollRef.current;
+        if (!scrollDiv) return;
+
+        const handleWheel = (e: WheelEvent) => {
+            e.stopPropagation();
+        };
+
+        scrollDiv.addEventListener('wheel', handleWheel, { passive: false });
+        return () => scrollDiv.removeEventListener('wheel', handleWheel);
+    }, [shouldRender]); // Re-attach when list is rendered
 
     // Close on click outside
     useEffect(() => {
@@ -100,20 +115,18 @@ export const LapSelect: React.FC<LapSelectProps> = ({
 
     return (
         <div className="flex flex-col w-full relative group/lapselect" ref={dropdownRef} onMouseMove={handleGlassMouseMove}>
-            <div className={`flex flex-col w-full glass-container border transition-all duration-300 relative ${isOpen ? `rounded-xl shadow-2xl ${borderColor}` : `rounded-xl border-white/15 hover:border-white/30`}`}>
-                {/* Solid base to block parent ghosting without overwriting glass highlights */}
-                <div className="absolute inset-0 bg-[#1a1a1e] -z-10 rounded-xl" />
-
+            <div className={`flex flex-col w-full glass-container-static border transition-all duration-300 relative ${isOpen ? `rounded-xl shadow-2xl ${borderColor}` : `rounded-xl border-white/15 hover:border-white/30`}`}>
                 <button
-                    onClick={() => setIsOpen(!isOpen)}
-                    className={`w-full px-3 py-1.5 flex items-center justify-between gap-2 focus:outline-none transition-all active:scale-[0.98] group/lapbtn ${isOpen ? 'border-b border-white/10' : ''}`}
+                    onClick={() => !disabled && setIsOpen(!isOpen)}
+                    disabled={disabled}
+                    className={`w-full px-3 py-1.5 flex items-center justify-between gap-2 focus:outline-none transition-all ${disabled ? 'cursor-default' : 'active:scale-[0.98]'} group/lapbtn ${isOpen ? 'border-b border-white/10' : ''}`}
                 >
-                    <div className={`glass-content flex items-center justify-between w-full transition-transform duration-300 group-hover/lapselect:scale-[1.02] ${className === 'is-reference-none' ? 'opacity-40 grayscale-[0.5]' : ''}`}>
+                    <div className={`glass-content flex items-center justify-between w-full transition-transform duration-300 ${!disabled ? 'group-hover/lapselect:scale-[1.02]' : ''} ${className === 'is-reference-none' || disabled ? 'opacity-40 grayscale-[0.5]' : ''}`}>
                         <div className="flex flex-col items-start flex-1 min-w-0">
-                            <span className={`text-[8px] ${labelColor} font-black uppercase tracking-[0.2em] mb-0.5 transition-all duration-300 origin-left group-hover/lapbtn:scale-110 group-hover/lapbtn:drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]`}>{label}</span>
+                            <span className={`text-[8px] ${labelColor} font-black uppercase tracking-[0.2em] mb-0.5 transition-all duration-300 origin-left ${!disabled ? 'group-hover/lapbtn:scale-110 group-hover/lapbtn:drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : ''}`}>{label}</span>
                             {displayContent}
                         </div>
-                        <ChevronDown size={14} className={`text-gray-500 transition-transform duration-300 ${isOpen ? 'rotate-180 text-blue-400' : 'group-hover:text-blue-400'}`} />
+                        <ChevronDown size={14} className={`text-gray-500 transition-transform duration-300 ${isOpen ? 'rotate-180 text-blue-400' : (!disabled ? 'group-hover:text-blue-400' : '')}`} />
                     </div>
                 </button>
 
@@ -123,7 +136,9 @@ export const LapSelect: React.FC<LapSelectProps> = ({
                     <div className="overflow-hidden">
                         {shouldRender && (
                             <div
+                                ref={scrollRef}
                                 className="max-h-64 overflow-y-auto custom-scrollbar p-1.5 space-y-1.5"
+                                onWheel={(e) => e.stopPropagation()}
                             >
                                 {showNone && (
                                     <button

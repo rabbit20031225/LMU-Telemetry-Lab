@@ -1,19 +1,23 @@
-import React, { useMemo, useRef, useEffect, useState } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { MoveDiagonal2, RotateCcw } from 'lucide-react';
 import { useTelemetryStore } from '../store/telemetryStore';
+import { useHudDraggable } from '../hooks/useHudDraggable';
+import { handleGlassMouseMove } from '../utils/glassEffect';
 
 interface CompactTelemetryOverlayProps {
     data: any;
     cursorIndex: number | null;
     theme?: 'current' | 'reference';
     carModel?: string;
+    isMiniMap?: boolean;
 }
 
 export const CompactTelemetryOverlay = React.memo(({
     data,
     cursorIndex,
     theme = 'current',
-    carModel
+    carModel,
+    isMiniMap = false
 }: CompactTelemetryOverlayProps) => {
     const speedUnit = useTelemetryStore(state => state.speedUnit);
     const sessionMetadata = useTelemetryStore(state => state.sessionMetadata);
@@ -22,9 +26,12 @@ export const CompactTelemetryOverlay = React.memo(({
     const selectedWheel = useTelemetryStore(state => state.selectedWheel);
     const customWheels = useTelemetryStore(state => state.customWheels);
     const telemetryHistorySeconds = useTelemetryStore(state => state.telemetryHistorySeconds);
-    const editOverlapMode = useTelemetryStore(state => state.editOverlapMode);
-    const setEditOverlapMode = useTelemetryStore(state => state.setEditOverlapMode);
-    const overlapConfig = useTelemetryStore(state => state.overlapConfig);
+    const editHudMode = useTelemetryStore(state => state.editHudMode);
+    const setEditHudMode = useTelemetryStore(state => state.setEditHudMode);
+    const isMapMaximized = useTelemetryStore(state => state.isMapMaximized);
+    const overlapConfig = useTelemetryStore(state => 
+        state.isMapMaximized ? state.overlapConfigMaximized : state.overlapConfig
+    );
     const updateOverlapConfig = useTelemetryStore(state => state.updateOverlapConfig);
 
     const isRef = theme === 'reference';
@@ -155,170 +162,46 @@ export const CompactTelemetryOverlay = React.memo(({
     }, [selectedWheel, carModel, customWheels]);
 
     const containerRef = useRef<HTMLDivElement>(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const [isResizing, setIsResizing] = useState(false);
-    const dragStart = useRef({ x: 0, y: 0, initialX: 0, initialY: 0 });
-    const resizeStart = useRef({ initialScale: 1.0, initialY: 0 });
 
-    const handleMouseDown = (e: React.MouseEvent) => {
-        if (!editOverlapMode) return;
-        e.preventDefault(); // Prevent text selection
-        e.stopPropagation();
+    const { isDragging, handlePointerDown, handleResizePointerDown } = useHudDraggable({
+        id: isRef ? 'overlapRef' : 'overlap',
+        config: {
+            current: isRef ? overlapConfig.reference : overlapConfig.current,
+            scale: overlapConfig.scale
+        },
+        updateConfig: (newCfg) => {
+            const update: any = {};
+            if (newCfg.current) update[isRef ? 'reference' : 'current'] = newCfg.current;
+            if (newCfg.scale !== undefined) update.scale = newCfg.scale;
+            updateOverlapConfig(update);
+        },
+        containerRef
+    });
 
-        setIsDragging(true);
-        const config = isRef ? overlapConfig.reference : overlapConfig.current;
-        dragStart.current = {
-            x: e.clientX,
-            y: e.clientY,
-            initialX: config.x,
-            initialY: config.y
-        };
-    };
 
-    const handleResizeMouseDown = (e: React.MouseEvent) => {
-        if (!editOverlapMode) return;
-        e.preventDefault(); // Prevent text selection
-        e.stopPropagation();
-
-        setIsResizing(true);
-        resizeStart.current = {
-            initialScale: overlapConfig.scale,
-            initialY: e.clientY
-        };
-    };
-
-    // Persistent Boundary Clamping: Check and fix position on mount and resize
-    useEffect(() => {
-        const parent = containerRef.current?.parentElement;
-        const overlay = containerRef.current;
-        if (!parent || !overlay) return;
-
-        const checkAndClamp = () => {
-            const parentRect = parent.getBoundingClientRect();
-            const overlayRect = overlay.getBoundingClientRect();
-            if (parentRect.width === 0 || parentRect.height === 0) return;
-
-            const config = useTelemetryStore.getState().overlapConfig;
-            const pos = isRef ? config.reference : config.current;
-            const currentScale = config.scale;
-
-            const BUFFER_PX = 8; // Small safety margin from edges
-            const halfWidthPct = ((overlayRect.width / 2 + BUFFER_PX) / parentRect.width) * 100;
-            const halfHeightPct = ((overlayRect.height / 2 + BUFFER_PX) / parentRect.height) * 100;
-
-            const clampedX = Math.max(halfWidthPct, Math.min(100 - halfWidthPct, pos.x));
-            const clampedY = Math.max(halfHeightPct, Math.min(100 - halfHeightPct, pos.y));
-
-            if (Math.abs(clampedX - pos.x) > 0.01 || Math.abs(clampedY - pos.y) > 0.01) {
-                const slot = isRef ? 'reference' : 'current';
-                updateOverlapConfig({
-                    [slot]: { x: clampedX, y: clampedY }
-                });
-            }
-        };
-
-        // 1. Initial Check
-        checkAndClamp();
-
-        // 2. Observe Parent Resize
-        const observer = new ResizeObserver(() => {
-            checkAndClamp();
-        });
-        observer.observe(parent);
-
-        return () => observer.disconnect();
-    }, [isRef, updateOverlapConfig]); // Scale changes also trigger re-renders and effects
-
-    useEffect(() => {
-        if (!isDragging && !isResizing) return;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const parent = containerRef.current?.parentElement;
-            if (!parent) return;
-
-            const rect = parent.getBoundingClientRect();
-
-            if (isDragging) {
-                // Calculate raw goal position as percentage
-                const rawX = ((e.clientX - (dragStart.current.x - (dragStart.current.initialX / 100 * rect.width))) / rect.width) * 100;
-                const rawY = ((e.clientY - (dragStart.current.y - (dragStart.current.initialY / 100 * rect.height))) / rect.height) * 100;
-
-                // Dynamic bounds based on actual visual size (handles scale naturally)
-                const overlay = containerRef.current;
-                if (!overlay) return;
-                const overlayRect = overlay.getBoundingClientRect();
-
-                const BUFFER_PX = 8;
-                const halfWidthPct = ((overlayRect.width / 2 + BUFFER_PX) / rect.width) * 100;
-                const halfHeightPct = ((overlayRect.height / 2 + BUFFER_PX) / rect.height) * 100;
-
-                const clampedX = Math.max(halfWidthPct, Math.min(100 - halfWidthPct, rawX));
-                const clampedY = Math.max(halfHeightPct, Math.min(100 - halfHeightPct, rawY));
-
-                const slot = isRef ? 'reference' : 'current';
-                updateOverlapConfig({
-                    [slot]: { x: clampedX, y: clampedY }
-                });
-            } else if (isResizing) {
-                const dy = (resizeStart.current.initialY - e.clientY) / 100;
-                const newScale = Math.max(0.4, Math.min(2.5, resizeStart.current.initialScale + (dy * -1)));
-                
-                // When resizing, we also need to re-clamp the current position because the box expanded
-                const overlay = containerRef.current;
-                if (!overlay) return;
-                
-                // We use a small trick: calculate what the rect *would be* with the new scale
-                const currentRect = overlay.getBoundingClientRect();
-                const scaleRatio = newScale / overlapConfig.scale;
-                const projectedWidth = currentRect.width * scaleRatio;
-                const projectedHeight = currentRect.height * scaleRatio;
-                
-                const BUFFER_PX = 8;
-                const halfWidthPct = ((projectedWidth / 2 + BUFFER_PX) / rect.width) * 100;
-                const halfHeightPct = ((projectedHeight / 2 + BUFFER_PX) / rect.height) * 100;
-
-                const slot = isRef ? 'reference' : 'current';
-                const pos = isRef ? overlapConfig.reference : overlapConfig.current;
-                
-                const clampedX = Math.max(halfWidthPct, Math.min(100 - halfWidthPct, pos.x));
-                const clampedY = Math.max(halfHeightPct, Math.min(100 - halfHeightPct, pos.y));
-
-                updateOverlapConfig({ 
-                    scale: newScale,
-                    [slot]: { x: clampedX, y: clampedY }
-                });
-            }
-        };
-
-        const handleMouseUp = () => {
-            setIsDragging(false);
-            setIsResizing(false);
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging, isResizing, isRef, overlapConfig, updateOverlapConfig]);
-
-    const currentPos = isRef ? overlapConfig.reference : overlapConfig.current;
+    // Do not render anything if this overlay is inside a MiniMap
+    if (isMiniMap) return null;
 
     return (
-        <div
+        <div 
             ref={containerRef}
-            onDoubleClick={() => setEditOverlapMode(!editOverlapMode)}
-            onMouseDown={handleMouseDown}
+            onDoubleClick={() => setEditHudMode(!editHudMode)}
+            onPointerDown={handlePointerDown}
+            onMouseMove={(e) => !isDragging && handleGlassMouseMove(e)}
             style={{
                 position: 'absolute',
-                left: `${currentPos.x}%`,
-                top: `${currentPos.y}%`,
-                transform: `translate(-50%, -50%) scale(${overlapConfig.scale})`,
-                zIndex: editOverlapMode ? 1200 : 110,
-                cursor: editOverlapMode ? 'move' : 'default',
+                left: `${(isRef ? overlapConfig.reference.x : overlapConfig.current.x)}%`,
+                top: `${(isRef ? overlapConfig.reference.y : overlapConfig.current.y)}%`,
+                transform: `translate3d(-50%, -50%, 0) scale(${overlapConfig.scale})`,
+                transformOrigin: 'center center',
+                zIndex: editHudMode ? 1200 : 100,
+                cursor: editHudMode ? 'move' : 'default',
+                backfaceVisibility: 'hidden',
+                WebkitFontSmoothing: 'antialiased',
+                MozOsxFontSmoothing: 'grayscale',
+                willChange: 'transform, left, top',
             }}
-            className={`flex items-center gap-2.5 bg-black/70 backdrop-blur-2xl border ${editOverlapMode ? 'hud-edit-glow' : (isRef ? 'border-amber-500/30' : 'border-white/10')} rounded-xl px-2.5 py-1.5 h-14 shadow-2xl overflow-hidden glass-container-flat group/teleOverlay transition-shadow duration-500 select-none`}
+            className={`pointer-events-auto flex items-center border ${editHudMode ? 'hud-edit-glow' : 'border-transparent'} rounded-2xl p-2 px-3 gap-3 overflow-hidden glass-container-static group/teleOverlay ${isDragging ? 'transition-none' : 'transition-all duration-500'} select-none min-w-[280px] h-14`}
         >
             {/* Sidebar label indicator */}
             <div className={`absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center ${isRef ? 'bg-amber-500/20' : 'bg-blue-500/20'} border-r border-white/5`}>
@@ -395,9 +278,12 @@ export const CompactTelemetryOverlay = React.memo(({
                 </div>
             </div>
             {/* Resize Handle */}
-            {editOverlapMode && (
+            {editHudMode && (
                 <div
-                    onMouseDown={handleResizeMouseDown}
+                    onPointerDown={(e) => {
+                        e.stopPropagation();
+                        handleResizePointerDown(e);
+                    }}
                     className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize flex items-center justify-center bg-blue-500/20 hover:bg-blue-500/40 rounded-tl-lg transition-colors"
                 >
                     <MoveDiagonal2 size={8} className="text-blue-400" />
@@ -405,9 +291,9 @@ export const CompactTelemetryOverlay = React.memo(({
             )}
 
             {/* Hint Overlay - Toggle text based on edit mode */}
-            <div className={`absolute inset-0 flex items-center justify-center ${editOverlapMode ? 'bg-blue-600/20' : 'bg-black/40'} opacity-0 group-hover/teleOverlay:opacity-100 transition-opacity duration-300 pointer-events-none backdrop-blur-[1px]`}>
-                <span className={`text-[9px] font-black uppercase tracking-[0.2em] drop-shadow-lg scale-90 group-hover/teleOverlay:scale-100 transition-transform duration-300 ${editOverlapMode ? 'text-blue-200' : 'text-white/70'}`}>
-                    {editOverlapMode ? 'Double Click to Lock' : 'Double Click to Edit'}
+            <div className={`absolute inset-0 flex items-center justify-center ${editHudMode ? 'bg-blue-600/20' : 'bg-black/40'} opacity-0 group-hover/teleOverlay:opacity-100 transition-opacity duration-300 pointer-events-none backdrop-blur-[1px]`}>
+                <span className={`text-[9px] font-black uppercase tracking-[0.2em] drop-shadow-lg scale-90 group-hover/teleOverlay:scale-100 transition-transform duration-300 ${editHudMode ? 'text-blue-200' : 'text-white/70'}`}>
+                    {editHudMode ? 'Double Click to Lock' : 'Double Click to Edit'}
                 </span>
             </div>
         </div>
