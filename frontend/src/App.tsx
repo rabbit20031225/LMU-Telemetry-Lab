@@ -1317,16 +1317,22 @@ function App() {
                             </div>
 
                             {hasRef && (
-                              <div className="flex items-center gap-2 p-1.5 bg-black/30 rounded-xl border border-white/10 self-center">
+                              <div className="relative flex items-center p-1 bg-black/30 rounded-xl border border-white/10 self-center w-48 h-8 overflow-hidden group/sync-toggle" onMouseMove={handleGlassMouseMove}>
+                                {/* Sliding Indicator Pill */}
+                                <div 
+                                  className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
+                                  style={{ left: dashboardSyncMode === 'distance' ? '4px' : 'calc(50%)' }}
+                                />
+                                
                                 <button
                                   onClick={() => setDashboardSyncMode('distance')}
-                                  className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${dashboardSyncMode === 'distance' ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]' : 'text-gray-500 hover:text-gray-300'}`}
+                                  className={`relative z-10 flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-widest transition-colors duration-300 ${dashboardSyncMode === 'distance' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
                                 >
                                   Distance Sync
                                 </button>
                                 <button
                                   onClick={() => setDashboardSyncMode('time')}
-                                  className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${dashboardSyncMode === 'time' ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]' : 'text-gray-500 hover:text-gray-300'}`}
+                                  className={`relative z-10 flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-widest transition-colors duration-300 ${dashboardSyncMode === 'time' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
                                 >
                                   Time Sync
                                 </button>

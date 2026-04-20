@@ -638,9 +638,10 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
     const telemetryData = useTelemetryStore(state => state.telemetryData);
     const referenceTelemetryData = useTelemetryStore(state => state.referenceTelemetryData);
     const laps = useTelemetryStore(state => state.laps);
+    const smoothCursorIndex = useTelemetryStore(state => state.smoothCursorIndex);
     const cursorIndex = useTelemetryStore(state => state.cursorIndex);
     const referenceCursorIndex = useTelemetryStore(state => state.referenceCursorIndex);
-    const smoothCursorIndex = useTelemetryStore(state => state.smoothCursorIndex);
+    const playbackElapsed = useTelemetryStore(state => state.playbackElapsed);
     const isPlaying = useTelemetryStore(state => state.isPlaying);
     const togglePlayback = useTelemetryStore(state => state.togglePlayback);
     const playbackSpeed = useTelemetryStore(state => state.playbackSpeed);
@@ -697,17 +698,21 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
 
     const playbackProgress = useMemo(() => {
         const fallback = { progress: 0, currentTime: "00:00.000" };
-        if (!telemetryData || !lapBounds || cursorIndex === null) return fallback;
-        const time = telemetryData['Time'];
-        const { sIdx, validEIdx, startTime } = lapBounds;
+        if (!telemetryData || !laps || selectedLapIdx === null) return fallback;
 
-        if (validEIdx === sIdx) return fallback;
+        const currentLap = laps.find(l => l.lap === selectedLapIdx);
+        const refMeta = referenceLap || (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
+        
+        const curDur = currentLap?.duration || 0;
+        const hasRefData = referenceTelemetryData || (telemetryData && referenceLapIdx !== null);
+        const refDur = hasRefData && refMeta ? (refMeta.duration || 0) : 0;
+        const maxDur = Math.max(curDur, refDur);
 
-        const currentIdx = smoothCursorIndex ?? cursorIndex;
-        const progress = (currentIdx - sIdx) / (validEIdx - sIdx || 1);
-        const elapsed = Math.max(0, (time[Math.floor(currentIdx)] || 0) - startTime);
-        return { progress, currentTime: formatLapTime(elapsed) };
-    }, [telemetryData, lapBounds, cursorIndex]);
+        if (maxDur === 0) return fallback;
+
+        const progress = Math.min(1, Math.max(0, playbackElapsed / maxDur));
+        return { progress, currentTime: formatLapTime(playbackElapsed) };
+    }, [telemetryData, referenceTelemetryData, referenceLap, referenceLapIdx, laps, selectedLapIdx, playbackElapsed]);
 
     const trackCenterOffset = useMemo(() => {
         const targetData = staticTrackBaseData || track3DData;
@@ -968,13 +973,13 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
             <div className="glass-content relative h-full w-full z-10 overflow-hidden rounded-2xl">
 
                 {/* Title & Z-Scale Overlay */}
-                <div className="absolute top-5 left-5 z-[200] flex items-center gap-6 pointer-events-auto">
+                <div className={`absolute top-5 left-5 z-[200] flex pointer-events-auto transition-all duration-300 ${isMapMaximized ? 'flex-row items-center gap-6' : 'flex-col items-start gap-1'}`}>
                     <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] drop-shadow-md transition-all duration-300 group-hover:text-white group-hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">
                         3D Track Map
                     </h3>
 
-                    {/* Z-Scale Horizontal Slider (Integrated next to title) */}
-                    <div className="flex items-center gap-3 pl-4 border-l border-white/10 h-4" onMouseDown={(e) => e.stopPropagation()}>
+                    {/* Z-Scale Horizontal Slider */}
+                    <div className={`flex items-center gap-3 h-4 ${isMapMaximized ? 'pl-4 border-l border-white/10' : ''}`} onMouseDown={(e) => e.stopPropagation()}>
                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Z Scale</span>
                         <div className="relative flex items-center h-4">
                             <input

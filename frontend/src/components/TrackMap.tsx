@@ -73,6 +73,7 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
     const laps = useTelemetryStore(state => state.laps);
     const cursorIndex = useTelemetryStore(state => state.cursorIndex);
     const smoothCursorIndex = useTelemetryStore(state => state.smoothCursorIndex);
+    const playbackElapsed = useTelemetryStore(state => state.playbackElapsed);
     const setCursorIndex = useTelemetryStore(state => state.setCursorIndex);
     const zoomRange = useTelemetryStore(state => state.zoomRange);
     const isPlaying = useTelemetryStore(state => state.isPlaying);
@@ -949,20 +950,20 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             const radius = isMiniMap ? 3.5 : 8; // Slightly larger for arrows
             drawCursorAtIdx(activeCursorIdx, cursorColor, radius, !isMiniMap, telemetryData, !isMiniMap);
 
-            // 2. Draw Reference Ghost Car (Using Synced Store Index)
-            const referenceCursorIndex = useTelemetryStore.getState().referenceCursorIndex;
+            // 2. Draw Reference Ghost Car (Using reactive indices from the store)
+            const activeRefIdx = dashboardSyncMode === 'distance' ? referenceDeltaIndex : referenceCursorIndex;
 
-            if (trackData.referenceRacingLine && referenceCursorIndex !== null) {
+            if (trackData.referenceRacingLine && activeRefIdx !== null) {
                 const refData = referenceTelemetryData || telemetryData;
                 const refCursorColor = isMiniMap ? "rgba(200, 200, 200, 1.0)" : "#ffc800ff"; // Rich orange
                 const refRadius = isMiniMap ? 3.5 : 6.5;
-                drawCursorAtIdx(referenceCursorIndex, refCursorColor, refRadius, false, refData, !isMiniMap);
+                drawCursorAtIdx(activeRefIdx, refCursorColor, refRadius, false, refData, !isMiniMap);
             }
         }
 
         ctx.restore();
 
-    }, [trackData, dimensions, view, telemetryData, flagImage, cursorIndex, referenceLapIdx, isMiniMap, cameraMode, followZoom, optimalRotation, smoothCursorIndex, carHeading, isPlaying, forcedRotation, isExpanded]);
+    }, [trackData, dimensions, view, telemetryData, flagImage, cursorIndex, referenceLapIdx, isMiniMap, cameraMode, followZoom, optimalRotation, smoothCursorIndex, carHeading, isPlaying, forcedRotation, isExpanded, referenceCursorIndex, referenceDeltaIndex, dashboardSyncMode]);
 
     // 4. Cursor rendering in separate effect is no longer needed as we draw it in main loop for synchronization if desired, 
     // but better to keep it separate for performance if cursorIndex changes fast. 
@@ -1074,23 +1075,21 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
 
     const playbackProgress = useMemo(() => {
         const fallback = { progress: 0, currentTime: "00:00.000" };
-        if (!telemetryData || !laps || selectedLapIdx === null || cursorIndex === null) return fallback;
-        const time = telemetryData['Time'];
-        if (!time) return fallback;
+        if (!telemetryData || !laps || selectedLapIdx === null) return fallback;
+
         const currentLap = laps.find(l => l.lap === selectedLapIdx);
-        if (!currentLap) return fallback;
+        const refMeta = referenceLap || (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
+        
+        const curDur = currentLap?.duration || 0;
+        const hasRefData = referenceTelemetryData || (telemetryData && referenceLapIdx !== null);
+        const refDur = hasRefData && refMeta ? (refMeta.duration || 0) : 0;
+        const maxDur = Math.max(curDur, refDur);
 
-        const sIdx = time.findIndex(t => t >= currentLap.startTime);
-        const eIdx = time.findIndex(t => t > currentLap.endTime) - 1;
-        const validEIdx = eIdx < 0 ? time.length - 1 : eIdx;
+        if (maxDur === 0) return fallback;
 
-        if (validEIdx === sIdx) return fallback;
-
-        const currentIdx = smoothCursorIndex ?? cursorIndex;
-        const progress = (currentIdx - sIdx) / (validEIdx - sIdx || 1);
-        const elapsed = Math.max(0, (time[Math.floor(currentIdx)] ?? 0) - currentLap.startTime);
-        return { progress, currentTime: formatLapTime(elapsed) };
-    }, [telemetryData, laps, selectedLapIdx, cursorIndex]);
+        const progress = Math.min(1, Math.max(0, playbackElapsed / maxDur));
+        return { progress, currentTime: formatLapTime(playbackElapsed) };
+    }, [telemetryData, referenceTelemetryData, referenceLap, referenceLapIdx, laps, selectedLapIdx, playbackElapsed]);
 
     if (!telemetryData) {
         return (
@@ -1513,7 +1512,7 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                         {isMapMaximized && (
                             <div className={`absolute top-10 left-4 z-[200] w-[320px] flex flex-col gap-0 ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}`}>
                                 <AnimatePresence mode="popLayout">
-                                    {maximizedSidebarMode === 'data_sources' ? (
+                                    {maximizedSidebarMode === 'data_sources' && (
                                         <motion.div
                                             key="data-sources-panel"
                                             initial={{ opacity: 0, x: -40 }}
@@ -1532,74 +1531,72 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                                                 Return to Active Session
                                             </button>
                                         </motion.div>
-                                    ) : (
-                                        <>
-                                            {hudVisibility.trackInfo && sessionMetadata && (
-                                                <motion.div
-                                                    key="track-info"
-                                                    layout
-                                                    initial={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
-                                                    animate={{ opacity: 1, x: 0, height: 'auto', marginBottom: 12, scale: 1 }}
-                                                    exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
-                                                    transition={{
-                                                        type: 'spring',
-                                                        stiffness: 120,
-                                                        damping: 20,
-                                                        layout: { duration: 0.4 },
-                                                        opacity: { duration: 0.3 }
-                                                    }}
-                                                    className="origin-left pointer-events-auto"
-                                                >
-                                                    <TrackInfoOverlay
-                                                        sessionMetadata={sessionMetadata}
-                                                        referenceMetadata={referenceSessionMetadata}
-                                                    />
-                                                </motion.div>
-                                            )}
+                                    )}
 
-                                            {hudVisibility.vehicleInfo && sessionMetadata && (
-                                                <motion.div
-                                                    key="vehicle-info"
-                                                    layout
-                                                    initial={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
-                                                    animate={{ opacity: 1, x: 0, height: 'auto', marginBottom: 12, scale: 1 }}
-                                                    exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
-                                                    transition={{
-                                                        type: 'spring',
-                                                        stiffness: 120,
-                                                        damping: 20,
-                                                        layout: { duration: 0.4 },
-                                                        opacity: { duration: 0.3 }
-                                                    }}
-                                                    className="origin-left pointer-events-auto"
-                                                >
-                                                    <CarInfoOverlay
-                                                        sessionMetadata={sessionMetadata}
-                                                        referenceMetadata={referenceSessionMetadata}
-                                                    />
-                                                </motion.div>
-                                            )}
+                                    {maximizedSidebarMode !== 'data_sources' && hudVisibility.trackInfo && sessionMetadata && (
+                                        <motion.div
+                                            key="track-info"
+                                            layout
+                                            initial={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, x: 0, height: 'auto', marginBottom: 12, scale: 1 }}
+                                            exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            transition={{
+                                                type: 'spring',
+                                                stiffness: 120,
+                                                damping: 20,
+                                                layout: { duration: 0.4 },
+                                                opacity: { duration: 0.3 }
+                                            }}
+                                            className="origin-left pointer-events-auto"
+                                        >
+                                            <TrackInfoOverlay
+                                                sessionMetadata={sessionMetadata}
+                                                referenceMetadata={referenceSessionMetadata}
+                                            />
+                                        </motion.div>
+                                    )}
 
-                                            {hudVisibility.analysisLaps && (
-                                                <motion.div
-                                                    key="analysis-laps"
-                                                    layout
-                                                    initial={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
-                                                    animate={{ opacity: 1, x: 0, height: 'auto', marginBottom: 12, scale: 1 }}
-                                                    exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
-                                                    transition={{
-                                                        type: 'spring',
-                                                        stiffness: 120,
-                                                        damping: 20,
-                                                        layout: { duration: 0.4 },
-                                                        opacity: { duration: 0.3 }
-                                                    }}
-                                                    className="origin-left pointer-events-auto"
-                                                >
-                                                    <LapsSelectorOverlay />
-                                                </motion.div>
-                                            )}
-                                        </>
+                                    {maximizedSidebarMode !== 'data_sources' && hudVisibility.vehicleInfo && sessionMetadata && (
+                                        <motion.div
+                                            key="vehicle-info"
+                                            layout
+                                            initial={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, x: 0, height: 'auto', marginBottom: 12, scale: 1 }}
+                                            exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            transition={{
+                                                type: 'spring',
+                                                stiffness: 120,
+                                                damping: 20,
+                                                layout: { duration: 0.4 },
+                                                opacity: { duration: 0.3 }
+                                            }}
+                                            className="origin-left pointer-events-auto"
+                                        >
+                                            <CarInfoOverlay
+                                                sessionMetadata={sessionMetadata}
+                                                referenceMetadata={referenceSessionMetadata}
+                                            />
+                                        </motion.div>
+                                    )}
+
+                                    {maximizedSidebarMode !== 'data_sources' && hudVisibility.analysisLaps && (
+                                        <motion.div
+                                            key="analysis-laps"
+                                            layout
+                                            initial={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, x: 0, height: 'auto', marginBottom: 12, scale: 1 }}
+                                            exit={{ opacity: 0, x: -40, height: 0, marginBottom: 0, scale: 0.9 }}
+                                            transition={{
+                                                type: 'spring',
+                                                stiffness: 120,
+                                                damping: 20,
+                                                layout: { duration: 0.4 },
+                                                opacity: { duration: 0.3 }
+                                            }}
+                                            className="origin-left pointer-events-auto"
+                                        >
+                                            <LapsSelectorOverlay />
+                                        </motion.div>
                                     )}
                                 </AnimatePresence>
                             </div>

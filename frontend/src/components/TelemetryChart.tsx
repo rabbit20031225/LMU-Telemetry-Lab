@@ -34,6 +34,8 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     const userWheelRotation = useTelemetryStore(state => state.userWheelRotation);
     const sessionMetadata = useTelemetryStore(state => state.sessionMetadata);
     const referenceSessionMetadata = useTelemetryStore(state => state.referenceSessionMetadata);
+    const dashboardSyncMode = useTelemetryStore(state => state.dashboardSyncMode);
+    const playbackElapsed = useTelemetryStore(state => state.playbackElapsed);
 
     const hasReferenceData = (referenceLapIdx !== null || (referenceTelemetryData && referenceLap)) && referenceLapIdx !== selectedLapIdx;
 
@@ -44,6 +46,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     const timeRef = useRef<HTMLDivElement>(null);
     const startIdxRef = useRef<number>(0);
     const currentDistRef = useRef<Float64Array | null>(null);
+    const currentXDataRef = useRef<Float64Array | null>(null); // NEW: Points to either elapsed or dist
     const currentTimeRef = useRef<Float64Array | null>(null);
     const refTimeAlignedRef = useRef<Float64Array | null>(null);
     const cursorIndexRef = useRef<number | null>(null);
@@ -60,21 +63,36 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         cursorIndexRef.current = cursorIndex;
     }, [cursorIndex]);
 
-    // Helper: Linear Interpolation
+    // Helper: Linear Interpolation with Boundary Termination (returns NaN if outside source range)
     const interp = (xTarget: Float64Array | number[], xSource: Float64Array | number[], ySource: Float64Array | number[]) => {
         const yResult = new Float64Array(xTarget.length);
-        if (xSource.length === 0 || ySource.length === 0) return yResult;
+        if (xSource.length === 0 || ySource.length === 0) {
+            yResult.fill(Number.NaN);
+            return yResult;
+        }
+        
+        const srcMin = xSource[0];
+        const srcMax = xSource[xSource.length - 1];
+        
         let srcIdx = 0;
         for (let i = 0; i < xTarget.length; i++) {
             const x = xTarget[i];
-            while (srcIdx < xSource.length - 1 && (xSource[srcIdx + 1] ?? -Infinity) < x) {
+            
+            // Boundary check: if target is outside source range, use NaN to break the line
+            if (x < srcMin - 0.001 || x > srcMax + 0.001) {
+                yResult[i] = Number.NaN;
+                continue;
+            }
+
+            while (srcIdx < xSource.length - 1 && (xSource[srcIdx + 1] ?? -Infinity) < x - 1e-9) {
                 srcIdx++;
             }
             const x0 = xSource[srcIdx];
             const x1 = xSource[srcIdx + 1];
             const y0 = ySource[srcIdx];
             const y1 = ySource[srcIdx + 1];
-            if (x1 === undefined || x0 === undefined || x1 - x0 === 0) {
+            
+            if (x1 === undefined || x0 === undefined || Math.abs(x1 - x0) < 1e-12) {
                 yResult[i] = y0 ?? 0;
             } else {
                 const t = (x - x0) / (x1 - x0);
@@ -130,7 +148,6 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 if (startIdx === -1) startIdx = i;
                 endIdx = i;
             }
-            // Removed break to be defensive against data gaps
         }
         if (startIdx === -1 || endIdx === -1) return;
 
@@ -138,19 +155,15 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         const currentDist = new Float64Array(rawCurrentDist.length);
         const currentDistStart = rawCurrentDist[0] || 0;
         for (let i = 0; i < rawCurrentDist.length; i++) currentDist[i] = rawCurrentDist[i] - currentDistStart;
-        
-        startIdxRef.current = startIdx;
-        currentDistRef.current = currentDist as any;
+
         const currentTime = timeArray.slice(startIdx, endIdx + 1);
         const lapStartTime = lap.startTime;
+        const currentElapsed = new Float64Array(currentTime.length);
+        for (let i = 0; i < currentTime.length; i++) currentElapsed[i] = Math.max(0, currentTime[i] - lapStartTime);
         
-        // Populate refs for syncUI access
-        currentTimeRef.current = currentTime as any;
-        lapStartTimeRef.current = lapStartTime;
-
         let currentVal: Float64Array;
         if (channel === 'Time Delta') {
-            currentVal = new Float64Array(currentDist.length);
+            currentVal = new Float64Array(currentElapsed.length);
         } else {
             const raw = dataArray!.slice(startIdx, endIdx + 1);
             if ((channel === 'Speed' || channel === 'Ground Speed') && speedUnit === 'mph') {
@@ -171,33 +184,25 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             for (let i = 1; i < out.length - 1; i++) {
                 if (out[i] === 0) {
                     let prevNonZero = 0;
-                    for (let j = i - 1; j >= 0; j--) {
-                        if (out[j] !== 0) { prevNonZero = out[j]; break; }
-                    }
+                    for (let j = i - 1; j >= 0; j--) { if (out[j] !== 0) { prevNonZero = out[j]; break; } }
                     let nextNonZero = 0;
-                    // Look ahead 15 samples (~0.15s at 100Hz) to find the next gear
-                    for (let j = i + 1; j < Math.min(i + 15, out.length); j++) {
-                        if (out[j] !== 0) { nextNonZero = out[j]; break; }
-                    }
-                    if (prevNonZero !== 0 && nextNonZero !== 0) {
-                        out[i] = prevNonZero;
-                    }
+                    for (let j = i + 1; j < Math.min(i + 15, out.length); j++) { if (out[j] !== 0) { nextNonZero = out[j]; break; } }
+                    if (prevNonZero !== 0 && nextNonZero !== 0) out[i] = prevNonZero;
                 }
             }
             currentVal = out;
         }
 
-        // --- 2. Get Reference Lap Data ---
+        // --- 2. Get Reference Lap Data & Alignment ---
         let refValAligned: Float64Array | null = null;
         let refTimeAligned: Float64Array | null = null;
+        let xAxisData: Float64Array = currentDist; // Default to current lap distance
+        const isTimeSync = dashboardSyncMode === 'time' && channel !== 'Time Delta';
 
-        // The reference source is 'referenceTelemetryData' if it belongs to a different stint/session (referenceLap exists),
-        // otherwise it defaults back to 'telemetryData' (same stint comparison).
         const reliesOnExternalData = !!(referenceTelemetryData && referenceLap);
         const targetRefLapIdx = reliesOnExternalData ? referenceLap?.lap : referenceLapIdx;
         const refSource = reliesOnExternalData ? referenceTelemetryData : telemetryData;
 
-        // Show reference if we have an ID AND (it is a different lap OR it is from a different stint/session source)
         if (targetRefLapIdx !== null && (targetRefLapIdx != selectedLapIdx || reliesOnExternalData)) {
             const refTimeArray = getChan(refSource, 'Time');
             const refDistArray = getChan(refSource, 'Lap Dist', 'Distance');
@@ -207,107 +212,145 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             if (refTimeArray && refDistArray && refLapArray) {
                 let refStart = -1, refEnd = -1;
                 for (let i = 0; i < refLapArray.length; i++) {
-                    if (refLapArray[i] == targetRefLapIdx) { // LOOSE EQUALITY
+                    if (refLapArray[i] == targetRefLapIdx) {
                         if (refStart === -1) refStart = i;
                         refEnd = i;
                     }
                 }
 
                 if (refStart !== -1 && refEnd !== -1) {
+                    const rTime = refTimeArray.slice(refStart, refEnd + 1);
+                    const rStartTime = rTime[0];
+                    const rElapsedTime = new Float64Array(rTime.length);
+                    for (let k = 0; k < rTime.length; k++) rElapsedTime[k] = Math.max(0, rTime[k] - rStartTime);
+
                     const rawRefDist = refDistArray.slice(refStart, refEnd + 1);
                     const refDist = new Float64Array(rawRefDist.length);
                     const refDistStart = rawRefDist[0];
                     for (let i = 0; i < rawRefDist.length; i++) refDist[i] = rawRefDist[i] - refDistStart;
-                    
-                    if (refDataArray) {
-                        const rawRef = refDataArray.slice(refStart, refEnd + 1);
-                        let refVal;
-                        if ((channel === 'Speed' || channel === 'Ground Speed') && speedUnit === 'mph') {
-                            refVal = new Float64Array(rawRef.length);
-                            for (let i = 0; i < rawRef.length; i++) refVal[i] = rawRef[i] * 0.621371;
-                        } else {
-                            refVal = new Float64Array(rawRef);
-                            const refMeta = referenceSessionMetadata || sessionMetadata;
-                            if (channel === 'Steering Angle' && userWheelRotation !== null && refMeta?.steeringLock) {
-                                const factor = userWheelRotation / refMeta.steeringLock;
-                                for (let i = 0; i < refVal.length; i++) refVal[i] *= factor;
-                            }
-                        }
 
-                        // Filter transient zeros for reference Gear too
-                        if (channel.toLowerCase() === 'gear') {
-                            for (let i = 1; i < refVal.length - 1; i++) {
-                                if (refVal[i] === 0) {
-                                    let prevNZ = 0;
-                                    for (let j = i - 1; j >= 0; j--) { if (refVal[j] !== 0) { prevNZ = refVal[j]; break; } }
-                                    let nextNZ = 0;
-                                    for (let j = i + 1; j < Math.min(i + 15, refVal.length); j++) { if (refVal[j] !== 0) { nextNZ = refVal[j]; break; } }
-                                    if (prevNZ !== 0 && nextNZ !== 0) refVal[i] = prevNZ;
+                    if (isTimeSync) {
+                        const curDur = currentElapsed[currentElapsed.length - 1] || 0;
+                        const refDur = rElapsedTime[rElapsedTime.length - 1] || 0;
+
+                        if (refDur > curDur + 0.001) {
+                            // Reference is longer - make it master
+                            xAxisData = rElapsedTime;
+                            currentVal = interp(xAxisData, currentElapsed, currentVal);
+                            const mappedCurrentTime = interp(xAxisData, currentElapsed, currentTime);
+                            currentTimeRef.current = mappedCurrentTime as any;
+                            
+                            if (refDataArray) {
+                                const rawRef = refDataArray.slice(refStart, refEnd + 1);
+                                if ((channel === 'Speed' || channel === 'Ground Speed') && speedUnit === 'mph') {
+                                    refValAligned = new Float64Array(rawRef.length);
+                                    for (let i = 0; i < rawRef.length; i++) refValAligned[i] = rawRef[i] * 0.621371;
+                                } else {
+                                    refValAligned = new Float64Array(rawRef);
                                 }
                             }
+                            refTimeAligned = rElapsedTime;
+                        } else {
+                            // Current is longer or equal
+                            xAxisData = currentElapsed;
+                            if (refDataArray) {
+                                const rawRef = refDataArray.slice(refStart, refEnd + 1);
+                                let refVal;
+                                if ((channel === 'Speed' || channel === 'Ground Speed') && speedUnit === 'mph') {
+                                    refVal = new Float64Array(rawRef.length);
+                                    for (let i = 0; i < rawRef.length; i++) refVal[i] = rawRef[i] * 0.621371;
+                                } else {
+                                    refVal = new Float64Array(rawRef);
+                                }
+                                refValAligned = interp(xAxisData, rElapsedTime, refVal);
+                            }
+                            refTimeAligned = interp(xAxisData, rElapsedTime, rElapsedTime);
                         }
-
-                        refValAligned = interp(currentDist, refDist, refVal);
+                    } else {
+                        // Distance sync
+                        xAxisData = currentDist;
+                        if (refDataArray) {
+                            const rawRef = refDataArray.slice(refStart, refEnd + 1);
+                            let refVal;
+                            if ((channel === 'Speed' || channel === 'Ground Speed') && speedUnit === 'mph') {
+                                refVal = new Float64Array(rawRef.length);
+                                for (let i = 0; i < rawRef.length; i++) refVal[i] = rawRef[i] * 0.621371;
+                            } else {
+                                refVal = new Float64Array(rawRef);
+                            }
+                            refValAligned = interp(xAxisData, refDist, refVal);
+                        }
+                        refTimeAligned = interp(xAxisData, refDist, rElapsedTime);
                     }
-
-                    const rTime = refTimeArray.slice(refStart, refEnd + 1);
-                    const rStartTime = rTime[0];
-                    const rElapsedTime = new Float64Array(rTime.length);
-                    for (let k = 0; k < rTime.length; k++) rElapsedTime[k] = rTime[k] - rStartTime;
-                    refTimeAligned = interp(currentDist, refDist, rElapsedTime);
                 }
+            }
+        } else {
+            // No reference - use current lap as master
+            xAxisData = isTimeSync ? currentElapsed : currentDist;
+        }
+
+        // Steering Angle post-processing for reference if it was aligned
+        if (refValAligned && channel === 'Steering Angle' && userWheelRotation !== null) {
+            const refMeta = referenceSessionMetadata || sessionMetadata;
+            if (refMeta?.steeringLock) {
+                const factor = userWheelRotation / refMeta.steeringLock;
+                for (let i = 0; i < refValAligned.length; i++) refValAligned[i] *= factor;
             }
         }
         
+        startIdxRef.current = startIdx;
+        currentDistRef.current = currentDist as any;
+        currentXDataRef.current = xAxisData as any;
         refTimeAlignedRef.current = refTimeAligned as any;
 
         // --- 2.5 Calculate Delta if Virtual ---
         if (channel === 'Time Delta') {
             if (refTimeAligned) {
+                // Determine source elapsed for current based on master X-Axis
+                const curElapsedForDelta = isTimeSync 
+                    ? xAxisData // If time sync, X-axis is the elapsed time
+                    : currentElapsed; // If dist sync, currentElapsed matches xAxisData indices
+                    
                 for (let i = 0; i < currentVal.length; i++) {
-                    currentVal[i] = (currentTime[i] - lapStartTime) - refTimeAligned[i];
+                    const cT = curElapsedForDelta[i];
+                    const rT = refTimeAligned[i];
+                    if (!Number.isNaN(cT) && !Number.isNaN(rT)) {
+                        currentVal[i] = cT - rT;
+                    } else {
+                        currentVal[i] = Number.NaN;
+                    }
                 }
             } else {
                 currentVal.fill(0);
             }
         }
 
-        // Sanitize currentVal for uPlot stability (No NaN/Infinity)
-        for (let i = 0; i < currentVal.length; i++) {
-            if (!Number.isFinite(currentVal[i])) currentVal[i] = 0;
-        }
+        // Sanitize currentVal for uPlot stability (No Infinity)
+        for (let i = 0; i < currentVal.length; i++) if (!Number.isFinite(currentVal[i])) currentVal[i] = Number.NaN;
 
-        // For Delta chart, we don't want to draw a second "reference" line, 
-        // the primary line IS the comparison.
-        if (channel === 'Time Delta') {
-            refValAligned = null;
-        }
-
+        // Data array for uPlot
         const data = [
-            currentDist,
+            xAxisData,
             currentVal,
             ...(refValAligned ? [refValAligned] : [])
         ];
 
-        let maxLapDist = currentDist.length > 0 ? currentDist[currentDist.length - 1] : 0;
+        let maxXBound = xAxisData.length > 0 ? xAxisData[xAxisData.length - 1] : 0;
         let minY = Infinity, maxY = -Infinity;
         const arraysToCheck = [currentVal, ...(refValAligned ? [refValAligned] : [])];
         for (const arr of arraysToCheck) {
             for (let i = 0; i < arr.length; i++) {
                 const v = arr[i];
-                if (v < minY) minY = v;
-                if (v > maxY) maxY = v;
+                if (!Number.isNaN(v)) {
+                    if (v < minY) minY = v;
+                    if (v > maxY) maxY = v;
+                }
             }
         }
         if (minY === Infinity) { minY = 0; maxY = 100; }
         const rangeY = maxY - minY;
-        if (rangeY === 0) {
-            minY -= 1; maxY += 1;
-        } else {
-            minY -= rangeY * 0.1;
-            maxY += rangeY * 0.1;
-        }
-
+        if (rangeY === 0) { minY -= 1; maxY += 1; }
+        else { minY -= rangeY * 0.1; maxY += rangeY * 0.1; }
 
         const syncUI = (idx: number | null | undefined) => {
             if (idx === undefined || idx === null) {
@@ -319,58 +362,45 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
             const val = uplotRef.current?.data[1]?.[idx];
             if (valueRef.current) {
-                const displayVal = val != null ? (channel === 'Time Delta' ? (val > 0 ? "+" : "") + val.toFixed(3) : Math.round(val).toFixed(0)) : "-";
+                const displayVal = val != null && !Number.isNaN(val) ? (channel === 'Time Delta' ? (val > 0 ? "+" : "") + val.toFixed(3) : Math.round(val).toFixed(0)) : "-";
                 valueRef.current.textContent = `${displayVal}`;
-
-                if (channel === 'Time Delta' && val != null) {
-                    if (val > 0) {
-                        valueRef.current.classList.remove('text-white', 'text-green-400');
-                        valueRef.current.classList.add('text-red-400');
-                    } else if (val < 0) {
-                        valueRef.current.classList.remove('text-white', 'text-red-400');
-                        valueRef.current.classList.add('text-green-400');
-                    } else {
-                        valueRef.current.classList.remove('text-red-400', 'text-green-400');
-                        valueRef.current.classList.add('text-white');
-                    }
+                if (channel === 'Time Delta' && val != null && !Number.isNaN(val)) {
+                    if (val > 0) { valueRef.current.className = "text-lg font-mono font-black text-red-400"; }
+                    else if (val < 0) { valueRef.current.className = "text-lg font-mono font-black text-green-400"; }
+                    else { valueRef.current.className = "text-lg font-mono font-black text-white"; }
+                } else if (valueRef.current.className.includes('text-red-400') || valueRef.current.className.includes('text-green-400')) {
+                    valueRef.current.className = "text-lg font-mono font-black text-white";
                 }
             }
 
             if (uplotRef.current && uplotRef.current.data.length > 2 && channel !== 'Time Delta') {
                 const refVal = uplotRef.current.data[2]?.[idx];
-                if (refValueRef.current) {
-                    const displayVal = refVal != null ? Math.round(refVal).toFixed(0) : "-";
-                    refValueRef.current.textContent = `${displayVal}`;
-                }
+                if (refValueRef.current) refValueRef.current.textContent = (refVal != null && !Number.isNaN(refVal)) ? Math.round(refVal).toFixed(0) : "-";
             }
 
-            if (showLapTime && timeRef.current && currentTime) {
+            if (showLapTime && timeRef.current && currentTimeRef.current) {
                 const baseIdx = Math.floor(idx);
-                const t = (currentTime[baseIdx] ?? 0) - lapStartTime;
+                const t = currentTimeRef.current[baseIdx];
                 let refT = 0, delta = 0, hasRef = false;
                 if (refTimeAligned && refTimeAligned.length > baseIdx) {
                     refT = refTimeAligned[baseIdx] ?? 0;
-                    delta = t - refT;
-                    hasRef = true;
+                    if (!Number.isNaN(t) && !Number.isNaN(refT)) { delta = t - refT; hasRef = true; }
                 }
                 const fmt = (sec: number) => {
+                    if (Number.isNaN(sec)) return "--:--.---";
                     const m = Math.floor(sec / 60);
                     const s = (sec % 60).toFixed(3).padStart(6, '0');
                     return `${m}:${s}`;
                 };
                 const currentStr = fmt(t);
                 const refStr = hasRef ? fmt(refT) : "--:--.---";
-                const deltaAbs = Math.abs(delta);
-                const deltaStr = hasRef ? (delta > 0 ? "+" : "-") + fmt(deltaAbs) : "--:--.---";
+                const deltaStr = hasRef ? (delta > 0 ? "+" : "-") + fmt(Math.abs(delta)) : "--:--.---";
                 let deltaColor = "text-gray-500";
-                if (hasRef) {
-                    if (delta > 0) deltaColor = "text-red-500";
-                    else if (delta < 0) deltaColor = "text-green-500";
-                }
+                if (hasRef) { deltaColor = delta > 0 ? "text-red-500" : "text-green-500"; }
                 timeRef.current.innerHTML = `
                     <span class="text-[#3b82f6] mr-1">CURRENT :</span><span class="text-white mr-4">${currentStr}</span>
                     <span class="text-[#daa520] opacity-70 mr-1">REFERENCE :</span><span class="text-gray-400 mr-4">${refStr}</span>
-                    <span class="text-gray-500 mr-1">DELTA :</span><span class="${deltaColor}">${deltaStr}</span>
+                    <span class="${deltaColor}">${deltaStr}</span>
                 `;
             }
         };
@@ -378,97 +408,60 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         const setCursorHook = (u: uPlot) => {
             const idx = u.cursor.idx;
             syncUI(idx);
-            if (idx !== undefined && idx !== null) {
-                const globalIdx = startIdx + idx;
-                // Only update global store if NOT playing
-                if (!isPlayingRef.current && globalIdx !== cursorIndex) {
-                    setCursorIndex(globalIdx);
+            // ONLY update the global store if the user is actually hovering/interacting with THIS chart
+            // This prevents infinite update loops when programmatically moving the cursor during sync.
+            if (idx !== undefined && idx !== null && xAxisData && !isPlayingRef.current && isHoveringRef.current) {
+                const xVal = xAxisData[idx];
+                const time = telemetryData['Time'];
+                if (time && sessionMetadata) {
+                    if (isTimeSync) {
+                        // In Time Sync, update the absolute playback time. 
+                        // This allows maps/overlays to show cars beyond the current lap's end.
+                        const { setPlaybackTime } = useTelemetryStore.getState();
+                        setPlaybackTime(xVal);
+                    } else {
+                        // In Distance Sync, update the physical cursor index.
+                        const targetIdx = startIdx + idx;
+                        if (targetIdx !== null && targetIdx !== cursorIndex) setCursorIndex(targetIdx);
+                    }
                 }
             }
         };
 
-        const setSelectHook = () => {};
-
         const setScaleHook = (u: uPlot) => {
-            const minX = u.scales.x.min || 0;
-            const maxX = u.scales.x.max || maxLapDist;
-
-            if (minX <= 1 && maxX >= maxLapDist - 1) {
-                setZoomRange(null);
-                return;
-            }
-
+            const minX = u.scales.x.min || 0, maxX = u.scales.x.max || maxXBound;
+            if (minX <= (isTimeSync ? 0.01 : 1) && maxX >= maxXBound - (isTimeSync ? 0.01 : 1)) { setZoomRange(null); return; }
             let sIdx = -1, eIdx = -1;
-            for (let i = 0; i < currentDist.length; i++) {
-                if (currentDist[i] >= minX && sIdx === -1) sIdx = i;
-                if (currentDist[i] <= maxX) eIdx = i;
+            for (let i = 0; i < xAxisData.length; i++) {
+                if (xAxisData[i] >= minX && sIdx === -1) sIdx = i;
+                if (xAxisData[i] <= maxX) eIdx = i;
             }
-
-            if (sIdx !== -1 && eIdx !== -1) {
-                setZoomRange([startIdx + sIdx, startIdx + eIdx]);
-            }
+            if (sIdx !== -1 && eIdx !== -1) setZoomRange([startIdx + sIdx, startIdx + eIdx]);
         };
 
         const opts: uPlot.Options = {
-            title: "",
-            width: chartRef.current.clientWidth,
-            height: height,
-            legend: { show: false },
-            series: [
-                {},
-                {
-                    stroke: color,
-                    width: 2,
-                    ...({
-                        shadowBlur: 10,
-                        shadowColor: color
-                    } as any)
-                },
-            ],
-            scales: {
-                x: { time: false, auto: false, min: 0, max: maxLapDist },
-                y: { auto: false, range: [minY, maxY] }
-            },
+            width: chartRef.current.clientWidth, height: height, legend: { show: false },
+            series: [{}, { stroke: color, width: 2, ...({ shadowBlur: 10, shadowColor: color } as any) }],
+            scales: { x: { time: false, auto: false, min: 0, max: maxXBound }, y: { auto: false, range: [minY, maxY] } },
             axes: [
-                { grid: { show: false }, stroke: "#888", ticks: { stroke: "#555" }, space: 100 },
-                {
-                    size: 50,
-                    grid: { stroke: "#333" },
-                    ticks: { stroke: getRGBA(color, 0.8) },
-                    stroke: getRGBA(color, 0.8),
-                    filter: (_u: uPlot, splits: number[]) => {
-                        return splits;
-                    }
-                }
+                { 
+                    grid: { show: false }, stroke: "#888", ticks: { stroke: "#555" }, space: 100,
+                    values: (_u: uPlot, splits: number[]) => splits.map(v => isTimeSync ? `${v.toFixed(1)}s` : (v > 1000 ? `${(v/1000).toFixed(2)}km` : `${v.toFixed(0)}m`))
+                },
+                { size: 50, grid: { stroke: "#333" }, ticks: { stroke: getRGBA(color, 0.8) }, stroke: getRGBA(color, 0.8) }
             ],
-            cursor: { sync: { key: syncKey }, drag: { x: true, y: false }, focus: { prox: 30 } },
-            hooks: {
-                setCursor: [setCursorHook],
-                setSelect: [setSelectHook],
-                setScale: [setScaleHook],
-            }
+            cursor: { sync: { key: syncKey }, drag: { x: true, y: false } },
+            hooks: { setCursor: [setCursorHook], setScale: [setScaleHook] }
         };
         if (refValAligned) {
-            opts.series.push({
-                stroke: "#daa520",
-                width: 2,
-                dash: [3, 2],
-                ...({
-                    shadowBlur: 6,
-                    shadowColor: "#daa520"
-                } as any)
-            });
+            opts.series.push({ stroke: "#daa520", width: 2, dash: [3, 2], ...({ shadowBlur: 6, shadowColor: "#daa520" } as any) });
         }
 
         uplotRef.current = new uPlot(opts, data as any, chartRef.current);
-
         return () => {
-            if (uplotRef.current) {
-                uplotRef.current.destroy();
-                uplotRef.current = null;
-            }
+            if (uplotRef.current) { uplotRef.current.destroy(); uplotRef.current = null; }
         };
-    }, [telemetryData, referenceTelemetryData, referenceLap, selectedLapIdx, referenceLapIdx, laps, channel, showLapTime, color, height, syncKey, setCursorIndex, setZoomRange, speedUnit, userWheelRotation, sessionMetadata]);
+    }, [telemetryData, referenceTelemetryData, referenceLap, selectedLapIdx, referenceLapIdx, laps, channel, showLapTime, color, height, syncKey, setCursorIndex, setZoomRange, speedUnit, userWheelRotation, sessionMetadata, referenceSessionMetadata, dashboardSyncMode]);
 
     useEffect(() => {
         if (!chartRef.current) return;
@@ -482,21 +475,31 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         return () => observer.disconnect();
     }, [height]);
 
-    // Cursor Index Sync: Programmatically update uPlot cursor to match store index
+    // Cursor Index Sync: Programmatically update uPlot cursor to match store index/time
     useEffect(() => {
-        if (!uplotRef.current || cursorIndex === null || !currentDistRef.current) return;
-
-        // SKIP programmatic cursor update if user is currently hovering this chart
+        if (!uplotRef.current || cursorIndex === null || !currentXDataRef.current) return;
         if (isHoveringRef.current) return;
 
-        const localIdx = cursorIndex - startIdxRef.current;
-        if (localIdx >= 0 && localIdx < currentDistRef.current.length) {
-            uplotRef.current.setCursor({
-                left: uplotRef.current.valToPos(currentDistRef.current[localIdx], 'x'),
-                top: uplotRef.current.cursor.top || 0
+        const isTimeSync = dashboardSyncMode === 'time' && channel !== 'Time Delta';
+        const u = uplotRef.current;
+
+        if (isTimeSync) {
+            // In Time Sync, use playbackElapsed to allow mapping significantly beyond the current lap's duration
+            u.setCursor({
+                left: u.valToPos(playbackElapsed, 'x'),
+                top: u.cursor.top || 0
             });
+        } else {
+            // In Distance Sync, stick to the current lap's distance-mapped index
+            const localIdx = Math.min(cursorIndex - startIdxRef.current, currentXDataRef.current.length - 1);
+            if (localIdx >= 0) {
+                u.setCursor({
+                    left: u.valToPos(currentXDataRef.current[localIdx], 'x'),
+                    top: u.cursor.top || 0
+                });
+            }
         }
-    }, [cursorIndex]);
+    }, [cursorIndex, playbackElapsed, dashboardSyncMode, channel]);
 
 
     return (
@@ -504,11 +507,11 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             onMouseEnter={() => { isHoveringRef.current = true; }}
             onMouseLeave={() => { 
                 isHoveringRef.current = false; 
-                if (uplotRef.current && cursorIndex !== null && currentDistRef.current) {
+                if (uplotRef.current && cursorIndex !== null && currentXDataRef.current) {
                     const localIdx = cursorIndex - startIdxRef.current;
-                    if (localIdx >= 0 && localIdx < currentDistRef.current.length) {
+                    if (localIdx >= 0 && localIdx < currentXDataRef.current.length) {
                         uplotRef.current.setCursor({
-                            left: uplotRef.current.valToPos(currentDistRef.current[localIdx], 'x'),
+                            left: uplotRef.current.valToPos(currentXDataRef.current[localIdx], 'x'),
                             top: uplotRef.current.cursor.top || 0
                         });
                     }

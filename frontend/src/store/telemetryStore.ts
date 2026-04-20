@@ -2,6 +2,32 @@ import { create } from 'zustand';
 import type { Session, Lap, TelemetryData, SessionMetadata, Profile, ChartConfig } from '../types';
 import { apiClient } from '../api/client';
 
+// Helper for finding fractional index in a mapped channel array (Time, Distance)
+// Uses binary search for performance
+const findIndexInChannelRange = (arr: Float64Array | number[], target: number, start: number, end: number): number => {
+    if (target <= arr[start]) return start;
+    if (target >= arr[end]) return end;
+    
+    let low = start;
+    let high = end;
+    
+    while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (arr[mid] === target) return mid;
+        if (arr[mid] < target) low = mid + 1;
+        else high = mid - 1;
+    }
+    
+    // Target is between high and low
+    const p1 = high;
+    const p2 = low;
+    const v1 = arr[p1];
+    const v2 = arr[p2];
+    
+    if (v2 === v1) return p1;
+    return p1 + (target - v1) / (v2 - v1);
+};
+
 export interface TelemetryState {
     sessions: Session[];
     currentSessionId: string | null;
@@ -18,6 +44,7 @@ export interface TelemetryState {
     referenceCursorIndex: number | null; // NEW: Synced index for reference values (Time-based)
     referenceDeltaIndex: number | null;  // NEW: Synced index for delta calculation (Distance-based)
     liveDelta: number | null;            // NEW: Standardized time delta (current - ref)
+    playbackElapsed: number;             // NEW: Single source of truth for playback time offset in seconds
     zoomRange: [number, number] | null;
     track3DData: {
         baseMap: any[];
@@ -171,8 +198,10 @@ export interface TelemetryState {
     createProfile: (name: string) => Promise<void>;
     updateProfile: (profileId: string, name: string) => Promise<void>;
     deleteProfile: (profileId: string) => Promise<void>;
+    setPlaybackTime: (time: number) => void;
     uploadAvatar: (profileId: string, file: File) => Promise<void>;
     syncReferenceIndex: () => void;
+    syncFromElapsed: (elapsed: number) => void; // NEW: Decoupled time synchronization
     setDashboardSyncMode: (mode: 'distance' | 'time') => void;
 }
 
@@ -258,6 +287,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     referenceCursorIndex: null,
     referenceDeltaIndex: null,
     liveDelta: null,
+    playbackElapsed: 0,
     referenceLapIdx: null,
     referenceLap: null,
     zoomRange: null,
@@ -539,10 +569,38 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     },
 
     syncReferenceIndex: () => {
-        const { cursorIndex, smoothCursorIndex, isPlaying, telemetryData, referenceTelemetryData, laps, selectedLapIdx, referenceLap, referenceLapIdx } = get();
-        const currentIdx = isPlaying ? (smoothCursorIndex ?? cursorIndex) : cursorIndex;
-        if (currentIdx === null || !telemetryData) {
-            set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null });
+        const { cursorIndex, smoothCursorIndex, telemetryData, laps, selectedLapIdx } = get();
+        const mainTime = telemetryData?.['Time'];
+        const lap = laps.find(l => l.lap === selectedLapIdx);
+        if (!mainTime || !lap || cursorIndex === null) return;
+        
+        const currentIdx = smoothCursorIndex ?? cursorIndex;
+        
+        const mainLapChan = telemetryData['Lap'];
+        let curLineS = -1;
+        if (mainLapChan) {
+            for (let i = 0; i < mainLapChan.length; i++) {
+                if (mainLapChan[i] === selectedLapIdx) { curLineS = i; break; }
+            }
+        }
+        if (curLineS === -1) return;
+        
+        const baseIdx = Math.floor(currentIdx);
+        const nextIdx = Math.min(mainTime.length - 1, baseIdx + 1);
+        const frac = currentIdx - baseIdx;
+        const t1 = mainTime[baseIdx];
+        const t2 = mainTime[nextIdx];
+        if (t1 === undefined) return;
+        const curAbsTime = t1 + ((t2 !== undefined) ? (t2 - t1) * frac : 0);
+        const elapsed = curAbsTime - mainTime[curLineS];
+        
+        get().syncFromElapsed(Math.max(0, elapsed));
+    },
+
+    syncFromElapsed: (elapsed: number) => {
+        const { telemetryData, referenceTelemetryData, laps, selectedLapIdx, referenceLap, referenceLapIdx } = get();
+        if (!telemetryData) {
+            set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null, playbackElapsed: elapsed });
             return;
         }
 
@@ -551,11 +609,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const mainLapChan = telemetryData['Lap'];
         const currentLap = laps.find(l => l.lap === selectedLapIdx);
 
-        if (!mainTime || !mainDist || !currentLap || !mainLapChan) {
-            if (!mainDist && telemetryData && Object.keys(telemetryData).length > 0) {
-                console.warn("syncReferenceIndex: 'Lap Dist' channel missing from main telemetry data");
-            }
-            set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null });
+        if (!mainTime || !currentLap || !mainLapChan) {
+            set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null, playbackElapsed: elapsed });
             return;
         }
 
@@ -566,91 +621,71 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const refLapChan = refData['Lap'];
         const refMeta = referenceLap || (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
 
-        if (!refTime || !refDist || !refLapChan || !refMeta) {
-            set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null });
-            return;
-        }
-
         // 2. Find Boundaries (Start/End indices) for both laps using Lap Channel
         let curLineS = -1, curLineE = -1;
         for (let i = 0; i < mainLapChan.length; i++) {
             if (mainLapChan[i] === selectedLapIdx) { if (curLineS === -1) curLineS = i; curLineE = i; }
             else if (curLineS !== -1 && mainLapChan[i] > selectedLapIdx) break;
         }
+        if (curLineS === -1) {
+            set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null, playbackElapsed: elapsed });
+            return;
+        }
         let refLineS = -1, refLineE = -1;
-        for (let i = 0; i < refLapChan.length; i++) {
-            if (refLapChan[i] === refMeta.lap) { if (refLineS === -1) refLineS = i; refLineE = i; }
-            else if (refLineS !== -1 && refLapChan[i] > refMeta.lap) break;
-        }
-
-        if (curLineS === -1 || refLineS === -1) {
-            set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null });
-            return;
-        }
-
-        const findIndexInChannelRange = (channel: number[] | undefined, target: number, s: number, e: number) => {
-            if (!channel || s === -1 || e === -1 || isNaN(target)) return s;
-            let low = s, high = e;
-            while (low <= high) {
-                const mid = (low + high) >>> 1;
-                if (channel[mid] < target) low = mid + 1;
-                else high = mid - 1;
+        if (refMeta && refLapChan) {
+            for (let i = 0; i < refLapChan.length; i++) {
+                if (refLapChan[i] === refMeta.lap) { if (refLineS === -1) refLineS = i; refLineE = i; }
+                else if (refLineS !== -1 && refLapChan[i] > refMeta.lap) break;
             }
-            const idxA = Math.max(s, Math.min(e, low - 1));
-            const idxB = Math.max(s, Math.min(e, low));
-            if (idxA === idxB) return idxA;
-            const vA = channel[idxA], vB = channel[idxB];
-            if (vA === undefined || vB === undefined) return idxA;
-            const span = vB - vA;
-            return idxA + (span > 0 ? (target - vA) / span : 0);
-        };
-
-        const baseIdx = Math.floor(currentIdx);
-        const nextIdx = Math.min(mainTime.length - 1, baseIdx + 1);
-        const frac = currentIdx - baseIdx;
-
-        // TIME SYNC (For Ghost Car Position & Telemetry Values)
-        const t1 = mainTime[baseIdx];
-        const t2 = mainTime[nextIdx];
-        if (t1 === undefined) {
-            set({ referenceCursorIndex: null, referenceDeltaIndex: null, liveDelta: null });
-            return;
-        }
-        const curAbsTime = t1 + ((t2 !== undefined) ? (t2 - t1) * frac : 0);
-        const mainElapsed = curAbsTime - (mainTime[curLineS] || 0);
-
-        const targetRefTime = refTime[refLineS] + mainElapsed;
-        const finalTimeIdx = findIndexInChannelRange(refTime, targetRefTime, refLineS, refLineE);
-
-        // DISTANCE SYNC (For Delta Calculation)
-        const d1 = mainDist[baseIdx] ?? 0;
-        const d2 = mainDist[nextIdx] ?? d1;
-        const currentTotalDist = d1 + (d2 - d1) * frac;
-        const relDist = currentTotalDist - (mainDist[curLineS] ?? 0);
-
-        const targetRefDist = refDist[refLineS] + relDist;
-        const finalDeltaIdx = findIndexInChannelRange(refDist, targetRefDist, refLineS, refLineE);
-
-        // Calculate Standardized Delta (Mirroring TelemetryChart.tsx interp logic)
-        const baseD = Math.floor(finalDeltaIdx);
-        const nextD = Math.min(refLineE, baseD + 1);
-        const fracD = finalDeltaIdx - baseD;
-
-        const rt1 = refTime[baseD], rt2 = refTime[nextD];
-        if (rt1 === undefined || rt2 === undefined) {
-            set({ referenceCursorIndex: finalTimeIdx, referenceDeltaIndex: finalDeltaIdx, liveDelta: null });
-            return;
         }
 
-        const refAbsTimeAtSameDist = rt1 + fracD * (rt2 - rt1);
-        const refElapsed = refAbsTimeAtSameDist - refTime[refLineS];
+        const targetMainTime = mainTime[curLineS] + elapsed;
+        const clampedMainTime = Math.min(targetMainTime, mainTime[curLineE]);
+        const mainIdx = findIndexInChannelRange(mainTime, clampedMainTime, curLineS, curLineE);
 
-        const delta = mainElapsed - refElapsed;
+        // Delta variables
+        let refIdx = null;
+        let deltaIdx = null;
+        let delta = null;
+
+        if (refLineS !== -1 && refTime && refDist) {
+            const targetRefTime = refTime[refLineS] + elapsed;
+            const clampedRefTime = Math.min(targetRefTime, refTime[refLineE]);
+            refIdx = findIndexInChannelRange(refTime, clampedRefTime, refLineS, refLineE);
+
+            // DISTANCE SYNC (For Delta Calculation)
+            // We use the clampedMainTime to find the distance
+            const baseM = Math.floor(mainIdx);
+            const nextM = Math.min(curLineE, baseM + 1);
+            const fracM = mainIdx - baseM;
+            const d1 = mainDist[baseM] ?? 0;
+            const d2 = mainDist[nextM] ?? d1;
+            const currentTotalDist = d1 + (d2 - d1) * fracM;
+            const relDist = currentTotalDist - (mainDist[curLineS] ?? 0);
+
+            const targetRefDist = refDist[refLineS] + relDist;
+            deltaIdx = findIndexInChannelRange(refDist, targetRefDist, refLineS, refLineE);
+
+            const baseD = Math.floor(deltaIdx);
+            const nextD = Math.min(refLineE, baseD + 1);
+            const fracD = deltaIdx - baseD;
+
+            const rt1 = refTime[baseD], rt2 = refTime[nextD];
+            if (rt1 !== undefined && rt2 !== undefined) {
+                const refAbsTimeAtSameDist = rt1 + fracD * (rt2 - rt1);
+                const refElapsedD = refAbsTimeAtSameDist - refTime[refLineS];
+                const mainElapsedAtD = clampedMainTime - mainTime[curLineS];
+                delta = mainElapsedAtD - refElapsedD;
+            }
+        }
 
         set({
-            referenceCursorIndex: finalTimeIdx,
-            referenceDeltaIndex: finalDeltaIdx,
-            liveDelta: delta
+            smoothCursorIndex: mainIdx,
+            cursorIndex: Math.floor(mainIdx),
+            referenceCursorIndex: refIdx,
+            referenceDeltaIndex: deltaIdx,
+            liveDelta: delta,
+            playbackElapsed: elapsed
         });
     },
 
@@ -739,6 +774,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             referenceLapIdx: null,
             referenceLap: null,
             referenceTelemetryData: null,
+            playbackElapsed: 0,
             zoomRange: null,
             staticTrackBaseData: null
         }));
@@ -881,7 +917,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             selectedLapIdx: lapIdx,
             zoomRange: null,
             cursorIndex: startIdx,
-            smoothCursorIndex: startIdx
+            smoothCursorIndex: startIdx,
+            playbackElapsed: 0
         });
 
         // 3D SYNC: If in 3D mode, we must fetch new track data AND wait for it
@@ -913,7 +950,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             referenceSessionMetadata: null,
             isPlaying: false,
             cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
-            smoothCursorIndex: startIdx !== null ? startIdx : get().cursorIndex
+            smoothCursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
+            playbackElapsed: 0
         });
     },
 
@@ -966,7 +1004,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             referenceSessionMetadata: null,
             isPlaying: false,
             cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
-            smoothCursorIndex: startIdx !== null ? startIdx : get().cursorIndex
+            smoothCursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
+            playbackElapsed: 0
         }));
         try {
             const [data, sessionData] = await Promise.all([
@@ -1244,15 +1283,20 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         }
 
         // Standard Reset logic if at end
-        if (!isPlaying && telemetryData && cursorIndex !== null && selectedLapIdx !== null) {
-            const time = telemetryData['Time'];
+        if (!isPlaying && telemetryData && selectedLapIdx !== null) {
             const currentLap = laps.find(l => l.lap === selectedLapIdx);
-            if (time && currentLap && time[cursorIndex] >= currentLap.endTime - 0.1) {
-                // If at end, reset to start
-                const startIdx = time.findIndex(t => t >= currentLap.startTime);
-                if (startIdx !== -1) {
-                    set({ cursorIndex: startIdx, smoothCursorIndex: startIdx });
-                }
+            const refMeta = get().referenceLap || (get().referenceLapIdx !== null ? laps.find(l => l.lap === get().referenceLapIdx) : null);
+            const curDur = currentLap?.duration || 0;
+            const hasRefData = get().referenceTelemetryData || (telemetryData && get().referenceLapIdx !== null);
+            const refDur = hasRefData && refMeta ? (refMeta.duration || 0) : 0;
+            const maxDur = Math.max(curDur, refDur);
+            
+            if (get().playbackElapsed >= maxDur - 0.1) {
+                set({ playbackElapsed: 0 });
+                get().syncFromElapsed(0);
+                // Slight delay to ensure state propagates before playing
+                setTimeout(() => set({ isPlaying: true }), 10);
+                return;
             }
         }
         set(state => ({ isPlaying: !state.isPlaying }));
@@ -1261,93 +1305,49 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     setPlaybackSpeed: (speed: number) => set({ playbackSpeed: speed }),
 
     updatePlayback: (deltaTimeMs: number) => {
-        const { cursorIndex, smoothCursorIndex, telemetryData, playbackSpeed, isPlaying, laps, selectedLapIdx } = get();
-        if (!isPlaying || !telemetryData || cursorIndex === null) return;
+        const { playbackElapsed, playbackSpeed, isPlaying, laps, selectedLapIdx, referenceLap, referenceLapIdx, telemetryData, referenceTelemetryData } = get();
+        if (!isPlaying || !telemetryData || selectedLapIdx === null) return;
 
-        const time = telemetryData['Time'];
-        if (!time) return;
-
-        // Current lap boundary (if any)
         const currentLap = laps.find(l => l.lap === selectedLapIdx);
-        const endTime = currentLap?.endTime ?? Infinity;
+        const refMeta = referenceLap || (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
+        
+        const curDur = currentLap?.duration || 0;
+        const hasRefData = referenceTelemetryData || (telemetryData && referenceLapIdx !== null);
+        const refDur = hasRefData && refMeta ? (refMeta.duration || 0) : 0;
+        
+        const maxDur = Math.max(curDur, refDur);
 
-        // Advance smooth index
-        let currentSmooth = (smoothCursorIndex ?? cursorIndex) as number;
+        let newElapsed = playbackElapsed + (deltaTimeMs / 1000 * playbackSpeed);
 
-        // RECOVERY: If currentSmooth is STILL null even after togglePlayback, try one more time
-        if (currentSmooth === null && telemetryData && selectedLapIdx !== null) {
-            const currentLap = laps.find(l => l.lap === selectedLapIdx);
-            if (currentLap) {
-                const found = time.findIndex(t => t >= currentLap.startTime);
-                if (found !== -1) {
-                    currentSmooth = found;
-                }
-            }
-        }
-
-        if (currentSmooth === null) return; // Still failed to recover
-
-        // CRITICAL: Safety check for data transition. 
-        if (currentSmooth < 0 || currentSmooth >= time.length - 1) {
-            currentSmooth = 0;
-        }
-
-        // Find current frequency (avg delta T in playback area)
-        const idx = Math.floor(currentSmooth);
-        const nextIdx = Math.min(time.length - 1, idx + 1);
-        const dt = Math.max(0.001, time[nextIdx] - time[idx]); // seconds per index
-
-        const frameStep = (deltaTimeMs / 1000 * playbackSpeed) / dt;
-        const newSmooth = currentSmooth + frameStep;
-
-        set({
-            smoothCursorIndex: newSmooth,
-            cursorIndex: Math.floor(newSmooth)
-        });
-
-        get().syncReferenceIndex();
-
-        const isEndOfData = newSmooth >= time.length - 1;
-        const isEndOfLap = time[Math.floor(newSmooth)] >= endTime;
-
-        if (isEndOfData || isEndOfLap) {
-            const finalIdx = isEndOfData ? time.length - 1 : time.findIndex(t => t > endTime) - 1;
-            const cappedIdx = Math.max(0, finalIdx === -2 ? time.length - 1 : finalIdx);
-
-            set({
-                cursorIndex: cappedIdx,
-                smoothCursorIndex: cappedIdx,
-                isPlaying: false
-            });
+        if (newElapsed >= maxDur) {
+            newElapsed = maxDur;
+            set({ isPlaying: false, playbackElapsed: newElapsed });
         } else {
-            set({
-                smoothCursorIndex: newSmooth,
-                cursorIndex: Math.floor(newSmooth)
-            });
+            set({ playbackElapsed: newElapsed });
         }
+
+        get().syncFromElapsed(newElapsed);
     },
 
     setPlaybackProgress: (progress: number) => {
-        const { telemetryData, laps, selectedLapIdx } = get();
-        if (!telemetryData || !laps || selectedLapIdx === null) return;
-
-        const time = telemetryData['Time'];
-        if (!time) return;
+        const { laps, selectedLapIdx, referenceLap, referenceLapIdx, telemetryData, referenceTelemetryData } = get();
+        if (!telemetryData || selectedLapIdx === null) return;
 
         const currentLap = laps.find(l => l.lap === selectedLapIdx);
-        if (!currentLap) return;
-
-        // Find start/end indices for this lap
-        const sIdx = time.findIndex(t => t >= currentLap.startTime);
-        const eIdx = time.findIndex(t => t > currentLap.endTime) - 1;
-        const validEIdx = eIdx < 0 ? time.length - 1 : eIdx;
-
-        const targetIdx = Math.round(sIdx + (validEIdx - sIdx) * progress);
-        const cappedIdx = Math.max(0, Math.min(time.length - 1, targetIdx));
-
-        set({
-            cursorIndex: cappedIdx,
-            smoothCursorIndex: cappedIdx
-        });
+        const refMeta = referenceLap || (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
+        
+        const curDur = currentLap?.duration || 0;
+        const hasRefData = referenceTelemetryData || (telemetryData && referenceLapIdx !== null);
+        const refDur = hasRefData && refMeta ? (refMeta.duration || 0) : 0;
+        
+        const maxDur = Math.max(curDur, refDur);
+        const targetElapsed = progress * maxDur;
+        
+        set({ playbackElapsed: targetElapsed });
+        get().syncFromElapsed(targetElapsed);
+    },
+    setPlaybackTime: (time: number) => {
+        set({ playbackElapsed: time });
+        get().syncFromElapsed(time);
     }
 }));
