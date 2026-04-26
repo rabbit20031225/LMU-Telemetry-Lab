@@ -163,7 +163,7 @@ export const CompactTelemetryOverlay = React.memo(({
 
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const { isDragging, handlePointerDown, handleResizePointerDown } = useHudDraggable({
+    const { isDragging, isResizing, handlePointerDown, handleResizePointerDown } = useHudDraggable({
         id: isRef ? 'overlapRef' : 'overlap',
         config: {
             current: isRef ? overlapConfig.reference : overlapConfig.current,
@@ -201,7 +201,7 @@ export const CompactTelemetryOverlay = React.memo(({
                 MozOsxFontSmoothing: 'grayscale',
                 willChange: 'transform, left, top',
             }}
-            className={`pointer-events-auto flex items-center border ${editHudMode ? 'hud-edit-glow' : 'border-transparent'} rounded-2xl p-2 px-3 gap-3 overflow-hidden glass-container-static group/teleOverlay ${isDragging ? 'transition-none' : 'transition-all duration-500'} select-none min-w-[280px] h-14`}
+            className={`pointer-events-auto flex items-center border ${editHudMode ? 'hud-edit-glow' : 'border-transparent'} rounded-2xl p-2 px-3 gap-3 overflow-hidden glass-container-static group/teleOverlay ${isDragging || isResizing ? 'transition-none' : 'transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]'} select-none min-w-[280px] h-14`}
         >
             {/* Sidebar label indicator */}
             <div className={`absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center ${isRef ? 'bg-amber-500/20' : 'bg-blue-500/20'} border-r border-white/5`}>

@@ -180,6 +180,118 @@ async def update_profile(profile_id: str, req: ProfileUpdate):
         raise HTTPException(status_code=404, detail="Profile not found")
     return {"status": "success"}
 
+class OpenPathRequest(BaseModel):
+    path: str
+    x: Optional[int] = None
+    y: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+@router.get("/system/validate-path")
+async def validate_system_path(path: str = Query(...)):
+    """Check if a local path exists."""
+    return {"exists": os.path.exists(os.path.normpath(path))}
+
+@router.post("/system/open-path")
+async def open_system_path(req: OpenPathRequest):
+    """Open a local path in the system file explorer."""
+    path = req.path
+    if not path:
+        raise HTTPException(status_code=400, detail="Path is required")
+    
+    try:
+        if sys.platform == 'win32':
+            import subprocess
+            # Normalize path for Windows
+            norm_path = os.path.normpath(path)
+            if os.path.exists(norm_path):
+                # Using explorer.exe directly often helps bring the window to front
+                subprocess.Popen(['explorer', norm_path])
+                return {"status": "success", "message": f"Opening {norm_path}"}
+            else:
+                # If path doesn't exist, try opening the parent
+                parent = os.path.dirname(norm_path)
+                if os.path.exists(parent):
+                    subprocess.Popen(['explorer', parent])
+                    return {"status": "partial", "message": f"Path not found, opening parent: {parent}"}
+                raise HTTPException(status_code=404, detail="Path not found")
+        else:
+            # Fallback for Linux/macOS
+            import subprocess
+            opener = "open" if sys.platform == "darwin" else "xdg-open"
+            subprocess.run([opener, path])
+            return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Failed to open path {path}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/system/pick-and-upload")
+async def pick_and_upload(req: OpenPathRequest, profile_id: Optional[str] = Query("guest")):
+    """Open a native file picker at the specified path and 'upload' the selected file."""
+    import tkinter as tk
+    from tkinter import filedialog
+    import shutil
+    
+    path = req.path
+    data_dir, _ = get_contextual_dirs(profile_id)
+    
+    try:
+        # Enable High DPI awareness for Windows to make the dialog look sharp
+        try:
+            from ctypes import windll
+            windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            try:
+                windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
+
+        # Initialize tkinter and hide the main window
+        root = tk.Tk()
+        root.withdraw()
+        
+        # Position the hidden root window in the center of the app window
+        # so the dialog opens centered relative to the app
+        if req.x is not None and req.y is not None and req.width is not None and req.height is not None:
+            # Calculate center
+            center_x = req.x + (req.width // 2)
+            center_y = req.y + (req.height // 2)
+            # Setting geometry for the hidden window affects where its children (dialogs) appear
+            root.geometry(f"+{center_x}+{center_y}")
+
+        root.attributes('-topmost', True) # Ensure dialog is on top
+        
+        initial_dir = path if os.path.exists(path) else None
+        
+        # Open the native file picker
+        file_path = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            title="Select LMU Telemetry File (.duckdb)",
+            filetypes=[("DuckDB files", "*.duckdb"), ("All files", "*.*")]
+        )
+        
+        root.destroy() # Cleanup tkinter
+        
+        if not file_path:
+            return {"status": "cancelled"}
+            
+        # Copy the file to the data directory
+        filename = os.path.basename(file_path)
+        dest_path = os.path.join(data_dir, filename)
+        
+        shutil.copy2(file_path, dest_path)
+        
+        return {
+            "status": "success", 
+            "id": filename, 
+            "message": f"Successfully imported {filename}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Native file picker failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/profiles/{profile_id}/avatar")
 async def upload_profile_avatar(profile_id: str, file: UploadFile = File(...)):
     # Create profile-specific avatar dir
@@ -283,6 +395,7 @@ async def list_sessions(profile_id: Optional[str] = Query("guest")):
                     if matched_key:
                         session_info["commonTrackName"] = matched_key
                         session_info["trackAliases"] = track_data.get("aliases", [])
+                        session_info["country"] = track_data.get("country", "")
                 
                 if track_layout: session_info["trackLayout"] = track_layout
                 if car_model: session_info["carModel"] = car_model
@@ -502,8 +615,8 @@ async def debug_env():
         "is_frozen": getattr(sys, 'frozen', False),
         "sys_executable": sys.executable,
         "os_getcwd": os.getcwd(),
-        "DATA_DIR": DATA_DIR,
-        "DATA_DIR_exists": os.path.exists(DATA_DIR),
-        "files_in_data": os.listdir(DATA_DIR) if os.path.exists(DATA_DIR) else [],
+        "APP_DATA_ROOT": APP_DATA_ROOT,
+        "APP_DATA_ROOT_exists": os.path.exists(APP_DATA_ROOT),
+        "files_in_data": os.listdir(APP_DATA_ROOT) if os.path.exists(APP_DATA_ROOT) else [],
         "env_duckdb_data_dir": os.environ.get('DUCKDB_DATA_DIR')
     }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Gauge, Thermometer, Eye, EyeOff, Layout, GripVertical, RotateCcw, Move3d, Save, Compass, Aperture, Activity, Settings as SettingsIcon } from 'lucide-react';
+import { X, Gauge, Thermometer, Eye, EyeOff, Layout, GripVertical, RotateCcw, Move3d, Save, Compass, Activity, Settings as SettingsIcon } from 'lucide-react';
 import { useTelemetryStore } from '../store/telemetryStore';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 import packageJson from '../../package.json';
@@ -22,6 +22,18 @@ const SteeringWheelIcon = ({ size = 16, className = "" }) => (
     </svg>
 );
 
+const SingleLapIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        {/* Y-axis dots - Shifted up to create gap with X-axis line */}
+        <rect x="2" y="1" width="3.5" height="4.5" rx="1.75" fill="currentColor" stroke="none" />
+        <rect x="2" y="7.5" width="3.5" height="4.5" rx="1.75" fill="currentColor" stroke="none" />
+        <rect x="2" y="14" width="3.5" height="4.5" rx="1.75" fill="currentColor" stroke="none" />
+        {/* X-axis arrow - Clean, non-touching line */}
+        <path d="M2.5 21.5h17" />
+        <path d="M16 18.5l3.5 3-3.5 3" />
+    </svg>
+);
+
 export const SettingsOverlay: React.FC = () => {
     const showSettings = useTelemetryStore(state => state.showSettings);
     const setShowSettings = useTelemetryStore(state => state.setShowSettings);
@@ -38,6 +50,8 @@ export const SettingsOverlay: React.FC = () => {
     const setUserWheelRotation = useTelemetryStore(state => state.setUserWheelRotation);
     const telemetryHistorySeconds = useTelemetryStore(state => state.telemetryHistorySeconds);
     const setTelemetryHistorySeconds = useTelemetryStore(state => state.setTelemetryHistorySeconds);
+    const singleLapXAxisMode = useTelemetryStore(state => state.singleLapXAxisMode);
+    const setSingleLapXAxisMode = useTelemetryStore(state => state.setSingleLapXAxisMode);
 
     const [tempRotation, setTempRotation] = useState<string>(userWheelRotation?.toString() ?? '');
     const [isSavingRotation, setIsSavingRotation] = useState(false);
@@ -191,6 +205,43 @@ export const SettingsOverlay: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Analysis Preferences - Half Width & Vertical Layout */}
+                    <div className="flex flex-col gap-4 w-1/2">
+                        <div className="flex items-center gap-2 text-gray-400 px-2">
+                            <SingleLapIcon size={16} className="text-blue-400" />
+                            <span className="text-xs font-black uppercase tracking-widest">Chart X-Axis Mode</span>
+                        </div>
+                        
+                        <div 
+                            className="glass-container bg-black/30 rounded-[2rem] border border-white/5 p-4 flex flex-col items-center gap-1"
+                            onMouseMove={(e) => handleGlassMouseMove(e, 0.1)}
+                        >
+                            <div className="glass-content glass-container-flat bg-black/50 p-1.5 rounded-2xl flex border border-white/5 relative w-full">
+                                {/* Sliding Indicator */}
+                                <div 
+                                    className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-blue-500/20 backdrop-blur-md rounded-xl border border-blue-500/30 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                                    style={{ left: singleLapXAxisMode === 'distance' ? '6px' : 'calc(50%)' }}
+                                />
+                                {(['distance', 'time'] as const).map(m => (
+                                    <button
+                                        key={m}
+                                        onClick={() => setSingleLapXAxisMode(m)}
+                                        className={`relative z-10 flex-1 py-3 text-[11px] font-black uppercase transition-all rounded-xl ${singleLapXAxisMode === m ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        {m}
+                                    </button>
+                                ))}
+                            </div>
+                            
+                            <div className="flex items-center gap-2 opacity-40 w-full px-1">
+                                <div className="w-1 h-1 rounded-full bg-blue-500 shrink-0" />
+                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest leading-tight">
+                                    Preferred axis when no reference lap is selected
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="flex flex-col gap-4">
                         <div className="flex items-center justify-between px-2">
                             <div className="flex items-center gap-2 text-gray-400">
@@ -216,7 +267,7 @@ export const SettingsOverlay: React.FC = () => {
                                         value={tempRotation}
                                         onChange={(e) => setTempRotation(e.target.value)}
                                         placeholder={userWheelRotation?.toString() ?? "900"}
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 px-5 text-white font-mono font-bold text-lg focus:outline-none focus:border-blue-500/50 focus:bg-black/60 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 px-5 text-white font-mono font-bold text-lg focus:outline-none focus:border-blue-500/50 focus:bg-black/60 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-700/30"
                                     />
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-600 uppercase tracking-widest pointer-events-none">DEG</div>
                                 </div>

@@ -153,6 +153,35 @@ export const apiClient = {
         return res.json();
     },
 
+    async validatePath(path: string): Promise<boolean> {
+        const res = await fetch(`${API_BASE}/system/validate-path?path=${encodeURIComponent(path)}`);
+        if (!res.ok) return false;
+        const data = await res.json();
+        return data.exists;
+    },
+
+    async openInExplorer(path: string): Promise<void> {
+        await fetch(`${API_BASE}/system/open-path`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path }),
+        });
+    },
+
+    async pickAndUpload(
+        path: string, 
+        profileId: string = 'guest',
+        bounds?: { x: number, y: number, width: number, height: number }
+    ): Promise<{ status: string, id?: string }> {
+        const res = await fetch(`${API_BASE}/system/pick-and-upload?profile_id=${profileId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path, ...bounds }),
+        });
+        if (!res.ok) throw new Error('Native picker failed');
+        return res.json();
+    },
+
     async _fetchJson(path: string, options: RequestInit = {}): Promise<any> {
         const res = await fetch(`${API_BASE}${path}`, options);
         if (!res.ok) {

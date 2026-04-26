@@ -10,6 +10,7 @@ export interface Session {
     trackAliases?: string[];
     carModel?: string;
     carClass?: string;
+    country?: string;
 }
 
 export interface SessionMetadata {
@@ -30,6 +31,7 @@ export interface SessionMetadata {
     steeringLockString?: string;
     frequency?: number;
     carModel?: string;
+    country?: string;
 }
 
 export interface Lap {

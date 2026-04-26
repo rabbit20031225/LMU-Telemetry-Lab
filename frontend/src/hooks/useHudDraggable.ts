@@ -27,6 +27,7 @@ export const useHudDraggable = ({
     const updateHudRect     = useTelemetryStore(state => state.updateHudRect);
     const validateHudLayout  = useTelemetryStore(state => state.validateHudLayout);
     const isMapMaximized     = useTelemetryStore(state => state.isMapMaximized);
+    const show3DLab          = useTelemetryStore(state => state.show3DLab);
 
     const [isDragging,  setIsDragging]  = useState(false);
     const [isResizing,  setIsResizing]  = useState(false);
@@ -52,6 +53,11 @@ export const useHudDraggable = ({
         const eR = el.getBoundingClientRect();
         const pR = parent.getBoundingClientRect();
         if (pR.width === 0 || pR.height === 0) return;
+        
+        // Safety guard: If parent dimensions are too small (e.g. sidebar or collapsing),
+        // skip registry sync and validation to prevent "running away" bug.
+        if (!isMapMaximized && (pR.width < 450 || pR.height < 200)) return;
+
         updateHudRect(id, {
             left:   ((eR.left   - pR.left) / pR.width)  * 100,
             right:  ((eR.right  - pR.left) / pR.width)  * 100,
@@ -131,7 +137,7 @@ export const useHudDraggable = ({
             }
         }, 400); // wait for fullscreen animation to complete
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isMapMaximized]);
+    }, [isMapMaximized, show3DLab]);
 
     // ── Pointer Handlers ──────────────────────────────────────────────────────
     const handlePointerDown = (e: React.PointerEvent) => {

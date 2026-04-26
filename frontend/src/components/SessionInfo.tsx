@@ -4,6 +4,7 @@ import type { SessionMetadata } from '../types';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 import { Tooltip } from './ui/Tooltip';
 import { getBrandLogoPath, getClassColor } from '../utils/carHelpers';
+import { getCountryFlagPath } from '../utils/trackHelpers';
 
 interface CarInfoCardProps {
     metadata: SessionMetadata;
@@ -36,7 +37,7 @@ const CarInfoCard: React.FC<CarInfoCardProps> = ({ metadata, theme = 'current' }
                         <img
                             src={getBrandLogoPath(metadata.modelName)}
                             alt="Brand Logo"
-                            className="w-full h-full object-contain filter brightness-125 grayscale group-hover:grayscale-0 transition-all drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
+                            className="w-full h-full object-contain filter brightness-125 transition-all drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
                             onError={(e) => {
                                 e.currentTarget.style.display = 'none';
                                 e.currentTarget.parentElement!.insertAdjacentHTML('beforeend', '<div class="w-6 h-6 bg-gray-800 rounded-full border border-gray-700"></div>');
@@ -73,11 +74,9 @@ const CarInfoCard: React.FC<CarInfoCardProps> = ({ metadata, theme = 'current' }
 interface SessionInfoProps {
     sessionMetadata: SessionMetadata;
     referenceMetadata?: SessionMetadata | null;
-    getTrackFlagPath: (name: string) => string;
-    getCountryFlagPath?: (name: string) => string;
 }
 
-export const SessionInfo: React.FC<SessionInfoProps> = ({ sessionMetadata, referenceMetadata, getTrackFlagPath, getCountryFlagPath }) => {
+export const SessionInfo: React.FC<SessionInfoProps> = ({ sessionMetadata, referenceMetadata }) => {
     const telemetryData = useTelemetryStore(state => state.telemetryData);
     const cursorIndex = useTelemetryStore(state => state.cursorIndex);
     const selectedLapIdx = useTelemetryStore(state => state.selectedLapIdx);
@@ -144,16 +143,17 @@ export const SessionInfo: React.FC<SessionInfoProps> = ({ sessionMetadata, refer
                     onMouseMove={handleGlassMouseMove}
                 >
                     <div className="glass-content flex items-center gap-3">
-                        <div className="p-1 bg-white/10 rounded-lg border border-white/20 group-hover:border-blue-500/40 transition-all">
-                            <img
-                                src={getTrackFlagPath(sessionMetadata.trackName)}
-                                alt="Track Flag"
-                                className="w-7 h-auto max-h-5 object-contain rounded-sm"
-                                onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                    e.currentTarget.parentElement!.insertAdjacentHTML('beforeend', '<div class="w-6 h-4 bg-gray-800 rounded-sm border border-gray-700"></div>');
-                                }}
-                            />
+                        <div className="flex flex-col gap-1 items-center">
+                            {getCountryFlagPath && sessionMetadata.country && (
+                                <div className="p-1 bg-white/10 rounded-xl border border-white/20 group-hover:border-blue-500/40 transition-all shadow-sm">
+                                    <img
+                                        src={getCountryFlagPath(sessionMetadata.country)}
+                                        alt="Country Flag"
+                                        className="w-8 h-auto object-contain rounded-[1px]"
+                                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                                    />
+                                </div>
+                            )}
                         </div>
                         <div className="flex flex-col">
                             <h2 className="text-sm font-black italic tracking-widest text-white uppercase font-sans leading-tight group-hover:text-blue-400 transition-colors">

@@ -55,6 +55,7 @@ def find_track_in_registry(search_name: str):
 TRACK_REGISTRY = {
     "Bahrain International Circuit": {
         "aliases": ["Sakhir"],
+        "country": "Bahrain",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -128,6 +129,7 @@ TRACK_REGISTRY = {
     },
     "Circuit de La Sarthe": {
         "aliases": ["Le Mans", "Circuit de la Sarthe", "Sarthe", "Le Mans"],
+        "country": "France",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -191,6 +193,7 @@ TRACK_REGISTRY = {
     },
     "Paul Ricard": {
         "aliases": ["Le Castellet", "Paul Ricard - ELMS"],
+        "country": "France",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -262,6 +265,7 @@ TRACK_REGISTRY = {
     },
     "Circuit of the Americas": {
         "aliases": ["COTA", "Austin"],
+        "country": "United States",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -301,6 +305,7 @@ TRACK_REGISTRY = {
     },
     "Fuji Speedway": {
         "aliases": ["Fuji"],
+        "country": "Japan",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -336,6 +341,7 @@ TRACK_REGISTRY = {
     },
     "Autodromo Internazionale Enzo e Dino Ferrari": {
         "aliases": ["Imola"],
+        "country": "Italy",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -361,6 +367,7 @@ TRACK_REGISTRY = {
     },
     "Autodromo Jose Carlos Pace": {
         "aliases": ["Jose Carlos Pace", "Sao Paulo", "Autódromo José Carlos Pace", "Interlagos"],
+        "country": "Brazil",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -384,6 +391,7 @@ TRACK_REGISTRY = {
     },
     "Lusail International Circuit": {
         "aliases": ["Qatar"],
+        "country": "Qatar",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -421,6 +429,7 @@ TRACK_REGISTRY = {
     },
     "Autodromo Nazionale Monza": {
         "aliases": ["Monza"],
+        "country": "Italy",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -466,6 +475,7 @@ TRACK_REGISTRY = {
     },
     "Algarve International Circuit": {
         "aliases": ["Portimao", "Algarve"],
+        "country": "Portugal",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -491,6 +501,7 @@ TRACK_REGISTRY = {
     },
     "Sebring International Raceway": {
         "aliases": ["Sebring"],
+        "country": "United States",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -527,6 +538,7 @@ TRACK_REGISTRY = {
     },
     "Silverstone": {
         "aliases": ["Silverstone Circuit"],
+        "country": "United Kingdom",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -578,6 +590,7 @@ TRACK_REGISTRY = {
     },
     "Circuit de Spa-Francorchamps": {
         "aliases": ["Spa", "Spa-Francorchamps"],
+        "country": "Belgium",
         "layouts": {
             "Default": {
                 "ref_points": [
@@ -633,6 +646,7 @@ TRACK_REGISTRY = {
     },
     "Circuit de Barcelona": {
         "aliases": ["Circuit de Barcelona", "Catalunya", "Circuit de Barcelona-Catalunya"],
+        "country": "Spain",
         "layouts": {
             "Default": {
                 "ref_points": [

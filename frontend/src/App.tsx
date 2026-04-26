@@ -4,6 +4,7 @@ import { useTelemetryStore } from './store/telemetryStore';
 import { FileManager } from './components/FileManager';
 import { TelemetryChart } from './components/TelemetryChart';
 import { TrackMap } from './components/TrackMap';
+import { getBrandLogoPath, getClassColor } from './utils/carHelpers';
 import { ReferenceLapBrowser } from './components/ReferenceLapBrowser';
 import { AnalysisLapsWidget } from './components/AnalysisLapsWidget';
 import { Search } from 'lucide-react';
@@ -16,6 +17,7 @@ import { SettingsOverlay } from './components/SettingsOverlay';
 import { F1Dashboard } from './components/F1Dashboard';
 import { Tooltip } from './components/ui/Tooltip';
 import { Lab3DRoot } from './components/Lab3D/Lab3DRoot';
+import { UpdateNotifier } from './components/UpdateNotifier';
 import {
   ArrowLeft,
   Settings,
@@ -310,17 +312,24 @@ function App() {
     window.location.reload();
   };
 
-  // Global Refresh Shortcut (F5 / Ctrl+R)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
-        e.preventDefault();
-        handleReload();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    // Global Keyboard Shortcuts
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // F5 / Ctrl+R for Reload
+        if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+          e.preventDefault();
+          handleReload();
+        }
+        
+        // 'M' for Minimap Toggle (Only in maximized mode)
+        if (e.key.toLowerCase() === 'm' && useTelemetryStore.getState().isMapMaximized) {
+          const current = useTelemetryStore.getState().showMiniMap;
+          useTelemetryStore.getState().setShowMiniMap(!current);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
   const [showLogin, setShowLogin] = useState(false);
   const activeProfile = (profiles || []).find((p: any) => p.id === activeProfileId);
@@ -539,13 +548,6 @@ function App() {
   }, [activeProfileId, fetchSessions]);
 
   // --- Pure Helper Functions ---
-  const getClassColor = (cls: string = '') => {
-    const c = cls.toUpperCase();
-    if (c.includes('HY') || c.includes('GTP')) return 'bg-red-900/80 text-white border-red-700';
-    if (c.includes('LMP2')) return 'bg-blue-900/80 text-white border-blue-700';
-    if (c.includes('GT3') || c.includes('GTE')) return 'bg-green-900/80 text-green-100 border-green-700';
-    return 'bg-gray-700 text-gray-300 border-gray-600';
-  };
 
   const formatTime = (sec: number | undefined | null) => {
     if (sec === undefined || sec === null) return "--:--.---";
@@ -761,76 +763,6 @@ function App() {
     };
   }, [isResizingSidebar, isDraggingMap, isResizingTrackMap, isDraggingExpandedMap]);
 
-  // Asset Path Helpers
-  const getTrackFlagPath = (trackName: string) => {
-    const lower = trackName.toLowerCase();
-
-    // Manual Mapping for known tracks
-    if (lower.includes('fuji')) return '/tracks/fuji_international_speedway.png';
-    if (lower.includes('monza')) return '/tracks/autodromo_nazionale_monza.png';
-    if (lower.includes('imola')) return '/tracks/autodromo_internazionale_enzo_e_dino_ferrari.png';
-    if (lower.includes('le mans') || lower.includes('sarthe')) return '/tracks/circuit_de_la_sarthe.png';
-    if (lower.includes('sebring')) return '/tracks/sebring_international_raceway.png';
-    if (lower.includes('bahrain')) return '/tracks/bahrain_international_circuit.png';
-    if (lower.includes('spa')) return '/tracks/circuit_de_spa_francorchamps.png';
-    if (lower.includes('portimao') || lower.includes('algarve')) return '/tracks/algarve_international_circuit.png';
-    if (lower.includes('cota') || lower.includes('austin') || lower.includes('americas')) return '/tracks/circuit_of_the_americas.png';
-    if (lower.includes('interlagos') || lower.includes('carlos pace')) return '/tracks/autodromo_jose_carlos_pace.png';
-    if (lower.includes('qatar') || lower.includes('lusail') || lower.includes('losail')) return '/tracks/lusail_international_circuit.png';
-    if (lower.includes('paul ricard') || lower.includes('ricard')) return '/tracks/circuit_paul_ricard.png';
-    if (lower.includes('silverstone')) return '/tracks/silverstone_circuit.png';
-
-    // Default: Clean up name
-    const name = lower.replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
-    return `/tracks/${name}.png`;
-  };
-
-  const getCountryFlagPath = (trackName: string) => {
-    const lower = trackName.toLowerCase();
-    if (lower.includes('fuji')) return 'jp';
-    if (lower.includes('monza') || lower.includes('imola')) return 'it';
-    if (lower.includes('le mans') || lower.includes('sarthe') || lower.includes('paul ricard')) return 'fr';
-    if (lower.includes('sebring') || lower.includes('cota') || lower.includes('austin') || lower.includes('americas')) return 'us';
-    if (lower.includes('bahrain')) return 'bh';
-    if (lower.includes('spa')) return 'be';
-    if (lower.includes('portimao') || lower.includes('algarve')) return 'pt';
-    if (lower.includes('interlagos') || lower.includes('carlos pace')) return 'br';
-    if (lower.includes('qatar') || lower.includes('lusail') || lower.includes('losail')) return 'qa';
-    if (lower.includes('silverstone')) return 'gb';
-    if (lower.includes('barcelona') || lower.includes('catalunya')) return 'es';
-    return '';
-  };
-
-  const getBrandLogoPath = (modelName: string) => {
-    const lower = modelName.toLowerCase();
-    // Heuristic Brand Mapping
-    if (lower.includes('mclaren')) return '/logos/mclaren.png';
-    if (lower.includes('ferrari')) return '/logos/ferrari.png';
-    if (lower.includes('porsche')) return '/logos/porsche.png';
-    if (lower.includes('lamborghini')) return '/logos/lamborghini.png';
-    if (lower.includes('bmw')) return '/logos/bmw.png';
-    if (lower.includes('aston')) return '/logos/aston_martin.png';
-    if (lower.includes('mercedes') || lower.includes('amg')) return '/logos/mercedes.png';
-    if (lower.includes('corvette')) return '/logos/corvette.png';
-    if (lower.includes('toyota')) return '/logos/toyota.png';
-    if (lower.includes('cadillac')) return '/logos/cadillac.png';
-    if (lower.includes('peugeot')) return '/logos/peugeot.png';
-    if (lower.includes('alpine')) return '/logos/alpine.png';
-    if (lower.includes('lexus')) return '/logos/lexus.png';
-    if (lower.includes('genesis')) return '/logos/genesis.png';
-    if (lower.includes('ford') || lower.includes('mustang')) return '/logos/ford.png';
-    if (lower.includes('isotta')) return '/logos/isotta_fraschini.png';
-    if (lower.includes('glickenhaus')) return '/logos/glickenhaus.png';
-    if (lower.includes('vanwall')) return '/logos/vanwall.png';
-    if (lower.includes('chevrolet')) return '/logos/corvette.png';
-    if (lower.includes('oreca')) return '/logos/oreca.png';
-    if (lower.includes('ginetta')) return '/logos/ginetta.png';
-    if (lower.includes('ligier')) return '/logos/ligier.png';
-
-    // Fallback: use first word
-    const brand = lower.split(' ')[0];
-    return `/logos/${brand}.png`;
-  };
 
   return (
     <div className="flex h-screen bg-black text-gray-100 overflow-hidden font-sans">
@@ -855,7 +787,6 @@ function App() {
                 <SessionInfo
                   sessionMetadata={sessionMetadata}
                   referenceMetadata={referenceSessionMetadata}
-                  getTrackFlagPath={getTrackFlagPath}
                 />
               )}
               {/* Lap Controls (Middle of Sidebar) */}
@@ -980,36 +911,38 @@ function App() {
               </div>
             )}
 
-            <div className="relative group/user">
-              <button
-                onClick={() => setShowLogin(true)}
-                className="flex items-center gap-2.5 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 glass-container rounded-2xl border border-white/10 transition-all duration-300"
-                onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
-              >
-                <div className="glass-content flex items-center gap-2.5">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center overflow-hidden ${activeProfile?.avatar_url ? '' : 'bg-blue-500/20 border border-blue-500/40 text-blue-400'}`}>
-                    {activeProfile?.avatar_url ? (
-                      <img
-                        src={activeProfile.avatar_url.startsWith('http') ? activeProfile.avatar_url : `${window.location.protocol}//${window.location.hostname}:8000${activeProfile.avatar_url}`}
-                        alt={activeProfile?.name || 'Avatar'}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          (e.target as HTMLImageElement).parentElement!.classList.add('bg-blue-500/20', 'border', 'border-blue-500/40', 'text-blue-400');
-                        }}
-                      />
-                    ) : (
-                      <Users size={14} />
-                    )}
+            <Tooltip text="SWITCH IDENTITY OR DATA CATEGORY (E.G. TRACKS, CARS)" position="bottom">
+              <div className="relative group/user">
+                <button
+                  onClick={() => setShowLogin(true)}
+                  className="flex items-center gap-2.5 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 glass-container rounded-2xl border border-white/10 transition-all duration-300"
+                  onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
+                >
+                  <div className="glass-content flex items-center gap-2.5">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center overflow-hidden ${activeProfile?.avatar_url ? '' : 'bg-blue-500/20 border border-blue-500/40 text-blue-400'}`}>
+                      {activeProfile?.avatar_url ? (
+                        <img
+                          src={activeProfile.avatar_url.startsWith('http') ? activeProfile.avatar_url : `${window.location.protocol}//${window.location.hostname}:8000${activeProfile.avatar_url}`}
+                          alt={activeProfile?.name || 'Avatar'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).parentElement!.classList.add('bg-blue-500/20', 'border', 'border-blue-500/40', 'text-blue-400');
+                          }}
+                        />
+                      ) : (
+                        <Users size={14} />
+                      )}
+                    </div>
+                    <div className="flex flex-col items-start leading-none pr-1">
+                      <span className="text-[10px] font-black text-white/90 uppercase tracking-widest">{activeProfile?.name || 'IDENTITY / CATEGORY'}</span>
+                      <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tighter">Workspace Environment</span>
+                    </div>
+                    <ChevronDown size={11} className="text-gray-500 group-hover/user:text-blue-400 transition-colors" />
                   </div>
-                  <div className="flex flex-col items-start leading-none pr-1">
-                    <span className="text-[10px] font-black text-white/90 uppercase tracking-widest">{activeProfile?.name || 'Select Identity'}</span>
-                    <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tighter">Current Workspace</span>
-                  </div>
-                  <ChevronDown size={11} className="text-gray-500 group-hover/user:text-blue-400 transition-colors" />
-                </div>
-              </button>
-            </div>
+                </button>
+              </div>
+            </Tooltip>
 
             <Tooltip text="HARD RELOAD (F5)" position="bottom">
               <button
@@ -1023,15 +956,17 @@ function App() {
               </button>
             </Tooltip>
 
-            <button
-              className="text-gray-500 hover:text-white transition-all glass-container p-2 rounded-xl border border-transparent hover:bg-white/5 active:scale-95 group/settings"
-              onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
-              onClick={() => setShowSettings(true)}
-            >
-              <div className="glass-content">
-                <Settings size={18} className="group-hover/settings:rotate-180 transition-all duration-700" />
-              </div>
-            </button>
+            <Tooltip text="SETTINGS" position="bottom">
+              <button
+                className="text-gray-500 hover:text-white transition-all glass-container p-2 rounded-xl border border-transparent hover:bg-white/5 active:scale-95 group/settings"
+                onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
+                onClick={() => setShowSettings(true)}
+              >
+                <div className="glass-content">
+                  <Settings size={18} className="group-hover/settings:rotate-180 transition-all duration-700" />
+                </div>
+              </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -1078,7 +1013,7 @@ function App() {
                         ) : (
                           <TrackMap
                             key={`expanded-${currentSessionId}`}
-                            isExpanded={true}
+                            isExpanded={isMapExpanded}
                             onToggleExpand={() => setIsMapExpanded(false)}
                             isAnimating={!isAnimatingExpandedMap}
                           />
@@ -1198,7 +1133,7 @@ function App() {
                             key={`sidebar-${currentSessionId}`}
                             isExpanded={false}
                             onToggleExpand={() => setIsMapExpanded(true)}
-                            isMiniMap={false} // Reverted: It needs controls, we use isExpanded constraint to block HUD instead
+                            isMiniMap={false}
                             isAnimating={!isAnimatingSidebarMap}
                           />
                         </div>
@@ -1397,6 +1332,7 @@ function App() {
         {showReferenceBrowser && (
           <ReferenceLapBrowser onClose={() => setShowReferenceBrowser(false)} />
         )}
+        <UpdateNotifier />
       </div>
     </div>
   );

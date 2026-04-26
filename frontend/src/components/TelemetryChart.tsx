@@ -4,6 +4,7 @@ import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { useTelemetryStore } from '../store/telemetryStore';
 import { handleGlassMouseMove } from '../utils/glassEffect';
+import { Tooltip } from './ui/Tooltip';
 
 interface TelemetryChartProps {
     channel: string;
@@ -35,9 +36,23 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     const sessionMetadata = useTelemetryStore(state => state.sessionMetadata);
     const referenceSessionMetadata = useTelemetryStore(state => state.referenceSessionMetadata);
     const dashboardSyncMode = useTelemetryStore(state => state.dashboardSyncMode);
+    const singleLapXAxisMode = useTelemetryStore(state => state.singleLapXAxisMode);
     const playbackElapsed = useTelemetryStore(state => state.playbackElapsed);
+    const updateChartHeight = useTelemetryStore(state => state.updateChartHeight);
+    const resetChartHeight = useTelemetryStore(state => state.resetChartHeight);
+    const isMapMaximized = useTelemetryStore(state => state.isMapMaximized);
+
+    const [isResizing, setIsResizing] = React.useState(false);
+    const [isResetting, setIsResetting] = React.useState(false);
 
     const hasReferenceData = (referenceLapIdx !== null || (referenceTelemetryData && referenceLap)) && referenceLapIdx !== selectedLapIdx;
+
+    const reliesOnExternalData = !!(referenceTelemetryData && referenceLap);
+    const targetRefLapIdx = reliesOnExternalData ? referenceLap?.lap : referenceLapIdx;
+    
+    const isXAxisTime = (targetRefLapIdx === null || (targetRefLapIdx == selectedLapIdx && !reliesOnExternalData))
+        ? (singleLapXAxisMode === 'time')
+        : (dashboardSyncMode === 'time' && channel !== 'Time Delta');
 
     const chartRef = useRef<HTMLDivElement>(null);
     const uplotRef = useRef<uPlot | null>(null);
@@ -113,6 +128,30 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             return `rgba(${r}, ${g}, ${b}, ${opacity})`;
         }
         return `rgba(200, 200, 200, ${opacity})`;
+    };
+
+    const handleResizeStart = (e: React.MouseEvent) => {
+        if (isMapMaximized) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setIsResizing(true);
+        
+        const startY = e.clientY;
+        const startHeight = height;
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const deltaY = moveEvent.clientY - startY;
+            updateChartHeight(channel, startHeight + deltaY);
+        };
+
+        const onMouseUp = () => {
+            setIsResizing(false);
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
     };
 
     // Filter Data and Initialize Chart
@@ -199,8 +238,6 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         let xAxisData: Float64Array = currentDist; // Default to current lap distance
         const isTimeSync = dashboardSyncMode === 'time' && channel !== 'Time Delta';
 
-        const reliesOnExternalData = !!(referenceTelemetryData && referenceLap);
-        const targetRefLapIdx = reliesOnExternalData ? referenceLap?.lap : referenceLapIdx;
         const refSource = reliesOnExternalData ? referenceTelemetryData : telemetryData;
 
         if (targetRefLapIdx !== null && (targetRefLapIdx != selectedLapIdx || reliesOnExternalData)) {
@@ -286,7 +323,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             }
         } else {
             // No reference - use current lap as master
-            xAxisData = isTimeSync ? currentElapsed : currentDist;
+            xAxisData = (singleLapXAxisMode === 'time') ? currentElapsed : currentDist;
         }
 
         // Steering Angle post-processing for reference if it was aligned
@@ -414,7 +451,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 const xVal = xAxisData[idx];
                 const time = telemetryData['Time'];
                 if (time && sessionMetadata) {
-                    if (isTimeSync) {
+                    if (isXAxisTime) {
                         // In Time Sync, update the absolute playback time. 
                         // This allows maps/overlays to show cars beyond the current lap's end.
                         const { setPlaybackTime } = useTelemetryStore.getState();
@@ -430,7 +467,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
         const setScaleHook = (u: uPlot) => {
             const minX = u.scales.x.min || 0, maxX = u.scales.x.max || maxXBound;
-            if (minX <= (isTimeSync ? 0.01 : 1) && maxX >= maxXBound - (isTimeSync ? 0.01 : 1)) { setZoomRange(null); return; }
+            if (minX <= (isXAxisTime ? 0.01 : 1) && maxX >= maxXBound - (isXAxisTime ? 0.01 : 1)) { setZoomRange(null); return; }
             let sIdx = -1, eIdx = -1;
             for (let i = 0; i < xAxisData.length; i++) {
                 if (xAxisData[i] >= minX && sIdx === -1) sIdx = i;
@@ -446,7 +483,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             axes: [
                 { 
                     grid: { show: false }, stroke: "#888", ticks: { stroke: "#555" }, space: 100,
-                    values: (_u: uPlot, splits: number[]) => splits.map(v => isTimeSync ? `${v.toFixed(1)}s` : (v > 1000 ? `${(v/1000).toFixed(2)}km` : `${v.toFixed(0)}m`))
+                    values: (_u: uPlot, splits: number[]) => splits.map(v => isXAxisTime ? `${v.toFixed(1)}s` : (v > 1000 ? `${(v/1000).toFixed(2)}km` : `${v.toFixed(0)}m`))
                 },
                 { size: 50, grid: { stroke: "#333" }, ticks: { stroke: getRGBA(color, 0.8) }, stroke: getRGBA(color, 0.8) }
             ],
@@ -461,29 +498,32 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         return () => {
             if (uplotRef.current) { uplotRef.current.destroy(); uplotRef.current = null; }
         };
-    }, [telemetryData, referenceTelemetryData, referenceLap, selectedLapIdx, referenceLapIdx, laps, channel, showLapTime, color, height, syncKey, setCursorIndex, setZoomRange, speedUnit, userWheelRotation, sessionMetadata, referenceSessionMetadata, dashboardSyncMode]);
+    }, [telemetryData, referenceTelemetryData, referenceLap, selectedLapIdx, referenceLapIdx, laps, channel, showLapTime, color, syncKey, setCursorIndex, setZoomRange, speedUnit, userWheelRotation, sessionMetadata, referenceSessionMetadata, dashboardSyncMode, singleLapXAxisMode]);
 
     useEffect(() => {
         if (!chartRef.current) return;
         const observer = new ResizeObserver(entries => {
             if (!uplotRef.current) return;
             for (const entry of entries) {
-                uplotRef.current.setSize({ width: entry.contentRect.width, height: height });
+                // Use the actual current content height for smooth animation sync
+                uplotRef.current.setSize({ 
+                    width: entry.contentRect.width, 
+                    height: entry.contentRect.height 
+                });
             }
         });
         observer.observe(chartRef.current);
         return () => observer.disconnect();
-    }, [height]);
+    }, []); // Empty dependency array: we want the observer to live as long as the component
 
     // Cursor Index Sync: Programmatically update uPlot cursor to match store index/time
     useEffect(() => {
         if (!uplotRef.current || cursorIndex === null || !currentXDataRef.current) return;
         if (isHoveringRef.current) return;
 
-        const isTimeSync = dashboardSyncMode === 'time' && channel !== 'Time Delta';
         const u = uplotRef.current;
 
-        if (isTimeSync) {
+        if (isXAxisTime) {
             // In Time Sync, use playbackElapsed to allow mapping significantly beyond the current lap's duration
             u.setCursor({
                 left: u.valToPos(playbackElapsed, 'x'),
@@ -499,11 +539,11 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 });
             }
         }
-    }, [cursorIndex, playbackElapsed, dashboardSyncMode, channel]);
+    }, [cursorIndex, playbackElapsed, dashboardSyncMode, channel, isXAxisTime]);
 
 
     return (
-        <div className="mb-0.5 rounded-2xl flex flex-col items-stretch glass-container-flat glass-expand-pixel transition-all duration-300 group min-w-0"
+        <div className={`mb-0.5 rounded-2xl flex flex-col items-stretch glass-container-flat glass-expand-pixel transition-all duration-300 group min-w-0 relative ${isResizing ? 'select-none' : ''}`}
             onMouseEnter={() => { isHoveringRef.current = true; }}
             onMouseLeave={() => { 
                 isHoveringRef.current = false; 
@@ -580,16 +620,35 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 </div>
 
                 <div
-                    className={`grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] w-full overflow-hidden min-w-0 ${isCollapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100 mt-2'}`}
+                    className={`grid transition-all ${isResizing ? 'duration-0' : 'duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]'} w-full overflow-hidden min-w-0 ${isCollapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100 mt-2'}`}
                 >
                     <div className="min-h-0 min-w-0 relative z-10 transition-all duration-300">
                         <div 
                             ref={chartRef} 
-                            className={`w-full h-full min-w-0 transition-opacity duration-300 ${isPlaying ? 'opacity-90' : ''}`} 
+                            className={`w-full h-full min-w-0 transition-opacity duration-300 ${isResetting ? 'transition-[height] duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]' : ''} ${isPlaying ? 'opacity-90' : ''}`} 
                             style={{ height: height }} 
                         />
                     </div>
                 </div>
+
+                {/* Y-Axis Resize Handle (Main Dashboard Only) */}
+                {!isMapMaximized && !isCollapsed && (
+                    <Tooltip text="DRAG TO RESIZE | DOUBLE-CLICK TO RESET" position="top" delay={300}>
+                        <div 
+                            className={`absolute bottom-0 left-4 right-4 h-3 flex justify-center items-center cursor-row-resize group/resize-handle z-[60]`}
+                            onMouseDown={handleResizeStart}
+                            onDoubleClick={() => {
+                                setIsResetting(true);
+                                resetChartHeight(channel);
+                                setTimeout(() => setIsResetting(false), 600);
+                            }}
+                        >
+                            <div className={`h-1.5 bg-white/10 backdrop-blur-3xl rounded-full transition-all duration-300 border border-white/20 group-hover/resize-handle:bg-blue-500 group-hover/resize-handle:scale-110 relative overflow-hidden ${isResizing ? 'w-48 bg-blue-500/80' : 'w-24 group-hover/resize-handle:w-36'}`}>
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover/resize-handle:translate-x-[100%] transition-transform duration-1000" />
+                            </div>
+                        </div>
+                    </Tooltip>
+                )}
             </div>
         </div>
     );

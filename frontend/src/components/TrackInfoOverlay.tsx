@@ -4,50 +4,40 @@ import { useTelemetryStore } from '../store/telemetryStore';
 import { useHudDraggable } from '../hooks/useHudDraggable';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 import type { SessionMetadata } from '../types';
+import { getCountryFlagPath } from '../utils/trackHelpers';
 
 interface TrackInfoOverlayProps {
     sessionMetadata: SessionMetadata;
     referenceMetadata?: SessionMetadata | null;
     isMiniMap?: boolean;
+    getCountryFlagPath?: (country?: string) => string | null;
 }
 
-const getTrackFlagPath = (trackName: string) => {
-    const lower = trackName.toLowerCase();
-    if (lower.includes('fuji')) return '/tracks/fuji_international_speedway.png';
-    if (lower.includes('monza')) return '/tracks/autodromo_nazionale_monza.png';
-    if (lower.includes('imola')) return '/tracks/autodromo_internazionale_enzo_e_dino_ferrari.png';
-    if (lower.includes('le mans') || lower.includes('sarthe')) return '/tracks/circuit_de_la_sarthe.png';
-    if (lower.includes('sebring')) return '/tracks/sebring_international_raceway.png';
-    if (lower.includes('bahrain')) return '/tracks/bahrain_international_circuit.png';
-    if (lower.includes('spa')) return '/tracks/circuit_de_spa_francorchamps.png';
-    if (lower.includes('portimao') || lower.includes('algarve')) return '/tracks/algarve_international_circuit.png';
-    if (lower.includes('cota') || lower.includes('austin') || lower.includes('americas')) return '/tracks/circuit_of_the_americas.png';
-    if (lower.includes('interlagos') || lower.includes('carlos pace')) return '/tracks/autodromo_jose_carlos_pace.png';
-    return `/tracks/${lower.replace(/[^a-z0-9]/g, '_')}.png`;
-};
-
-export const TrackInfoOverlay = React.memo(({ sessionMetadata, referenceMetadata }: TrackInfoOverlayProps) => {
+export const TrackInfoOverlay = React.memo(({ sessionMetadata, referenceMetadata, getCountryFlagPath: propGetCountryFlagPath }: TrackInfoOverlayProps) => {
+    // Use prop if provided, otherwise fallback to utility
+    const resolveCountryFlag = propGetCountryFlagPath || getCountryFlagPath;
     return (
         <div className="pointer-events-auto flex flex-col overflow-hidden rounded-2xl glass-container-static group/trackInfo transition-all duration-500 select-none min-w-[220px]" onMouseMove={handleGlassMouseMove}>
             {/* Top Area: Track Name & Layout */}
             <div className="flex items-center gap-3 p-3 pb-2.5 border-b border-white/10 bg-white/5">
-                <div className="p-1 bg-black/40 rounded-lg border border-white/20 shadow-inner">
-                    <img
-                        src={getTrackFlagPath(sessionMetadata.trackName)}
-                        alt="Track Flag"
-                        className="w-8 h-auto max-h-6 object-contain rounded-[2px]"
-                        onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement!.insertAdjacentHTML('beforeend', '<div class="w-8 h-5 bg-gray-800 rounded-[2px] border border-gray-700"></div>');
-                        }}
-                    />
+                <div className="flex flex-col gap-1 items-center">
+                    {resolveCountryFlag && sessionMetadata.country && (
+                        <div className="p-1 bg-black/40 rounded-xl border border-white/10 group-hover/trackInfo:border-blue-500/40 transition-all shadow-inner">
+                            <img
+                                src={resolveCountryFlag(sessionMetadata.country)}
+                                alt="Country Flag"
+                                className="w-8 h-auto object-contain rounded-[1px] opacity-90 group-hover/trackInfo:opacity-100 transition-opacity"
+                                onError={(e) => (e.currentTarget.style.display = 'none')}
+                            />
+                        </div>
+                    )}
                 </div>
                 <div className="flex flex-col w-full pr-2">
-                    <h2 className="text-sm font-black italic tracking-widest text-[#f0f0f0] uppercase font-sans leading-none [text-shadow:0_2px_8px_rgba(0,0,0,0.8)]">
+                    <h2 className="text-sm font-black italic tracking-widest text-[#f0f0f0] uppercase font-sans leading-none [text-shadow:0_2px_8px_rgba(0,0,0,0.8)] group-hover/trackInfo:text-blue-400 transition-colors">
                         {sessionMetadata.trackName}
                     </h2>
                     {sessionMetadata.trackLayout && (
-                        <span className="text-[11px] text-gray-400 font-mono tracking-tight uppercase block mt-1 opacity-80 leading-none">
+                        <span className="text-[11px] text-gray-400 font-mono tracking-tight uppercase block mt-1 opacity-80 leading-none group-hover/trackInfo:text-white transition-colors">
                             {sessionMetadata.trackLayout}
                         </span>
                     )}

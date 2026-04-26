@@ -1,3 +1,27 @@
+## 🟢 [2026-04-25] Telemetry v1.3.2 - UX 優化與系統整合
+
+### 🌟 核心突破
+*   **圖表 Y 軸自定義 (Chart Scaling)**: 支援手動調整遙測圖表高度、雙擊恢復預設與 `localStorage` 狀態持久化。
+*   **智慧避讓佈局 (Avoidance System)**: 實作 HUD 自動避讓側邊欄邏輯。新增 `isHudAnimating` 狀態鎖，解決維度切換時的座標跳動。
+*   **原生 OS 整合 (Native Integration)**: 整合 Windows 原生檔案選取器，支援自定義 LMU 遙測數據路徑。
+*   **介面邏輯歸一化 (UI Unification)**: 對齊 2D/3D 容器座標系。新增「單圈圖表 X 軸」主介面/設定同步切換與更新通知系統。
+
+### 🚀 專案影響
+*   v1.3.2 提升了跨維度佈局的穩定性，並解決了瀏覽器環境下檔案路徑存取的限制。
+
+🟢 [2026-04-25] Telemetry v1.3.2 - UX Optimization & System Integration
+
+### 🌟 Key Breakthroughs
+*   **Chart Resizing**: Manual Y-axis scaling with double-click reset and state persistence.
+*   **Avoidance Logic**: HUD sidebar avoidance with `isHudAnimating` transition lock to prevent coordinate jumping.
+*   **Native Integration**: Integrated Windows native file picker for custom telemetry paths.
+*   **UI Unification**: Unified 2D/3D coordinate systems and GitHub API-based update notifications.
+
+### 🚀 Project Impact
+*   v1.3.2 improves layout stability during transitions and resolves browser file-access limitations.
+
+---
+
 ## 🟢 [2026-04-20] Telemetry v1.3.1 - 自適應時間軸與動畫交響曲
 
 ### 🌟 核心突破

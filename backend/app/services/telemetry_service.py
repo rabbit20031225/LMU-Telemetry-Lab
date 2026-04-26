@@ -260,6 +260,13 @@ class TelemetryService:
             # Lookup Model Name from Raw Car Name
             real_car_name, final_steer_lock = get_car_info(raw_car, raw_class, override_steer_lock=meta_steer_lock)
             
+            # --- Enrich Track Metadata from Registry ---
+            from ..utils.track_db import find_track_in_registry
+            matched_key, track_data = find_track_in_registry(raw_track)
+            common_track_name = matched_key if matched_key else raw_track
+            track_country = track_data.get("country", "") if matched_key else ""
+            track_aliases = track_data.get("aliases", []) if matched_key else []
+
             # --- Calculate Sector Lines (Lat/Lon) based on Fastest Valid Lap ---
             sector_lines = []
             try:
@@ -308,6 +315,9 @@ class TelemetryService:
 
             metadata = {
                 "trackName": raw_track,
+                "commonTrackName": common_track_name,
+                "trackAliases": track_aliases,
+                "country": track_country,
                 "trackLayout": raw_layout,
                 "carClass": raw_class,
                 "modelName": real_car_name,

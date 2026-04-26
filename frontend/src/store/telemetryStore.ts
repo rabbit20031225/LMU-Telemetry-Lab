@@ -7,23 +7,23 @@ import { apiClient } from '../api/client';
 const findIndexInChannelRange = (arr: Float64Array | number[], target: number, start: number, end: number): number => {
     if (target <= arr[start]) return start;
     if (target >= arr[end]) return end;
-    
+
     let low = start;
     let high = end;
-    
+
     while (low <= high) {
         const mid = (low + high) >> 1;
         if (arr[mid] === target) return mid;
         if (arr[mid] < target) low = mid + 1;
         else high = mid - 1;
     }
-    
+
     // Target is between high and low
     const p1 = high;
     const p2 = low;
     const v1 = arr[p1];
     const v2 = arr[p2];
-    
+
     if (v2 === v1) return p1;
     return p1 + (target - v1) / (v2 - v1);
 };
@@ -135,6 +135,9 @@ export interface TelemetryState {
     parentDimensions: { width: number; height: number }; // NEW: For absolute pixel math
     showReferenceBrowser: boolean;
     maximizedSidebarMode: 'hud' | 'data_sources'; // NEW: For navigating within maximized sidebar
+    showMiniMap: boolean; // NEW
+    isHudAnimating: boolean; // NEW: To suppress avoidance during transitions
+    singleLapXAxisMode: 'distance' | 'time'; // NEW: Independent X-axis mode for single lap
 
     // Actions
     setSpeedUnit: (unit: 'kmh' | 'mph') => void;
@@ -146,6 +149,9 @@ export interface TelemetryState {
     setShowReferenceBrowser: (show: boolean) => void;
     setLeftSidebarCollapsed: (collapsed: boolean) => void;
     setRightPanelCollapsed: (collapsed: boolean) => void;
+    setSingleLapXAxisMode: (mode: 'distance' | 'time') => void; // NEW
+    updateChartHeight: (id: string, height: number) => void;
+    resetChartHeight: (id: string) => void;
     setChartConfigs: (configs: ChartConfig[]) => void;
     updateChartConfig: (id: string, updates: Partial<ChartConfig>) => void;
     saveChartPreset: (name: string) => void;
@@ -167,6 +173,7 @@ export interface TelemetryState {
     setHudVisibility: (key: keyof TelemetryState['hudVisibility'], visible: boolean) => void;
     setIsMapMaximized: (is: boolean) => void;
     setMaximizedSidebarMode: (mode: 'hud' | 'data_sources') => void; // NEW
+    setShowMiniMap: (show: boolean) => void; // NEW
 
     fetchSessions: () => Promise<void>;
     selectSession: (sessionId: string) => Promise<void>;
@@ -344,6 +351,9 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     })),
     parentDimensions: { width: 1920, height: 1080 },
     maximizedSidebarMode: 'hud',
+    showMiniMap: localStorage.getItem('show_minimap') !== 'false',
+    isHudAnimating: false,
+    singleLapXAxisMode: (localStorage.getItem('singleLapXAxisMode') as 'distance' | 'time') || 'distance',
 
     setSpeedUnit: (unit) => {
         localStorage.setItem('speed_unit', unit);
@@ -423,6 +433,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const parentW = state.parentDimensions.width;
         const parentH = state.parentDimensions.height;
 
+        // Safety guard: If the container is too small (e.g. sidebar or collapsing), 
+        // do NOT validate/clamp coordinates to prevent "running away" bug.
+        if (!isMax && (parentW < 450 || parentH < 200)) return;
+
         for (const { id, active } of PRIORITY) {
             const rect = rects[id];
             const center = getConfigCenter(id);
@@ -437,29 +451,43 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             let newX = cx;
             let newY = cy;
 
-            const EDGE_MARGIN = 0.8; // % gap between HUD and screen edge
-            const HUD_GAP = 0.4; // % gap between adjacent HUDs
+            const EDGE_MARGIN = 0.5; // % gap between HUD and screen edge
+            const HUD_GAP = 0.3; // % gap between adjacent HUDs
 
-            // SIDEBAR AVOIDANCE (Maximized Mode Only)
-            const MIN_LEFT_PCT = isMax ? (380 / parentW) * 100 : EDGE_MARGIN;
+            // DYNAMIC SIDEBAR AVOIDANCE (Maximized Mode Only)
+            const vis = get().hudVisibility;
+            const hasLeftHud = vis.trackInfo || vis.vehicleInfo || vis.analysisLaps;
+            const hasRightHud = vis.dataCharts;
+
+            // Skip complex avoidance (sidebar & other HUDs) if we are in the middle of a transition
+            const skipAvoidance = state.isHudAnimating;
+            
+            const MIN_LEFT_PCT = (isMax && parentW > 800 && hasLeftHud && !skipAvoidance) ? (340 / parentW) * 100 : EDGE_MARGIN;
+            const MIN_RIGHT_PCT = (isMax && parentW > 800 && hasRightHud && !skipAvoidance) ? (340 / parentW) * 100 : EDGE_MARGIN;
+            
+            // Bottom avoidance for control center (applies to both dashboard and fullscreen)
+            // Skip during animation to avoid jumps while parentH is unstable
+            const BOTTOM_RESERVE_PCT = skipAvoidance ? EDGE_MARGIN : (100 / parentH) * 100;
 
             // 1. Boundary clamp
-            newX = Math.max(halfWPct + MIN_LEFT_PCT, Math.min(100 - halfWPct - EDGE_MARGIN, cx));
-            newY = Math.max(halfHPct + EDGE_MARGIN, Math.min(100 - halfHPct - EDGE_MARGIN, cy));
+            newX = Math.max(halfWPct + MIN_LEFT_PCT, Math.min(100 - halfWPct - MIN_RIGHT_PCT, cx));
+            newY = Math.max(halfHPct + EDGE_MARGIN, Math.min(100 - halfHPct - BOTTOM_RESERVE_PCT, cy));
 
-            // 2. Collision avoidance with other settled HUDs
-            for (const vRect of Object.values(settled)) {
-                const candidate = {
-                    left: newX - halfWPct, right: newX + halfWPct,
-                    top: newY - halfHPct, bottom: newY + halfHPct,
-                };
-                const overlapping = !(
-                    candidate.right < vRect.left || candidate.left > vRect.right ||
-                    candidate.bottom < vRect.top || candidate.top > vRect.bottom
-                );
-                if (overlapping) {
-                    const downY = vRect.bottom + halfHPct + HUD_GAP;
-                    if (downY <= 100 - halfHPct - EDGE_MARGIN) { newY = downY; break; }
+            // 2. Collision avoidance with other settled HUDs - Skip during animation
+            if (!skipAvoidance) {
+                for (const vRect of Object.values(settled)) {
+                    const candidate = {
+                        left: newX - halfWPct, right: newX + halfWPct,
+                        top: newY - halfHPct, bottom: newY + halfHPct,
+                    };
+                    const overlapping = !(
+                        candidate.right < vRect.left || candidate.left > vRect.right ||
+                        candidate.bottom < vRect.top || candidate.top > vRect.bottom
+                    );
+                    if (overlapping) {
+                        const downY = vRect.bottom + halfHPct + HUD_GAP;
+                        if (downY <= 100 - halfHPct - EDGE_MARGIN) { newY = downY; break; }
+                    }
                 }
             }
 
@@ -498,9 +526,27 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         }
 
         set({ hudVisibility: newVisibility });
+        
+        // Push overlap HUD smoothly by triggering layout validation
+        get().validateHudLayout();
     },
-    setIsMapMaximized: (is) => set({ isMapMaximized: is }),
+    setIsMapMaximized: (is) => {
+        set({ isMapMaximized: is, isHudAnimating: true });
+        
+        // Wait for container expansion animation (500ms) before finalizing layout
+        setTimeout(() => {
+            set({ isHudAnimating: false });
+            get().validateHudLayout();
+        }, 550);
+        
+        // Immediate simple clamp to keep things in view
+        get().validateHudLayout();
+    },
     setMaximizedSidebarMode: (mode) => set({ maximizedSidebarMode: mode }),
+    setShowMiniMap: (show) => {
+        localStorage.setItem('show_minimap', String(show));
+        set({ showMiniMap: show });
+    },
     setIsProcessingTrack: (is: boolean) => set({ isProcessingTrack: is }),
     setShowReferenceBrowser: (show: boolean) => set({ showReferenceBrowser: show }),
     setShow3DLab: (show) => {
@@ -520,7 +566,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             show3DLab: show,
             isPlaying: false,
             cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
-            smoothCursorIndex: startIdx !== null ? startIdx : get().cursorIndex
+            smoothCursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
+            isHudAnimating: true // Trigger animation lock
         });
 
         // Proactive load: if switching to 3D and data is missing, trigger fetch immediately
@@ -540,6 +587,13 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
                 }
             }
         }
+
+        // Trigger layout validation after a small tick to ensure new container is ready
+        // dimension switch takes ~300ms + mount time
+        setTimeout(() => {
+            set({ isHudAnimating: false });
+            get().validateHudLayout();
+        }, 600);
     },
     setLeftSidebarCollapsed: (collapsed) => {
         localStorage.setItem('left_sidebar_collapsed', String(collapsed));
@@ -548,6 +602,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     setRightPanelCollapsed: (collapsed) => {
         localStorage.setItem('right_panel_collapsed', String(collapsed));
         set({ isRightPanelCollapsed: collapsed });
+    },
+    setSingleLapXAxisMode: (mode) => {
+        localStorage.setItem('singleLapXAxisMode', mode);
+        set({ singleLapXAxisMode: mode });
     },
     setDashboardSyncMode: (mode) => {
         localStorage.setItem('dashboard_sync_mode', mode);
@@ -573,9 +631,9 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const mainTime = telemetryData?.['Time'];
         const lap = laps.find(l => l.lap === selectedLapIdx);
         if (!mainTime || !lap || cursorIndex === null) return;
-        
+
         const currentIdx = smoothCursorIndex ?? cursorIndex;
-        
+
         const mainLapChan = telemetryData['Lap'];
         let curLineS = -1;
         if (mainLapChan) {
@@ -584,7 +642,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             }
         }
         if (curLineS === -1) return;
-        
+
         const baseIdx = Math.floor(currentIdx);
         const nextIdx = Math.min(mainTime.length - 1, baseIdx + 1);
         const frac = currentIdx - baseIdx;
@@ -593,7 +651,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         if (t1 === undefined) return;
         const curAbsTime = t1 + ((t2 !== undefined) ? (t2 - t1) * frac : 0);
         const elapsed = curAbsTime - mainTime[curLineS];
-        
+
         get().syncFromElapsed(Math.max(0, elapsed));
     },
 
@@ -687,6 +745,22 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             liveDelta: delta,
             playbackElapsed: elapsed
         });
+    },
+
+    updateChartHeight: (id, height) => {
+        const { chartConfigs } = get();
+        const newConfigs = chartConfigs.map(c => c.id === id ? { ...c, height: Math.max(60, height) } : c);
+        localStorage.setItem('chart_configs', JSON.stringify(newConfigs));
+        set({ chartConfigs: newConfigs });
+    },
+
+    resetChartHeight: (id) => {
+        const { chartConfigs } = get();
+        const defaultChart = DEFAULT_CHARTS.find(c => c.id === id);
+        if (!defaultChart) return;
+        const newConfigs = chartConfigs.map(c => c.id === id ? { ...c, height: defaultChart.height } : c);
+        localStorage.setItem('chart_configs', JSON.stringify(newConfigs));
+        set({ chartConfigs: newConfigs });
     },
 
     setChartConfigs: (configs) => {
@@ -1290,7 +1364,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             const hasRefData = get().referenceTelemetryData || (telemetryData && get().referenceLapIdx !== null);
             const refDur = hasRefData && refMeta ? (refMeta.duration || 0) : 0;
             const maxDur = Math.max(curDur, refDur);
-            
+
             if (get().playbackElapsed >= maxDur - 0.1) {
                 set({ playbackElapsed: 0 });
                 get().syncFromElapsed(0);
@@ -1310,11 +1384,11 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
         const currentLap = laps.find(l => l.lap === selectedLapIdx);
         const refMeta = referenceLap || (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
-        
+
         const curDur = currentLap?.duration || 0;
         const hasRefData = referenceTelemetryData || (telemetryData && referenceLapIdx !== null);
         const refDur = hasRefData && refMeta ? (refMeta.duration || 0) : 0;
-        
+
         const maxDur = Math.max(curDur, refDur);
 
         let newElapsed = playbackElapsed + (deltaTimeMs / 1000 * playbackSpeed);
@@ -1335,14 +1409,14 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
         const currentLap = laps.find(l => l.lap === selectedLapIdx);
         const refMeta = referenceLap || (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
-        
+
         const curDur = currentLap?.duration || 0;
         const hasRefData = referenceTelemetryData || (telemetryData && referenceLapIdx !== null);
         const refDur = hasRefData && refMeta ? (refMeta.duration || 0) : 0;
-        
+
         const maxDur = Math.max(curDur, refDur);
         const targetElapsed = progress * maxDur;
-        
+
         set({ playbackElapsed: targetElapsed });
         get().syncFromElapsed(targetElapsed);
     },

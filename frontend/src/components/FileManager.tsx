@@ -1,9 +1,14 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { useTelemetryStore } from '../store/telemetryStore';
 import type { Session } from '../types';
-import { Upload, Database, Search, Trash2, Link, Info } from 'lucide-react';
+import { Upload, Database, Search, Trash2, Link, Info, Folder, Settings2, Check, X, ExternalLink } from 'lucide-react';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 import { Tooltip } from './ui/Tooltip';
+import { apiClient } from '../api/client';
+import { getBrandLogoPath } from '../utils/carHelpers';
+import { getCountryFlagPath } from '../utils/trackHelpers';
+
+const DEFAULT_LMU_PATH = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Le Mans Ultimate\\UserData\\Telemetry';
 
 export const FileManager: React.FC = () => {
     const sessions = useTelemetryStore(state => state.sessions);
@@ -13,6 +18,8 @@ export const FileManager: React.FC = () => {
   const renameSession = useTelemetryStore(state => state.renameSession);
   const deleteSession = useTelemetryStore(state => state.deleteSession);
   const isListLoading = useTelemetryStore(state => state.isListLoading);
+  const fetchSessions = useTelemetryStore(state => state.fetchSessions);
+  const activeProfileId = useTelemetryStore(state => state.activeProfileId);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [renameTarget, setRenameTarget] = useState<string | null>(null);
@@ -22,6 +29,18 @@ export const FileManager: React.FC = () => {
     const [showHint, setShowHint] = useState(false);
     const [shouldRenderHint, setShouldRenderHint] = useState(false);
     const [isAnimatingHint, setIsAnimatingHint] = useState(false);
+    const [telemetryPath, setTelemetryPath] = useState(() => localStorage.getItem('lmu_telemetry_path') || DEFAULT_LMU_PATH);
+    const [isEditingPath, setIsEditingPath] = useState(false);
+    const [tempPath, setTempPath] = useState(telemetryPath);
+    const [pathExists, setPathExists] = useState(true);
+
+    React.useEffect(() => {
+        const checkPath = async () => {
+            const exists = await apiClient.validatePath(telemetryPath);
+            setPathExists(exists);
+        };
+        checkPath();
+    }, [telemetryPath]);
 
     // Handle animation lifecycle for hint
     React.useEffect(() => {
@@ -95,7 +114,29 @@ export const FileManager: React.FC = () => {
         });
     }, [sessions, searchQuery]);
 
-    const handleUploadClick = () => {
+    const handleUploadClick = async () => {
+        try {
+            // Calculate current window bounds to center the picker
+            const bounds = {
+                x: window.screenX,
+                y: window.screenY,
+                width: window.innerWidth,
+                height: window.innerHeight
+            };
+
+            // Use the native backend picker to bypass browser path restrictions
+            const result = await apiClient.pickAndUpload(telemetryPath, activeProfileId, bounds);
+            if (result.status === 'success') {
+                // Refresh list if a file was actually imported
+                await fetchSessions();
+                return;
+            }
+            if (result.status === 'cancelled') return;
+        } catch (err) {
+            console.warn("Native picker failed, falling back to browser picker:", err);
+        }
+        
+        // Fallback to standard browser picker if native fails
         fileInputRef.current?.click();
     };
 
@@ -148,6 +189,21 @@ export const FileManager: React.FC = () => {
         }
     };
 
+    const saveCustomPath = () => {
+        // Automatically trim quotes if the user copied as path
+        const cleanedPath = tempPath.trim().replace(/^["']|["']$/g, '');
+        setTelemetryPath(cleanedPath);
+        localStorage.setItem('lmu_telemetry_path', cleanedPath);
+        setIsEditingPath(false);
+    };
+
+    const handleOpenFolder = () => {
+        apiClient.openInExplorer(telemetryPath).catch(err => {
+            // Silent fail if path doesn't exist (user "don't care" mode)
+            console.warn("Could not open folder:", err);
+        });
+    };
+
     return (
         <div className="flex flex-col h-full bg-transparent text-gray-300 font-sans">
             {/* Header */}
@@ -184,11 +240,71 @@ export const FileManager: React.FC = () => {
                                 }}
                             >
                                 <div className="glass-content">
-                                    <div className="flex items-center gap-2 mb-1 text-gray-500 font-black uppercase tracking-tighter">
-                                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-                                        LMU Default Path:
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-2 text-gray-500 font-black uppercase tracking-tighter">
+                                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                                            Telemetry Path:
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            {!isEditingPath ? (
+                                                <>
+                                                    <Tooltip text="EDIT PATH" position="bottom">
+                                                        <button 
+                                                            onClick={() => { setIsEditingPath(true); setTempPath(telemetryPath); }}
+                                                            className="p-1 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                                                        >
+                                                            <Settings2 size={12} />
+                                                        </button>
+                                                    </Tooltip>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Tooltip text="SAVE" position="bottom">
+                                                        <button 
+                                                            onClick={saveCustomPath}
+                                                            className="p-1 text-green-500 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-all"
+                                                        >
+                                                            <Check size={12} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip text="CANCEL" position="bottom">
+                                                        <button 
+                                                            onClick={() => setIsEditingPath(false)}
+                                                            className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </Tooltip>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
-                                    <span className="select-all hover:text-blue-400 transition-colors break-all font-mono opacity-80">C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\UserData\Telemetry</span>
+                                    
+                                    {telemetryPath === DEFAULT_LMU_PATH && !pathExists && !isEditingPath && (
+                                        <div className="text-[9px] text-blue-400 font-bold uppercase tracking-wider mb-2 animate-pulse flex items-center gap-1.5">
+                                            <Info size={10} />
+                                            Please set your telemetry path and save
+                                        </div>
+                                    )}
+
+                                    {isEditingPath ? (
+                                        <input
+                                            type="text"
+                                            value={tempPath}
+                                            onChange={(e) => setTempPath(e.target.value)}
+                                            className="w-full bg-black/40 border border-blue-500/30 rounded-lg px-2 py-1.5 text-[10px] text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                            autoFocus
+                                            onKeyDown={(e) => e.key === 'Enter' && saveCustomPath()}
+                                        />
+                                    ) : (
+                                        <div className="flex items-center gap-2 group/path">
+                                            <span 
+                                                className="select-all hover:text-blue-400 transition-colors break-all font-mono opacity-80 cursor-text flex-1"
+                                            >
+                                                {telemetryPath}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -311,12 +427,33 @@ export const FileManager: React.FC = () => {
                                             className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer"
                                             onClick={() => selectSession(s.id)}
                                         >
-                                            <div className={`p-2 rounded-xl transition-all duration-500 flex-shrink-0 ${isSelected ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-white/5 border border-white/5 group-hover:bg-white/10 group-hover:border-white/20'}`}>
-                                                <img
-                                                    src="/LeMansUltimateLogo.png"
-                                                    alt="LMU"
-                                                    className={`w-5 h-5 object-contain transition-all duration-500 ${!isSelected && 'opacity-30 grayscale group-hover:opacity-80 group-hover:grayscale-0'}`}
-                                                />
+                                            <div className="relative flex-shrink-0 w-10 h-10 flex items-center justify-center">
+                                                {getBrandLogoPath(s.carModel || "") ? (
+                                                    <img
+                                                        src={getBrandLogoPath(s.carModel || "")}
+                                                        alt="Brand"
+                                                        className={`w-9 h-9 object-contain transition-all duration-500 drop-shadow-[0_2px_4px_rgba(0,0,0,0.2)] ${!isSelected && 'opacity-80 group-hover:opacity-100'}`}
+                                                    />
+                                                ) : (
+                                                    <div className={`p-2 rounded-xl transition-all duration-500 flex-shrink-0 ${isSelected ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-white/5 border border-white/5 group-hover:bg-white/10 group-hover:border-white/20'}`}>
+                                                        <img
+                                                            src="/LeMansUltimateLogo.png"
+                                                            alt="LMU"
+                                                            className={`w-5 h-5 object-contain transition-all duration-500 ${!isSelected && 'opacity-30 group-hover:opacity-80'}`}
+                                                        />
+                                                    </div>
+                                                )}
+                                                
+                                                {getCountryFlagPath(s.country) && (
+                                                    <div className="absolute -bottom-1 -right-1 w-5 h-3.5 rounded-sm overflow-hidden border border-black/40 shadow-[0_2px_4px_rgba(0,0,0,0.3)] z-20">
+                                                        <img
+                                                            src={getCountryFlagPath(s.country)!}
+                                                            alt="Flag"
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => (e.currentTarget.parentElement!.style.display = 'none')}
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="flex flex-col min-w-0 flex-1 transition-all duration-300 group-hover:mr-2">
                                                 {/* Row 1: Track Name + Layout (Corrected Priority) */}
@@ -325,7 +462,7 @@ export const FileManager: React.FC = () => {
                                                         {s.trackName || (metadata ? metadata.circuit : displayName)}
                                                     </span>
                                                     {s.trackLayout && (
-                                                        <span className={`text-[8px] font-bold tracking-widest uppercase truncate opacity-40 min-w-0 ${isSelected ? 'text-blue-300' : 'text-gray-500'}`}>
+                                                        <span className={`text-[8px] font-bold tracking-widest uppercase truncate min-w-0 ${isSelected ? 'text-blue-300 opacity-60' : 'text-gray-400 opacity-50'}`}>
                                                             {s.trackLayout}
                                                         </span>
                                                     )}
@@ -334,11 +471,11 @@ export const FileManager: React.FC = () => {
                                                 {/* Row 2: Car Model + Class */}
                                                 {s.carModel && (
                                                     <div className="flex items-baseline gap-2 mt-0.5 min-w-0">
-                                                        <span className={`text-[11px] font-bold truncate tracking-tight ${isSelected ? 'text-blue-400/80' : 'text-gray-500'}`}>
+                                                        <span className={`text-[11px] font-bold truncate tracking-tight ${isSelected ? 'text-blue-400/80' : 'text-gray-400'}`}>
                                                             {s.carModel}
                                                         </span>
                                                         {s.carClass && (
-                                                            <span className={`text-[8px] font-black uppercase tracking-[0.2em] opacity-60 flex-shrink-0 ${isSelected ? 'text-blue-400' : 'text-gray-700'}`}>
+                                                            <span className={`text-[8px] font-black uppercase tracking-[0.2em] flex-shrink-0 ${isSelected ? 'text-blue-400' : 'text-gray-400 opacity-80'}`}>
                                                                 {s.carClass}
                                                             </span>
                                                         )}
@@ -346,7 +483,7 @@ export const FileManager: React.FC = () => {
                                                 )}
 
                                                 {/* Row 3: Session Date, Type, Size */}
-                                                <div className={`flex items-center gap-1.5 mt-1.5 text-[9px] font-mono font-bold tracking-tight whitespace-nowrap overflow-hidden ${isSelected ? 'text-blue-300/40' : 'text-gray-500/60'}`}>
+                                                <div className={`flex items-center gap-1.5 mt-1.5 text-[9px] font-mono font-bold tracking-tight whitespace-nowrap overflow-hidden ${isSelected ? 'text-blue-300/60' : 'text-gray-400/80'}`}>
                                                     <span>{dateDisplay}</span>
                                                     {metadata && (
                                                         <>

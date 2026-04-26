@@ -2,6 +2,215 @@
 
 ---
 
+## 2026-04-27 | 單圈圖表 X 軸模式與 HUD 穩定性 (v1.3.2 Phase 9)
+
+本次更新解決了 HUD 座標穩定性問題，並為單圈數據分析導入了靈活的 X 軸切換功能。
+
+### 1. 單圈 X 軸模式切換 (Single Lap X-Axis Mode)
+- **獨立設定邏輯**：在設定選單中新增了「單圈圖表 X 軸模式」。此設定獨立於全域的 Dist/Time Sync，專門控制在**無參考圈**情況下的圖表顯示。
+- **主介面動態切換**：在全螢幕模式下，若系統偵測到目前處於單圈模式，會自動將原有的 `Dist/Time Sync` 按鈕替換為 `Distance / Time` 切換鍵，並與設定選單同步，提供更直覺的操控體驗。
+- **靈活分析**：使用者可根據需求，在單圈分析時自由選擇以「距離 (Distance)」或「時間 (Time)」作為 X 軸，滿足不同維度的數據審查需求。
+
+### 2. HUD 座標穩定與切換校準機制
+- **座標參考系大一統**：統一了 `TrackMap` 與 `TrackMap3D` 的 DOM 層級結構，消除了基準點偏移。
+- **動態動畫鎖定機制**：引入 `isHudAnimating` 狀態鎖。在全螢幕展開或維度切換過程中暫停智慧避讓與碰撞檢查，待 600ms 動畫結束後才執行最終校準，解決了 HUD 座標彈飛的問題。
+
+### 3. 維度切換穩定性
+- **狀態監聽強化**：`useHudDraggable` 鉤子現在會同步監聽 `show3DLab` 的狀態變化，確保在維度切換後的掛載瞬間也能正確重啟校準流程。
+- **防抖校準**：在 `setShow3DLab` 動作後主動注入佈局驗證請求，補足了舊版在維度切換時缺乏重新佈局觸發點的問題。
+
+---
+
+## 2026-04-26 | 自動更新通知系統：GitHub API 整合 (v1.3.2 Phase 8)
+
+為了解決手動檢查更新的繁瑣，本次更新導入了自動化版本檢測機制，確保使用者能第一時間獲取性能優化與新功能。
+
+### 1. GitHub API 靜默檢測
+- **背景自動檢查**：App 啟動後會自動向 GitHub API (`/releases/latest`) 獲取最新標籤，並與 `package.json` 中的版本號進行比對。
+- **異步延遲顯示**：設定了 2 秒的啟動緩衝，避開 App 開啟時的加載高峰，提升感官舒適度。
+
+### 2. 智慧型彈窗處理邏輯 (Tri-State Dismissal)
+- **Update Now (立即更新)**：一鍵跳轉至 GitHub Release 頁面。
+- **Maybe Later (稍後提醒)**：僅關閉當前彈窗，下次啟動 App 時仍會再次提醒，適合「現在想先跑一圈」的使用者。
+- **Skip This Version (跳過此版本)**：將該版本號紀錄於 `localStorage`。除非 GitHub 上發布了更高等級的新版本，否則 App 將不再騷擾使用者。這實現了版本級別的靜默控制。
+
+### 3. 視覺與性能
+- **旗艦級視覺**：採用 `framer-motion` 的彈簧曲線動畫與深色玻璃擬態效果，並加入動態流光背景。
+- **零性能損耗**：檢測過程完全異步，且在確認「已跳過」或「已是最新」後即刻釋放資源。
+
+---
+
+## 2026-04-25 | 遙測圖表高度自定義：Y 軸自由拉伸 (v1.3.2 Phase 7)
+
+根據社群回饋，本次更新為數據圖表導入了高度拉伸功能，允許使用者根據分析需求自由調整各個通道的垂直空間。
+
+### 1. 交互式高度調整 (Interactive Resizing)
+- **智慧拖曳手把**：在每個數據圖表底端新增了隱藏式拖曳區塊。懸停時會顯示淡藍色感應條，並帶有「DRAG TO RESIZE | DOUBLE-CLICK TO RESET」的懸停提示。
+- **雙擊快速重設 (Double-Click to Reset)**：支援雙擊手把立即恢復該圖表的預設高度，解決手動調整後難以對齊的問題。
+- **即時重繪優化**：透過 `ResizeObserver` 監控容器變動，並即時調用 uPlot 的 `setSize` 介面，確保拖曳過程中的波形顯示保持流暢且不失真。
+- **性能優化機制**：在拖曳調整期間自動切換為 `duration-0` 模式（停用動畫），消除調整大小時的視覺延遲感。
+
+### 2. 邏輯與持久化
+- **高度持久化**：調整後的高度會即時寫入 `telemetryStore` 並同步至 `localStorage`。無論重新整理頁面或切換賽道，使用者定義的佈局高度都會被完美保留。
+- **情境感應功能**：
+    - **主儀表板專屬**：此功能僅在 2D 主介面啟用，提供深度分析時的空間彈性。
+    - **全螢幕模式停用**：遵循簡約設計原則，全螢幕 HUD 模式下維持固定高度，確保視覺美感與穩定性。
+- **安全邊界限制**：設定了最小 **60px** 的保護高度，避免圖表因過度壓縮而無法操作。
+
+---
+
+## 2026-04-25 | 響應式佈局動態避讓與平滑動畫 (v1.3.2 Phase 6)
+
+本次更新實現了全系統 HUD 與控制中心的「智慧感應避讓」，解決了不同組件在全螢幕模式下的空間競爭問題，並大幅提升了視覺切換的平滑度。
+
+### 1. HUD 智慧感應避讓系統 (Dynamic Avoidance)
+- **側邊欄狀態感應**：`overlap` HUD 現在會主動偵測左右側邊欄（Session Info / Data Charts）的開啟狀態。
+- **動態邊界校準**：
+    - 當側邊欄**開啟**時：自動將 `overlap` HUD 的最小邊距限縮至 **340px**（較之前的 380px 更精悍）。
+    - 當側邊欄**關閉**時：自動釋放限制，允許 HUD 貼齊螢幕邊緣（僅保留 0.5% 安全邊距）。
+- **平滑推開動畫**：導入 `cubic-bezier(0.34, 1.56, 0.64, 1)` 動畫曲線。當使用者切換 HUD 顯示時，`overlap` HUD 會像被物理推動一樣順滑地滑移至安全區，而非瞬間跳變。
+
+### 2. 控制中心智慧寬度適配 (Dynamic Control Center)
+- **對稱式避讓邏輯**：2D 與 3D 模式下的控制中心現在具備「全域避讓感應」。
+- **觸發機制**：只要 `Analysis Laps` (左) 或 `Data Charts` (右) 其中一個開啟，控制中心即自動收縮並預留對稱的 **680px** 空間，確保佈局始終對稱且不與 HUD 重疊。
+- **2D/3D 全方位同步**：在 `TrackMap3D` 中引入 `ResizeObserver` 監控機制，確保 3D 模式的避讓行為與 2D 模式完全一致。
+
+### 3. 佈局精修與穩定性
+- **間距優化**：將全系統避讓基準由 380px 下調至 **340px**，最大化利用高解析度螢幕的中央可視區域。
+- **操作反饋優化**：智慧動畫系統會自動偵測使用者操作。在**手動拖拽**或**調整大小**時會暫時停用動畫以確保零延遲，僅在系統自動校正位置時啟用平滑過渡。
+
+---
+
+## 2026-04-24 | 佈局穩定性修復與視覺細節微調 (v1.3.2 Phase 5)
+
+本次更新解決了地圖切換時的佈局跳動 Bug，並針對資訊顯示的易讀性進行了多項 UI 優化。
+
+### 1. HUD 佈局穩定性方案
+- **雙重尺寸安全鎖**：在 `telemetryStore` 與 `useHudDraggable` 中同步實作了「維度守門員」機制。
+    - **觸發門檻**：當容器寬度 `< 450px` 或高度 `< 200px` 時（如側邊欄小地圖或正在收合中的動畫過程），自動凍結座標驗證邏輯。
+    - **效果**：徹底根治了 HUD 在地圖收合動畫過程中因容器塌陷而被「擠到」角落或越界的座標污染問題。
+- **動態解除渲染邏輯**：修正中間地圖的 `isExpanded` 狀態連結，確保 HUD 在收合動畫開始前即刻消失，避免影子競爭。
+
+### 2. React 穩定性修復
+- **Hook 規則規整**：修復了 `TrackMap.tsx` 中 `followZoom` Hook 的條件呼叫違規，解決了切換視圖時偶發的 `Should have a queue` 崩潰報錯。
+
+### 3. UI 視覺與交互體驗強化
+- **數據源 (FileManager) 視覺大改版**：
+    - **動態品牌與國旗**：捨棄單調的 LMU 圖示，現在檔案清單會根據遙測數據自動顯示 **車輛品牌 Logo** (彩色) 與 **賽道所屬國旗**。
+    - **同步邏輯**：整合 `carHelpers` 與 `trackHelpers` 邏輯，支援包括 Genesis, Ginetta, Isotta Fraschini 等全系列品牌辨識。
+    - **文字易讀性**：提升車型與 Metadata 字體亮度（`gray-500` -> `gray-400`），並修正組別標籤在深色玻璃下的辨識度。
+- **身分系統轉型「數據分類空間」**：
+    - **語義化更新**：將 Profile Switcher 標籤改為 `IDENTITY / CATEGORY`，引導使用者利用此功能按賽道、組別或賽事進行數據分類。
+    - **交互導引**：新增設定齒輪、刷新與身分切換的 Tooltip 懸停提示。
+    - **排版優化**：縮小登入彈窗描述文字間距，讓佈局更加緊湊專業。
+
+---
+
+## 2026-04-24 | 全螢幕遙測同步與 UI 佈局精修 (v1.3.2 Phase 4)
+
+本次更新聚焦於全螢幕最大化視圖下的 HUD 交互體驗，實現了跨 2D/3D 模式的視覺大一統與動態佈局自動化。
+
+### 1. 全螢幕 Sync 切換系統
+- **動態 Sync 切換鍵**：在全螢幕 HUD 中新增了 Dist/Time Sync 切換組件，採用旗艦級玻璃特效外框。
+- **動態位移演算法**：實作了「智慧避位邏輯」，切換鍵會根據小地圖的顯示狀態自動在 `top-4` 與地圖下方之間平滑位移。
+- **全域同步切換**：透過 `telemetryStore` 實現 2D 與 3D 模式的切換狀態即時同步。
+
+### 2. HUD 佈局歸一化與空間優化
+- **Minimap 尺寸統一**：將 2D 全螢幕小地圖加大至 `14rem` (224px)，並與 3D 模式統一為 5:3 固定比例，確保佈局基準一致。
+- **專業級間距對齊**：
+    - 統一所有右側 HUD 組件間距為 `16px`。
+    - 調整切換鍵右側邊距，確保與數據圖表（Data Charts）內容完美對齊。
+- **數據圖表範圍優化**：移除了圖表容器的內部填充（Padding），使數據顯示區域向上提升，在不壓縮圖表高度的情況下最大化利用垂直空間。
+
+### 3. 操作便利性提升
+- **全域快捷鍵**：新增 **'M'** 鍵作為全螢幕模式下的小地圖切換熱鍵。
+- **狀態持久化**：小地圖的顯示狀態現在會紀錄於 `localStorage`，確保使用者偏好在重新整理後依然保留。
+
+---
+
+## 2026-04-22 | 智慧型車輛識別系統：自定義塗裝支援 (v1.3.2 Phase 3)
+
+針對 LMU RaceControl 產生的非標準車輛名稱，實作了智慧型啟發式對照系統，確保所有自定義塗裝都能正確對應到原始車模。
+
+### 1. 雙層比對機制 (Two-Tier Lookup)
+- **優先級策略**：系統優先執行標準 CSV 對照邏輯，確保官方車隊的 100% 準確度。
+- **自動降級觸發**：當車名中出現 `custom team` 關鍵字，或標準比對信心度不足時，自動觸發「智慧搜尋」引擎。
+
+### 2. 智慧搜尋引擎優化
+- **別名映射系統 (MODEL_ALIASES)**：建立常見型號縮寫的關聯表（如 `911gt3r` -> `Porsche 911 GT3 R`），解決字串擠壓問題。
+- **子字串評分加權**：改進評分演算法，除了關鍵字交集外，新增了子字串包含（Substring Match）的權重，大幅提升模糊匹配成功率。
+- **擴展關鍵字庫**：將對照表中的 `ModelName` 也納入檢索範圍，確保即使車隊名稱完全陌生，也能透過型號名稱抓到正確資訊。
+
+### 3. 實測驗證
+- 成功解決 `911GT3R custom team 2025 #397` 無法識別的問題。
+- 驗證通過案例：`499P`、`296 GT3`、`V-Series.R`、`720S` 等自定義命名皆能正確對應並顯示對應 Logo。
+
+---
+
+## 2026-04-22 | 遙測路徑自定義與原生選取器整合：專業級交互 (v1.3.2 Phase 2)
+
+本次更新解決了長期以來瀏覽器無法指定上傳路徑的痛點，透過後端原生選取器的整合，實現了「一鍵即達」的專業級遙測匯入流程。
+
+### 1. 遙測路徑自定義與持久化
+- **交互式路徑編輯**：將原本靜態的路徑提示重構為可編輯的設定組件，支援使用者自定義 LMU 遙測資料夾。
+- **持久化儲存**：使用 `localStorage` 紀錄使用者設定，確保下次啟動時自動載入。
+- **自動化清理 (Auto-Trim)**：實作了引號自動過濾功能（`"` 與 `'`），相容 Windows 「複製為路徑」的剪貼簿內容。
+- **智能提示系統**：新增後端路徑驗證 API，僅在路徑無效時顯示設定提示，減少對已設定完成使用者的干擾。
+
+### 2. 後端原生選取器整合 (Native Integration)
+- **原生對話框接口**：在後端新增 `/system/pick-and-upload` 接口，繞過瀏覽器安全性限制，直接呼叫 Windows 原生檔案選取視窗。
+- **高解析度優化 (High DPI)**：整合 `ctypes` 指令開啟 DPI 感知模式，確保原生選取視窗在 4K/高縮放螢幕下清晰不模糊。
+- **視窗自動居中**：實作了前後端座標同步，讓檔案選取器能根據 App 目前的位置自動居中彈出。
+- **一鍵式匯入流程**：點擊「Upload Telemetry」區塊時會自動觸發定位正確的原生選取器，雙擊檔案即可完成匯入與列表重新整理。
+
+### 3. UI/UX 視覺細節
+- **統一 Tooltip 語義**：針對路徑操作按鈕（編輯、儲存、開啟資料夾）統一應用了 v1.3.2 標準的玻璃質感提示框。
+- **靜默失敗保護**：實作了靜默錯誤處理，當自定義路徑無效或原生選取器無法啟動時，會無縫回退至標準瀏覽器選取器，確保功能穩定性。
+
+---
+
+## 2026-04-22 | 動態國旗系統與 UI 旗艦進化：全球化視野 (v1.3.2 Phase 1)
+
+本次更新完成了從硬編碼國旗對照表到「動態元數據驅動」架構的全面遷移，並針對國旗展示進行了旗艦級的視覺重定義。
+
+### 變更內容
+- **動態賽道國旗系統 (Dynamic Track Flags)**：
+    - **後端元數據整合**：在 `TRACK_REGISTRY` 中導入 `country` 欄位，並透過 API 即時傳遞，徹底告別手動維護查找表的時代。
+    - **資源路徑自動化**：建立 `trackHelpers.ts` 工具，自動根據國家名稱解析 `/country_flag/` 圖檔路徑。
+- **UI/UX 旗艦級設計進化**：
+    - **玻璃外框美學 (Premium Box Styling)**：參考車輛 Logo 設計，為國旗新增了具備 `bg-white/10` 與 `rounded-xl` 的玻璃質感外框，並實作了懸停感應邊框色切換。
+    - **視覺層級優化**：放大了國旗尺寸，並將其與賽道名稱進行了更合理的空間佈局。
+- **系統清理與重構**：
+    - **遺留資源刪除**：正式移除舊有的 `/tracks/` 賽道圖示與相關硬編碼邏輯，實現代碼與資源的雙重瘦身。
+    - **全系統同步**：確保側邊欄、地圖 HUD 與 3D 實驗室中的國旗風格完全統一。
+
+### 驗證結果
+- [x] 切換不同國家的賽道時，國旗能精確動態載入且不留黑邊。
+- [x] 國旗外框在懸停時會同步變色（藍色/琥珀色），與整體設計語言一致。
+- [x] 已確認 `/tracks/` 資料夾刪除後，系統無報錯且載入效能提升。
+
+🟢 2026-04-22 | Dynamic Flag System & UI Flagship Evolution (v1.3.2 Phase 1)
+
+This update completes the migration from hardcoded flag lookups to a "Dynamic Metadata-Driven" architecture, featuring a flagship-level visual redesign for national flag presentation.
+
+### Key Changes
+- **Dynamic Track Flags**:
+    - **Metadata Integration**: Introduced the `country` field into `TRACK_REGISTRY` and propagated it via API, eliminating the need for manual lookup tables.
+    - **Automated Path Resolution**: Created `trackHelpers.ts` to automatically resolve flag assets from the `/country_flag/` directory based on real-time metadata.
+- **Flagship UI/UX Redesign**:
+    - **Premium Glass Styling**: Applied a `rounded-xl` glass-box aesthetic (inspired by car logos) with `bg-white/10` textures and mouse-sentient border highlights.
+    - **Visual Hierarchy Optimization**: Increased flag dimensions and refined the spatial relationship between flags and track labels.
+- **System Cleanup & Refactoring**:
+    - **Legacy Asset Removal**: Deleted the old `/tracks/` icon folder and associated hardcoded logic to streamline code and reduce bundle size.
+    - **Cross-Platform Sync**: Unified flag styles across the sidebar, map HUDs, and 3D Elevation Lab.
+
+### Verification Results
+- [x] National flags resolve accurately across different tracks without broken image placeholders.
+- [x] Flag containers respond to hover states with dynamic accent colors (Blue/Amber).
+- [x] System stability confirmed after deletion of legacy `/tracks/` assets.
+
+---
+
 ## 2026-04-20 | 自適應時間軸與動畫交響曲：同步之巔 (v1.3.1)
 
 本次更新聚焦於提升「非對稱單圈對齊」的強健性，實作了自適應主時間軸與全域時間同步邏輯，並針對 UI 交響感進行了深度精修。

@@ -1,6 +1,8 @@
 import csv
 import os
 import logging
+import difflib
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,39 @@ def clean_technical_suffixes(s):
     s = re.sub(r':\w+', '', s)
     return s.strip()
 
+LIVERY_KEYWORDS = ['custom team', 'custom', 'team', 'livery']
+
+MODEL_ALIASES = {
+    "911gt3r": ["porsche", "911", "gt3", "r"],
+    "499p": ["ferrari", "499p"],
+    "gr010": ["toyota", "gr010"],
+    "v-series.r": ["cadillac", "v-series.r"],
+    "sc63": ["lamborghini", "sc63"],
+    "a424": ["alpine", "a424"],
+    "v8": ["bmw", "hybrid", "v8"],
+    "720s": ["mclaren", "720s"],
+    "vantage": ["aston", "vantage"],
+    "mustang": ["ford", "mustang"],
+    "296": ["ferrari", "296"],
+    "huracan": ["lamborghini", "huracan"],
+    "rcf": ["lexus", "rcf"],
+}
+
+def normalize_custom_car_name(s):
+    """Aggressively clean car names for smart matching."""
+    s = s.lower()
+    for k in LIVERY_KEYWORDS:
+        s = s.replace(k, ' ')
+    
+    # Try to split jammed words like 911GT3R -> 911 GT3 R
+    import re
+    s = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', s) # 911GT3R -> 911 GT3R
+    s = re.sub(r'([a-zA-Z]+)(\d+)', r'\1 \2', s) # GT3R2025 -> GT3R 2025
+    
+    # Standard separators
+    s = s.replace('#', ' ').replace('(', ' ').replace(')', ' ').replace(':', ' ').replace('-', ' ').replace('_', ' ')
+    return " ".join(s.split())
+
 if CSV_PATH:
     try:
         with open(CSV_PATH, 'r', encoding='utf-8-sig') as f:
@@ -79,18 +114,23 @@ if CSV_PATH:
             for row in reader:
                 if not col_car or not col_model: continue
                 
+                model_name_raw = row[col_model].strip()
                 car_name_raw = row[col_car].strip()
                 num = extract_number(car_name_raw)
                 year = extract_year(car_name_raw)
                 
+                # Keywords should include BOTH the specific car name and the model name
+                all_raw_text = f"{car_name_raw} {model_name_raw}".lower()
+                entry_keywords = set(k for k in all_raw_text.replace('#', ' ').replace('(', ' ').replace(')', ' ').replace(':', ' ').replace('-', ' ').replace('_', ' ').split() if k not in LIVERY_KEYWORDS)
+
                 entry = {
                     "carName": car_name_raw,
-                    "modelName": row[col_model].strip(),
+                    "modelName": model_name_raw,
                     "steeringLock": int(row[col_lock].strip()) if col_lock and row[col_lock].strip() else 540,
                     "category": row[col_cat].strip() if col_cat else "None",
                     "number": num,
                     "year": year,
-                    "keywords": set(car_name_raw.lower().replace('#', ' ').replace('(', ' ').replace(')', ' ').replace(':', ' ').replace('-', ' ').replace('_', ' ').split())
+                    "keywords": entry_keywords
                 }
                 CSV_ENTRIES.append(entry)
                 if num:
@@ -152,13 +192,14 @@ def get_car_info(car_name_meta, car_class_meta=None, override_steer_lock=None):
     clean_str = car_name_clean.lower().strip()
     num = extract_number(clean_str)
     year = extract_year(full_search_str)
+    has_custom = any(k in clean_str for k in LIVERY_KEYWORDS)
     
     # Detect brand keywords in either name or class
     telemetry_brands = [b for b in BRANDS if b in full_search_str]
     
-    # Improved keyword extraction: remove common punctuation
+    # Improved keyword extraction: remove common punctuation and livery fluff
     clean_search = full_search_str.replace('#', ' ').replace('(', ' ').replace(')', ' ').replace(':', ' ').replace('-', ' ').replace('_', ' ')
-    telemetry_keywords = set(clean_search.split())
+    telemetry_keywords = set(k for k in clean_search.split() if k not in LIVERY_KEYWORDS)
 
     def calculate_score(entry):
         # Base overlap score
@@ -200,7 +241,8 @@ def get_car_info(car_name_meta, car_class_meta=None, override_steer_lock=None):
         return score
 
     # Strategy A: Number-based Match (Highest confidence if score is high)
-    if num and num in CSV_BY_NUMBER:
+    # Skip if custom livery, as numbers are unreliable
+    if not has_custom and num and num in CSV_BY_NUMBER:
         candidates = CSV_BY_NUMBER[num]
         best_cand = None
         best_score = -500
@@ -212,12 +254,13 @@ def get_car_info(car_name_meta, car_class_meta=None, override_steer_lock=None):
                 best_cand = cand
         
         # If we have a good score (matching number + some keywords or brand)
-        if best_cand and best_score >= 15: # At least number + 1 keyword
+        if best_cand and best_score >= 30: # At least number + 2 keywords or brand
             lock = override_steer_lock if override_steer_lock is not None else best_cand["steeringLock"]
             return best_cand["modelName"], lock
 
     # Strategy B: Keyword Overlap (Global search)
-    if len(clean_str) > 3:
+    # Skip if custom livery, as keywords might be messy
+    if not has_custom and len(clean_str) > 3:
         best_cand = None
         best_score = 1 # Minimum threshold
         
@@ -227,7 +270,7 @@ def get_car_info(car_name_meta, car_class_meta=None, override_steer_lock=None):
                 best_score = score
                 best_cand = entry
         
-        if best_cand and best_score >= 10: # Require at least a brand match or multiple keywords
+        if best_cand and best_score >= 20: # Require at least a brand match + 1 keyword or multiple keywords
             lock = override_steer_lock if override_steer_lock is not None else best_cand["steeringLock"]
             return best_cand["modelName"], lock
 
@@ -257,6 +300,63 @@ def get_car_info(car_name_meta, car_class_meta=None, override_steer_lock=None):
         if key in clean_str:
              lock = override_steer_lock if override_steer_lock is not None else spec["steeringLock"]
              return spec["modelName"], lock
+
+    # ---------------------------------------------------------
+    # SMART SEARCH FALLBACK (Phase 3)
+    # ---------------------------------------------------------
+    has_custom = any(k in clean_str for k in LIVERY_KEYWORDS)
+    
+    smart_search_str = normalize_custom_car_name(car_name_meta)
+    smart_tokens = smart_search_str.split()
+    
+    # Fuzzy expand tokens: if "mustng" is close to "mustang", add "mustang"
+    expanded_keywords = set(smart_tokens)
+    for token in smart_tokens:
+        if len(token) < 3: continue
+        # Try to find close matches in BRANDS or MODEL_ALIASES
+        matches = difflib.get_close_matches(token, BRANDS + list(MODEL_ALIASES.keys()), n=1, cutoff=0.7)
+        if matches:
+            expanded_keywords.add(matches[0])
+            if matches[0] in MODEL_ALIASES:
+                expanded_keywords.update(MODEL_ALIASES[matches[0]])
+
+    best_cand = None
+    best_score = 0
+    
+    for entry in CSV_ENTRIES:
+        score = 0
+        entry_text = (entry["carName"] + " " + entry["modelName"]).lower()
+        entry_keywords = entry["keywords"]
+        
+        # 1. Exact or Fuzzy Keyword Match (Higher weight)
+        overlap = expanded_keywords.intersection(entry_keywords)
+        score += len(overlap) * 20
+        
+        # 2. Substring matching for model name (Crucial for shortened names)
+        for k in expanded_keywords:
+            if len(k) > 2 and k in entry_text:
+                score += 25
+        
+        # 3. Brand consistency
+        has_entry_brand = any(b in entry_text for b in telemetry_brands)
+        if has_entry_brand:
+            score += 50
+            
+        # 4. Number match (Ignore if custom, as numbers are unreliable)
+        if not has_custom and num and entry["number"] == num:
+            score += 40
+            
+        # 5. Year tie-breaker
+        if year and entry["year"] == year:
+            score += 5
+
+        if score > best_score:
+            best_score = score
+            best_cand = entry
+            
+    if best_cand and best_score >= 40: # Higher threshold for smart mapping
+        lock = override_steer_lock if override_steer_lock is not None else best_cand["steeringLock"]
+        return best_cand["modelName"], lock
              
     # 3. ID Cleaning / Generic Fallback
     # If standard mapping failed, maybe it's a raw ID like "mclaren_720s_gt3_evo"

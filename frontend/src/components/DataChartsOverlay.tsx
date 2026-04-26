@@ -18,7 +18,7 @@ export const DataChartsOverlay = React.memo(() => {
 
     return (
         <div 
-            className="flex flex-col gap-1.5 w-[380px] h-full overflow-y-auto pointer-events-auto custom-scrollbar px-8 pt-4 pb-0 group"
+            className="flex flex-col gap-1.5 w-[380px] h-full overflow-y-auto pointer-events-auto custom-scrollbar px-8 pt-0 pb-0 group"
             onWheelCapture={(e) => e.stopPropagation()}
         >
             <AnimatePresence mode="popLayout">
@@ -26,9 +26,9 @@ export const DataChartsOverlay = React.memo(() => {
                     <motion.div
                         key={`hud-chart-${config.id}`}
                         layout
-                        initial={{ opacity: 0, x: 40, scale: 0.9 }}
-                        animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: 40, scale: 0.9 }}
+                        initial={{ opacity: 0, x: 40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 40 }}
                         transition={{ 
                             type: 'spring', 
                             stiffness: 120,
