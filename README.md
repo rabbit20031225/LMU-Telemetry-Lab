@@ -7,6 +7,7 @@
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey" />
     <img src="https://img.shields.io/badge/license-MIT-green" />
     <img src="https://img.shields.io/badge/data-LMU_v1.3.1.2-orange" />
+    <a href="https://ko-fi.com/hungyc"><img src="https://img.shields.io/badge/Ko--fi-Support%20Me-ff5e5b?logo=kofi&logoColor=white" /></a>
   </p>
 </div>
 
@@ -196,6 +197,14 @@ The installer will be generated at `dist-electron/LMU Telemetry Lab Setup x.x.x.
 ## 📝 Changelog
 
 See [PROJECT_MILESTONES.md](PROJECT_MILESTONES.md) for the full version history.
+
+---
+
+## ☕ Support the Project
+
+If you find this tool helpful and would like to support its development, you can buy me a coffee!
+
+<a href='https://ko-fi.com/hungyc' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi3.png?v=3' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
 
 ---
 
