@@ -1009,7 +1009,10 @@ function App() {
                         {/* Loading Overlay for Dimension Switching */}
                         <MapTransitionOverlay isVisible={isSwitchingDimension} />
                         {show3DLab ? (
-                          <TrackMap3D onToggleExpand={() => setIsMapExpanded(false)} />
+                          <TrackMap3D 
+                            key={`expanded-${currentSessionId}`}
+                            onToggleExpand={() => setIsMapExpanded(false)} 
+                          />
                         ) : (
                           <TrackMap
                             key={`expanded-${currentSessionId}`}

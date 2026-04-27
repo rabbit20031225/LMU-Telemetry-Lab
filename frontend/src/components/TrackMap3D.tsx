@@ -630,20 +630,54 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
     const controlsRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    const [isBarHovered, setIsBarHovered] = useState(false);
 
     useEffect(() => {
         if (!containerRef.current) return;
-        const observer = new ResizeObserver(() => {
+        const measure = () => {
             if (containerRef.current) {
                 setDimensions({
                     width: containerRef.current.clientWidth,
                     height: containerRef.current.clientHeight
                 });
             }
-        });
+        };
+        
+        const observer = new ResizeObserver(measure);
         observer.observe(containerRef.current);
+        
+        // Immediate measure
+        measure();
+
         return () => observer.disconnect();
     }, []);
+
+    const isMapMaximized = useTelemetryStore(state => state.isMapMaximized);
+
+    // Force re-measure on dimension change to fix the "stale compression" bug
+    useEffect(() => {
+        const timer1 = setTimeout(() => {
+            if (containerRef.current) {
+                setDimensions({
+                    width: containerRef.current.clientWidth,
+                    height: containerRef.current.clientHeight
+                });
+            }
+        }, 100);
+        const timer2 = setTimeout(() => {
+            if (containerRef.current) {
+                setDimensions({
+                    width: containerRef.current.clientWidth,
+                    height: containerRef.current.clientHeight
+                });
+            }
+        }, 600); // After transition finishes
+        
+        return () => {
+            clearTimeout(timer1);
+            clearTimeout(timer2);
+        };
+    }, [isMapMaximized]);
 
     const currentSessionId = useTelemetryStore(state => state.currentSessionId);
     const selectedStint = useTelemetryStore(state => state.selectedStint);
@@ -676,7 +710,6 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
     const setHudVisibility = useTelemetryStore(state => state.setHudVisibility);
     const editHudMode = useTelemetryStore(state => state.editHudMode);
     const resetHudConfigs = useTelemetryStore(state => state.resetHudConfigs);
-    const isMapMaximized = useTelemetryStore(state => state.isMapMaximized);
     const setIsMapMaximized = useTelemetryStore(state => state.setIsMapMaximized);
     const maximizedSidebarMode = useTelemetryStore(state => state.maximizedSidebarMode);
     const setMaximizedSidebarMode = useTelemetryStore(state => state.setMaximizedSidebarMode);
@@ -1079,25 +1112,49 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                 </div>
 
                 {/* Floating Playback Controls (UNIFIED WITH 2D) */}
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1100] w-full pointer-events-none transition-all duration-500 transform origin-bottom scale-[0.85] group-hover:scale-100">
+                <div 
+                    className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1100] w-full pointer-events-none"
+                >
                     {(() => {
-                        const barWidth = Math.min(896, Math.max(320, dimensions.width - (
-                            (isMapMaximized && (hudVisibility.analysisLaps || hudVisibility.dataCharts)) ? 680 : 40
-                        )));
+                        const baseWidth = dimensions.width || (containerRef.current?.clientWidth) || (window.innerWidth - 360);
+                        const maxPadding = Math.min(380, baseWidth * 0.28);
+                        const leftPadding = isMapMaximized 
+                            ? ((hudVisibility.analysisLaps || maximizedSidebarMode === 'data_sources') ? maxPadding : 20)
+                            : 20;
+                        const rightPadding = (isMapMaximized && hudVisibility.dataCharts) ? maxPadding : 20;
+                        const barWidth = Math.min(896, Math.max(320, baseWidth - (leftPadding + rightPadding)));
                         
                         return (
-                            <div
-                                className="mx-auto px-8 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] opacity-40 group-hover:opacity-100"
-                                style={{ maxWidth: `${barWidth}px` }}
+                            <motion.div
+                                className="mx-auto px-4 w-fit pointer-events-auto"
+                                onMouseEnter={() => setIsBarHovered(true)}
+                                onMouseLeave={() => setIsBarHovered(false)}
+                                initial="hidden"
+                                animate={isBarHovered ? "hovered" : "visible"}
+                                variants={{
+                                    hidden: { scale: 0.7, opacity: 0 },
+                                    visible: { 
+                                        scale: 0.7, 
+                                        opacity: 0.3,
+                                        transition: { staggerChildren: 0.05, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }
+                                    },
+                                    hovered: { 
+                                        scale: 1, 
+                                        opacity: 1,
+                                        transition: { duration: 0.65, ease: [0.34, 1.56, 0.64, 1] }
+                                    }
+                                }}
+                                style={{ originY: "bottom", willChange: "transform, opacity" }}
                             >
                                 <motion.div
-                                    initial="hidden"
-                                    animate="visible"
-                                    variants={{
-                                        visible: { transition: { staggerChildren: 0.05 } },
-                                        hidden: {}
+                                    layout
+                                    className="bg-black/60 px-6 py-2.5 rounded-full border border-white/10 backdrop-blur-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] glass-container pointer-events-auto mx-auto"
+                                    animate={{ width: barWidth }}
+                                    transition={{ 
+                                        type: "spring",
+                                        stiffness: 300,
+                                        damping: 30
                                     }}
-                                    className="bg-black/60 px-6 py-2.5 rounded-full border border-white/10 backdrop-blur-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] glass-container w-full pointer-events-auto overflow-hidden"
                                     onMouseMove={handleGlassMouseMove}
                                 >
                                     <div className="glass-content flex items-center w-full gap-4 h-10">
@@ -1189,10 +1246,12 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                                                                     if (isMapMaximized) setShowHudMenu(!showHudMenu);
                                                                     else setShowTelemetryOverlay(!showTelemetryOverlay);
                                                                 }}
-                                                                className={`h-8 px-2.5 rounded-lg transition-all border flex items-center gap-1.5 ${showTelemetryOverlay ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' : 'text-slate-500 hover:text-white bg-white/5 border-white/5'}`}
+                                                                className={`transition-all rounded-lg glass-container hover:scale-110 active:scale-95 border border-transparent ${showHudMenu ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.1)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
                                                             >
-                                                                <Activity size={16} />
-                                                                {isMapMaximized && <ChevronDown size={12} className={`transition-transform duration-300 ${showHudMenu ? 'rotate-180' : ''}`} />}
+                                                                    <div className="glass-content px-2.5 py-1.5 flex items-center justify-center gap-1.5">
+                                                                        <Activity size={16} />
+                                                                        {isMapMaximized && <ChevronDown size={12} className={`transition-transform duration-300 ${showHudMenu ? 'rotate-180' : ''}`} />}
+                                                                    </div>
                                                             </button>
                                                         </Tooltip>
 
@@ -1272,7 +1331,7 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                                         </div>
                                     </div>
                                 </motion.div>
-                            </div>
+                            </motion.div>
                         );
                     })()}
                 </div>
@@ -1402,7 +1461,12 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                                     transition={{ type: 'spring', stiffness: 120, damping: 20 }}
                                     className="pointer-events-auto flex flex-col gap-2 h-full w-full"
                                 >
-                                    <div className="flex-1 flex flex-col overflow-hidden rounded-2xl glass-container-static">
+                                    <div 
+                                        className="relative w-full h-full group bg-[#0a0a0c] overflow-hidden glass-container-static" 
+                                        ref={containerRef}
+                                        onMouseEnter={() => setIsBarHovered(true)}
+                                        onMouseLeave={() => setIsBarHovered(false)}
+                                    >
                                         <FileManager />
                                     </div>
                                     <button

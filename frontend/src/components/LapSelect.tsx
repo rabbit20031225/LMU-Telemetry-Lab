@@ -14,14 +14,17 @@ interface LapSelectProps {
     className?: string;
     placeholder?: string;
     disabled?: boolean;
+    maxHeight?: number;
+    bottomBuffer?: number;
 }
 
 export const LapSelect: React.FC<LapSelectProps> = ({
-    label, value, onChange, laps, borderColor, labelColor, showNone = false, className, placeholder, disabled = false
+    label, value, onChange, laps, borderColor, labelColor, showNone = false, className, placeholder, disabled = false, maxHeight, bottomBuffer = 0
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [shouldRender, setShouldRender] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
+    const [maxDropdownHeight, setMaxDropdownHeight] = useState('16rem'); // Default 64 * 4px = 256px
     const dropdownRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -29,10 +32,20 @@ export const LapSelect: React.FC<LapSelectProps> = ({
     const validLaps = laps.filter(l => l.isValid);
     const minDuration = validLaps.length > 0 ? Math.min(...validLaps.map(l => l.duration)) : -1;
 
-    // Handle animation lifecycle
+    // Handle animation lifecycle and dynamic height
     useEffect(() => {
         if (isOpen) {
             setShouldRender(true);
+            
+            // Calculate available space
+            if (dropdownRef.current) {
+                const rect = dropdownRef.current.getBoundingClientRect();
+                const windowHeight = window.innerHeight;
+                const bottomSpace = windowHeight - rect.bottom - 40 - bottomBuffer; // 40px base buffer + user buffer
+                const calculatedMaxHeight = maxHeight || Math.max(200, Math.min(600, bottomSpace));
+                setMaxDropdownHeight(`${calculatedMaxHeight}px`);
+            }
+
             // Small delay to ensure DOM is ready for transition
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
@@ -135,11 +148,12 @@ export const LapSelect: React.FC<LapSelectProps> = ({
                 >
                     <div className="overflow-hidden">
                         {shouldRender && (
-                            <div
-                                ref={scrollRef}
-                                className="max-h-64 overflow-y-auto custom-scrollbar p-1.5 space-y-1.5"
-                                onWheel={(e) => e.stopPropagation()}
-                            >
+                                <div
+                                    ref={scrollRef}
+                                    className="overflow-y-auto custom-scrollbar p-1.5 space-y-1.5"
+                                    style={{ maxHeight: maxDropdownHeight }}
+                                    onWheel={(e) => e.stopPropagation()}
+                                >
                                 {showNone && (
                                     <button
                                         className="w-full text-left px-3 py-2 text-sm text-gray-500 glass-container hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10"

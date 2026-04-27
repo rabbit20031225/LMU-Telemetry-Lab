@@ -106,6 +106,7 @@ export const AnalysisLapsWidget: React.FC<AnalysisLapsWidgetProps> = ({ classNam
                     borderColor="border-[#3b82f6]"
                     labelColor="text-[#3b82f6]"
                     disabled={disabled}
+                    bottomBuffer={80}
                 />
                 <div className="flex gap-2 items-end">
                     <div className="flex-1">

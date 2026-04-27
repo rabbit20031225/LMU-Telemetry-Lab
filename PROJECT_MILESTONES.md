@@ -1,4 +1,4 @@
-## 🟢 [2026-04-25] Telemetry v1.3.2 - 旗艦級 UX 與專業系統整合
+## 🟢 [2026-04-25] Telemetry v1.3.2 - UX 優化與系統整合
 
 ### 🌟 核心突破
 *   **圖表 Y 軸自定義 (Chart Scaling)**: 支援手動調整遙測圖表高度、雙擊恢復預設與 `localStorage` 狀態持久化。
@@ -6,11 +6,15 @@
 *   **專業級原生系統整合 (Native Integration)**: 整合 Windows 原生檔案選取器，解決路徑權限痛點。
 *   **智慧車輛識別與動態國旗 (Smart Identification)**: 優化啟發式車輛名稱比對引擎，**修復**了自定義塗裝（Custom Liveries）無法識別的問題，並精確化賽道國旗對應系統。
 *   **介面邏輯歸一化 (UI Unification)**: 對齊 2D/3D 座標系。新增單圈 X 軸切換（Dist/Time）與 GitHub 自動更新通知。
+*   **動態交互與控制列優化 (Interactive Controls)**: 導入 Framer Motion 動畫引擎重構播放控制列，加入彈性動畫與懸停顯示功能。
+    *   **懸停顯示**：控制列預設半透明且縮小，滑鼠懸停後自動展開並恢復亮度。
+    *   **平滑過渡**：利用彈簧 (Spring) 動畫實現伸縮與避讓動作。
+    *   **佈局自動校準**：內部按鈕會根據狀態變更自動平滑調整位置。
 
 ### 🚀 專案影響
-*   v1.3.2 標誌著工具從功能實作轉向專業級體驗的全面進化，結合了極致的視覺美感與穩定性能。
+*   v1.3.2 標誌著工具從功能實作轉向完整穩定性能的專業級開發。
 
-🟢 [2026-04-25] Telemetry v1.3.2 - Flagship UX & Professional Integration
+🟢 [2026-04-25] Telemetry v1.3.2 - UX Optimization & System Integration
 
 ### 🌟 Key Breakthroughs
 *   **Chart Resizing**: Manual Y-axis scaling with double-click reset and state persistence.
@@ -18,6 +22,10 @@
 *   **Native Integration**: Integrated Windows native file picker for custom telemetry paths.
 *   **Smart Identification**: Refined heuristic car name lookup to **fix** identification errors for custom liveries, alongside precision mapping for the dynamic track flag system.
 *   **UI Unification**: Unified 2D/3D systems, single-lap X-axis switching (Dist/Time), and GitHub update notifications.
+*   **Interactive Controls**: Rebuilt playback controls with Framer Motion animations, featuring spring-physics transitions and hover-activated display.
+    *   **Hover Effect**: Controls expand and brighten upon mouse entry.
+    *   **Spring Physics**: Smooth transitions for resizing and avoidance.
+    *   **Layout Auto-adjustment**: Internal elements re-position fluidly using layout animation.
 
 ### 🚀 Project Impact
 *   v1.3.2 marks the transition to a professional-grade tool, combining premium aesthetics with rock-solid system stability.
@@ -203,6 +211,8 @@
 *   **Data Union**: The backend fusion engine now injects the `WorldPosZ` channel. 3D components are fully synchronized with 2D charts.
 *   **UI Cohesion**: Integrated the 3D elevation map as a standard view within the main Dashboard.
 *   **Performance**: Position and altitude are now driven directly by the encapsulated telemetry stream.
+
+---
 
 ---
 

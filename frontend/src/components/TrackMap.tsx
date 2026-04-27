@@ -118,6 +118,7 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
     const startAngle = useRef(0);
     const startViewRotation = useRef(0);
     const [flagImage, setFlagImage] = useState<HTMLImageElement | null>(null);
+    const [isBarHovered, setIsBarHovered] = useState(false);
     const showMiniMap = useTelemetryStore(state => state.showMiniMap);
     const setShowMiniMap = useTelemetryStore(state => state.setShowMiniMap);
 
@@ -1188,18 +1189,60 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                 </div>
 
                 {!isMiniMap && (
-                    <div className={`absolute left-1/2 -translate-x-1/2 z-[1100] w-full pointer-events-none transition-all duration-500 transform origin-bottom scale-[0.7] group-hover:scale-100 ${isExpanded ? 'bottom-6' : 'bottom-4'}`}>
-                        {/* Controls Bar - Centered with dynamic avoidance */}
-                        <div 
-                            className={`mx-auto transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] opacity-30 group-hover:opacity-100 ${isExpanded ? 'px-4' : 'max-w-max'}`}
-                            style={{ 
-                                maxWidth: isExpanded ? `${Math.min(896, Math.max(320, dimensions.width - (
-                                    (isMapMaximized && (hudVisibility.analysisLaps || hudVisibility.dataCharts)) ? 680 : 40
-                                )))}px` : undefined 
-                            }}
-                        >
-                            <div className={`flex items-center bg-black/40 glass-container rounded-[2rem] shadow-[0_25px_50px_rgba(0,0,0,0.8)] pointer-events-auto ${isExpanded ? 'px-6 py-2.5 gap-4' : 'px-3 py-2 gap-2'}`}
-                                onMouseMove={handleGlassMouseMove}>
+                    <div 
+                        className={`absolute left-1/2 -translate-x-1/2 z-[1100] w-full pointer-events-none ${isExpanded ? 'bottom-6' : 'bottom-4'}`}
+                    >
+                        {(() => {
+                            const baseWidth = dimensions.width;
+                            const maxPadding = Math.min(380, baseWidth * 0.28);
+                            
+                            const leftPadding = isMapMaximized 
+                                ? ((hudVisibility.analysisLaps || maximizedSidebarMode === 'data_sources') ? maxPadding : 20)
+                                : 20;
+                            const rightPadding = (isMapMaximized && hudVisibility.dataCharts) ? maxPadding : 20;
+                            const effectiveWidth = baseWidth - (leftPadding + rightPadding);
+                            
+                            const barWidth = Math.min(896, Math.max(320, effectiveWidth));
+
+                            return (
+                                <motion.div
+                                    className={`mx-auto pointer-events-auto ${isExpanded ? 'px-4 w-fit' : 'max-w-max'}`}
+                                    onMouseEnter={() => setIsBarHovered(true)}
+                                    onMouseLeave={() => setIsBarHovered(false)}
+                                    initial="hidden"
+                                    animate={isBarHovered ? "hovered" : "visible"}
+                                    variants={{
+                                        hidden: { scale: 0.7, opacity: 0 },
+                                        visible: { 
+                                            scale: 0.7, 
+                                            opacity: 0.3,
+                                            transition: { staggerChildren: 0.05, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }
+                                        },
+                                        hovered: { 
+                                            scale: 1, 
+                                            opacity: 1,
+                                            transition: { duration: 0.65, ease: [0.34, 1.56, 0.64, 1] }
+                                        }
+                                    }}
+                                    style={{ originY: "bottom", willChange: "transform, opacity" }}
+                                >
+                                    <motion.div
+                                        layout
+                                        initial="hidden"
+                                        animate="visible"
+                                        variants={{
+                                            visible: { transition: { staggerChildren: 0.05 } },
+                                            hidden: {}
+                                        }}
+                                        className={`flex items-center bg-black/60 glass-container shadow-[0_30px_60px_rgba(0,0,0,0.6)] pointer-events-auto mx-auto backdrop-blur-2xl border border-white/10 ${isExpanded ? 'px-6 py-2.5 gap-4 rounded-full' : 'px-3 py-2 gap-2 rounded-[2rem]'}`}
+                                        style={{ width: isExpanded ? barWidth : undefined }}
+                                        transition={{ 
+                                            type: "spring",
+                                            stiffness: 300,
+                                            damping: 30
+                                        }}
+                                        onMouseMove={handleGlassMouseMove}
+                                    >
                                 <div className="glass-content flex items-center w-full gap-2">
                                     {isExpanded ? (
                                         <>
@@ -1456,9 +1499,11 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                                             )}
                                         </div>
                                     )}
-                                </div>
-                            </div>
-                        </div>
+                                        </div>
+                                    </motion.div>
+                                </motion.div>
+                            );
+                        })()}
                     </div>
                 )}
 
