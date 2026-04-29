@@ -125,7 +125,7 @@ export const App: React.FC = () => {
       .then(res => res.json())
       .then(data => {
         if (data.tag_name) setVersion(data.tag_name);
-        const installer = data.assets?.find((a: any) => a.name.endsWith('.exe') || a.name.endsWith('.zip'));
+        const installer = data.assets?.find((a: { name: string, browser_download_url: string }) => a.name.endsWith('.exe') || a.name.endsWith('.zip'));
         if (installer) setDownloadUrl(installer.browser_download_url);
       })
       .catch(err => console.error('Failed to fetch release:', err));
