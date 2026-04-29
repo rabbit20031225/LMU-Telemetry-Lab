@@ -1,0 +1,474 @@
+.landing-container {
+  min-height: 100vh;
+  background-color: #0b0c10;
+  color: #c5c6c7;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Navbar */
+.navbar {
+  width: 100%;
+  padding: 1.5rem 2rem;
+  position: absolute;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+}
+
+.nav-content {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nav-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.nav-title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.lang-switcher-container {
+  position: relative;
+}
+
+.lang-switcher-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #a0aab2;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lang-switcher-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.lang-switcher-btn .chevron {
+  transition: transform 0.2s;
+}
+
+.lang-switcher-btn .chevron.open {
+  transform: rotate(180deg);
+}
+
+.lang-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: #121820;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.5rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 120px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  z-index: 100;
+}
+
+.lang-dropdown button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #a0aab2;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lang-dropdown button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.lang-dropdown button.active {
+  background: rgba(102, 252, 241, 0.1);
+  color: #66fcf1;
+}
+
+.nav-kofi-img {
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s;
+}
+
+.nav-kofi-img:hover {
+  transform: scale(1.05);
+}
+
+
+.nav-github {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #a0aab2;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.nav-github:hover {
+  color: #fff;
+}
+
+/* 科技感環境光暈 */
+.bg-glow-1, .bg-glow-2 {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  z-index: 0;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.bg-glow-1 {
+  top: -10%;
+  left: 10%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(102, 252, 241, 0.2) 0%, rgba(11, 12, 16, 0) 70%);
+}
+
+.bg-glow-2 {
+  bottom: 20%;
+  right: -5%;
+  width: 40vw;
+  height: 40vw;
+  background: radial-gradient(circle, rgba(242, 169, 0, 0.15) 0%, rgba(11, 12, 16, 0) 70%);
+}
+
+.landing-content {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  width: 100%;
+  padding: 8rem 2rem 4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5rem;
+}
+
+/* 頂部 Hero 區塊 */
+.hero-section {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  max-width: 800px;
+}
+
+.brand-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.brand-logo {
+  width: 88px;
+  height: 88px;
+  border-radius: 20px;
+  box-shadow: 0 0 24px rgba(102, 252, 241, 0.25);
+}
+
+.brand-title-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.brand-title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  margin: 0;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+.version-badge {
+  background: rgba(102, 252, 241, 0.1);
+  color: #66fcf1;
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid rgba(102, 252, 241, 0.2);
+}
+
+.hero-description {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  color: #a0aab2;
+  margin: 1rem 0 2rem 0;
+}
+
+/* 按鈕樣式 */
+.action-buttons {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  gap: 0.75rem;
+  padding: 0 2rem;
+  background: linear-gradient(135deg, #66fcf1 0%, #45a29e 100%);
+  color: #0b0c10;
+  box-shadow: 0 8px 20px rgba(102, 252, 241, 0.25);
+  border-radius: 12px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  box-sizing: border-box;
+}
+
+/* 截圖區塊 (3D傾斜視覺) */
+.screenshot-section {
+  width: 100%;
+  perspective: 1200px;
+}
+
+.screenshot-wrapper {
+  position: relative;
+  border-radius: 16px;
+  padding: 0.75rem;
+  background: rgba(31, 40, 51, 0.4);
+  border: 1px solid rgba(102, 252, 241, 0.15);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+  transform-style: preserve-3d;
+  transform: rotateX(4deg) translateY(-10px);
+}
+
+.app-screenshot {
+  width: 100%;
+  border-radius: 10px;
+  display: block;
+}
+
+/* Showcase Section */
+.showcase-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8rem;
+  padding: 2rem 0 4rem;
+}
+
+.section-header {
+  text-align: center;
+  margin-bottom: -3rem;
+}
+
+.section-header h2 {
+  font-size: 2.5rem;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.showcase-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4rem;
+  width: 100%;
+}
+
+.showcase-row.reverse {
+  flex-direction: row-reverse;
+}
+
+.showcase-row.large-visual .showcase-visual {
+  flex: 1.8;
+}
+
+.showcase-row.large-visual .showcase-text {
+  flex: 0.9;
+}
+
+.showcase-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.showcase-text-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(102, 252, 241, 0.1);
+  color: #66fcf1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.showcase-text h3 {
+  font-size: 2rem;
+  color: #fff;
+  font-weight: 700;
+  margin: 0;
+}
+
+.showcase-text p {
+  font-size: 1.125rem;
+  color: #a0aab2;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.showcase-visual {
+  flex: 1.2;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.showcase-img {
+  width: 100%;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #121820;
+}
+
+.showcase-img.small {
+  width: 65%;
+  margin: 0 auto;
+}
+
+.showcase-visual.split-row {
+  display: flex;
+  flex-direction: row;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.showcase-visual.split-row .showcase-img.half {
+  flex: 1;
+  width: calc(50% - 0.75rem);
+  object-fit: cover;
+}
+
+/* Track Toggle Styles */
+.track-toggle {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  padding: 4px;
+  margin-bottom: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.track-toggle button {
+  background: transparent;
+  border: none;
+  color: #a0aab2;
+  padding: 0.5rem 1.5rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.track-toggle button.active {
+  background: #66fcf1;
+  color: #0b0c10;
+  box-shadow: 0 4px 10px rgba(102, 252, 241, 0.3);
+}
+
+/* Footer */
+.footer {
+  width: 100%;
+  padding: 2rem;
+  text-align: center;
+  color: #6c757d;
+  font-size: 0.9rem;
+  z-index: 1;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+/* RWD 響應式 */
+@media (max-width: 768px) {
+  .brand-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .brand-title-group {
+    align-items: center;
+  }
+
+  .brand-title {
+    font-size: 2.5rem;
+  }
+  
+  .screenshot-wrapper {
+    transform: none;
+    padding: 0.5rem;
+  }
+
+  .showcase-row, .showcase-row.reverse {
+    flex-direction: column;
+    text-align: center;
+    gap: 2rem;
+  }
+
+  .showcase-text-icon {
+    margin: 0 auto 0.5rem;
+  }
+}
