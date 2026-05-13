@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { X, Gauge, Thermometer, Eye, EyeOff, Layout, GripVertical, RotateCcw, Move3d, Save, Compass, Activity, Settings as SettingsIcon } from 'lucide-react';
-import { useTelemetryStore } from '../store/telemetryStore';
+import { useTelemetryStore, CATEGORY_CHART_CONFIGS, getCategoryTemplateConfigs } from '../store/telemetryStore';
 import { handleGlassMouseMove } from '../utils/glassEffect';
+import { Tooltip } from './ui/Tooltip';
 import packageJson from '../../package.json';
 
 const SteeringWheelIcon = ({ size = 16, className = "" }) => (
@@ -34,6 +36,12 @@ const SingleLapIcon = ({ size = 16, className = "" }: { size?: number, className
     </svg>
 );
 
+const CarMarkerIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M5 5l14 6-7 2-2 7L5 5z" />
+    </svg>
+);
+
 export const SettingsOverlay: React.FC = () => {
     const showSettings = useTelemetryStore(state => state.showSettings);
     const setShowSettings = useTelemetryStore(state => state.setShowSettings);
@@ -52,6 +60,21 @@ export const SettingsOverlay: React.FC = () => {
     const setTelemetryHistorySeconds = useTelemetryStore(state => state.setTelemetryHistorySeconds);
     const singleLapXAxisMode = useTelemetryStore(state => state.singleLapXAxisMode);
     const setSingleLapXAxisMode = useTelemetryStore(state => state.setSingleLapXAxisMode);
+    const mapMarkerType = useTelemetryStore(state => state.mapMarkerType);
+    const setMapMarkerType = useTelemetryStore(state => state.setMapMarkerType);
+    const setActiveChartCategory = useTelemetryStore(state => state.setActiveChartCategory);
+    const activeChartCategory = useTelemetryStore(state => state.activeChartCategory);
+    const telemetryData = useTelemetryStore(state => state.telemetryData);
+    
+    // View Modes for dynamic templates
+    const tyresPressureViewMode = useTelemetryStore(state => state.tyresPressureViewMode);
+    const suspensionViewMode = useTelemetryStore(state => state.suspensionViewMode);
+    const thirdDeflectionViewMode = useTelemetryStore(state => state.thirdDeflectionViewMode);
+    const rideHeightViewMode = useTelemetryStore(state => state.rideHeightViewMode);
+    const slipRatioViewMode = useTelemetryStore(state => state.slipRatioViewMode);
+    const handlingViewMode = useTelemetryStore(state => state.handlingViewMode);
+
+    const [activeSettingsCategory, setActiveSettingsCategory] = useState('Driver');
 
     const [tempRotation, setTempRotation] = useState<string>(userWheelRotation?.toString() ?? '');
     const [isSavingRotation, setIsSavingRotation] = useState(false);
@@ -60,15 +83,45 @@ export const SettingsOverlay: React.FC = () => {
     React.useEffect(() => {
         if (showSettings) {
             setTempRotation(userWheelRotation?.toString() ?? '');
+            // Also sync active category from dashboard
+            if (activeChartCategory) {
+                setActiveSettingsCategory(activeChartCategory);
+            }
         }
-    }, [showSettings, userWheelRotation]);
+    }, [showSettings, userWheelRotation, activeChartCategory]);
 
     // Drag-and-drop state
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const [dropPosition, setDropPosition] = useState<'top' | 'bottom' | null>(null);
 
-    const sorted = [...chartConfigs].sort((a, b) => a.order - b.order);
+    // Filter and Sort charts based on CATEGORY_CHART_CONFIGS (Master List)
+    const displayCharts = useMemo(() => {
+        const templateConfigs = getCategoryTemplateConfigs(activeSettingsCategory as any, {
+            tyresPressureViewMode,
+            suspensionViewMode,
+            thirdDeflectionViewMode,
+            rideHeightViewMode,
+            slipRatioViewMode,
+            handlingViewMode
+        });
+        const custom = JSON.parse(localStorage.getItem('custom_chart_settings') || '{}');
+        
+        return templateConfigs.map(c => {
+            const key = `${c.id}-${c.wheelIndex ?? 'all'}`;
+            const activeMatch = chartConfigs.find(ac => ac.id === c.id && ac.wheelIndex === c.wheelIndex);
+            return { 
+                ...c, 
+                ...custom[key],
+                order: activeMatch ? activeMatch.order : c.order,
+                visible: custom[key]?.visible !== undefined ? custom[key].visible : (activeMatch ? activeMatch.visible : c.visible)
+            };
+        }).sort((a, b) => a.order - b.order);
+    }, [
+        activeSettingsCategory, chartConfigs, 
+        tyresPressureViewMode, suspensionViewMode, thirdDeflectionViewMode, 
+        rideHeightViewMode, slipRatioViewMode, handlingViewMode
+    ]);
 
     const handleDragStart = (e: React.DragEvent, idx: number) => {
         setDraggedIndex(idx);
@@ -91,7 +144,7 @@ export const SettingsOverlay: React.FC = () => {
         e.preventDefault();
         if (draggedIndex === null) return;
 
-        const reordered = [...sorted];
+        const reordered = [...displayCharts];
         const [removed] = reordered.splice(draggedIndex, 1);
         
         let insertAt = toIdx;
@@ -124,17 +177,14 @@ export const SettingsOverlay: React.FC = () => {
         return config.unit || 'No Unit';
     };
 
-    if (!showSettings) return null;
-
     return (
-        <div className="fixed inset-0 z-[3200] flex items-center justify-center p-4">
-            <div
-                className="absolute inset-0 bg-gray-950/40 backdrop-blur-xl animate-in fade-in duration-500"
-                onClick={() => setShowSettings(false)}
-            />
-
-            <div
-                className="glass-container w-full max-w-xl bg-gray-900/60 border border-white/20 rounded-[2.5rem] shadow-[0_30px_60px_rgba(0,0,0,0.6)] animate-in zoom-in-95 fade-in duration-300 relative flex flex-col"
+        <div className="absolute inset-0 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && setShowSettings(false)}>
+            <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 1.05, opacity: 0, y: -20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="glass-container w-full max-w-xl bg-gray-900/60 border border-white/20 rounded-[2.5rem] shadow-[0_30px_60px_rgba(0,0,0,0.6)] relative flex flex-col"
                 onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
                 style={{ height: '85vh', overflow: 'hidden' }}
             >
@@ -205,39 +255,83 @@ export const SettingsOverlay: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Analysis Preferences - Half Width & Vertical Layout */}
-                    <div className="flex flex-col gap-4 w-1/2">
-                        <div className="flex items-center gap-2 text-gray-400 px-2">
-                            <SingleLapIcon size={16} className="text-blue-400" />
-                            <span className="text-xs font-black uppercase tracking-widest">Chart X-Axis Mode</span>
-                        </div>
-                        
-                        <div 
-                            className="glass-container bg-black/30 rounded-[2rem] border border-white/5 p-4 flex flex-col items-center gap-1"
-                            onMouseMove={(e) => handleGlassMouseMove(e, 0.1)}
-                        >
-                            <div className="glass-content glass-container-flat bg-black/50 p-1.5 rounded-2xl flex border border-white/5 relative w-full">
-                                {/* Sliding Indicator */}
-                                <div 
-                                    className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-blue-500/20 backdrop-blur-md rounded-xl border border-blue-500/30 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_15px_rgba(59,130,246,0.2)]"
-                                    style={{ left: singleLapXAxisMode === 'distance' ? '6px' : 'calc(50%)' }}
-                                />
-                                {(['distance', 'time'] as const).map(m => (
-                                    <button
-                                        key={m}
-                                        onClick={() => setSingleLapXAxisMode(m)}
-                                        className={`relative z-10 flex-1 py-3 text-[11px] font-black uppercase transition-all rounded-xl ${singleLapXAxisMode === m ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
-                                    >
-                                        {m}
-                                    </button>
-                                ))}
+                    {/* Analysis Preferences - Dual Row */}
+                    <div className="grid grid-cols-2 gap-6">
+                        {/* Chart X-Axis Mode */}
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center gap-2 text-gray-400 px-2">
+                                <SingleLapIcon size={16} className="text-blue-400" />
+                                <span className="text-xs font-black uppercase tracking-widest">Chart X-Axis</span>
                             </div>
                             
-                            <div className="flex items-center gap-2 opacity-40 w-full px-1">
-                                <div className="w-1 h-1 rounded-full bg-blue-500 shrink-0" />
-                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest leading-tight">
-                                    Preferred axis when no reference lap is selected
-                                </p>
+                            <div 
+                                className="glass-container bg-black/30 rounded-[2rem] border border-white/5 p-4 flex flex-col items-center gap-1"
+                                onMouseMove={(e) => handleGlassMouseMove(e, 0.1)}
+                            >
+                                <div className="glass-content glass-container-flat bg-black/50 p-1.5 rounded-2xl flex border border-white/5 relative w-full">
+                                    <div 
+                                        className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-blue-500/20 backdrop-blur-md rounded-xl border border-blue-500/30 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                                        style={{ left: singleLapXAxisMode === 'distance' ? '6px' : 'calc(50%)' }}
+                                    />
+                                    {(['distance', 'time'] as const).map(m => (
+                                        <button
+                                            key={m}
+                                            onClick={() => setSingleLapXAxisMode(m)}
+                                            className={`relative z-10 flex-1 py-3 text-[11px] font-black uppercase transition-all rounded-xl ${singleLapXAxisMode === m ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+                                        >
+                                            {m}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[8px] text-gray-600 font-bold uppercase tracking-widest leading-tight mt-1 opacity-60">Single Lap Only</p>
+                            </div>
+                        </div>
+
+                        {/* Map Marker Type - Premium Card Selection */}
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center gap-2 text-gray-400 px-2">
+                                <CarMarkerIcon size={16} className="text-blue-400" />
+                                <span className="text-xs font-black uppercase tracking-widest">Map Marker Style</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                                {(['arrow', 'dot'] as const).map(m => (
+                                    <button
+                                        key={m}
+                                        onClick={() => setMapMarkerType(m)}
+                                        className={`group relative flex flex-col items-center gap-3 p-4 rounded-3xl border transition-all duration-300 overflow-hidden ${mapMarkerType === m ? 'bg-blue-600/20 border-blue-500 shadow-[0_10px_30px_rgba(59,130,246,0.15)] scale-[1.02]' : 'bg-black/40 border-white/5 hover:border-white/20 opacity-60 hover:opacity-100 hover:scale-[1.01]'}`}
+                                        onMouseMove={(e) => handleGlassMouseMove(e, 0.1)}
+                                    >
+                                        {/* Background Glow for Active State */}
+                                        {mapMarkerType === m && (
+                                            <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent pointer-events-none" />
+                                        )}
+                                        
+                                        {/* Marker Preview */}
+                                        <div className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-500 ${mapMarkerType === m ? 'bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)] rotate-0' : 'bg-white/5 grayscale group-hover:grayscale-0'}`}>
+                                            {m === 'arrow' ? (
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                                                    <path d="M12 2l8 18-8-5-8 5L12 2z" />
+                                                </svg>
+                                            ) : (
+                                                <div className="w-4 h-4 rounded-full bg-white shadow-[0_0_10px_white]" />
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-col items-center">
+                                            <span className={`text-[10px] font-black uppercase tracking-widest ${mapMarkerType === m ? 'text-white' : 'text-gray-500'}`}>{m}</span>
+                                        </div>
+
+                                        {/* Checkmark for Active */}
+                                        {mapMarkerType === m && (
+                                            <div className="absolute top-2 right-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white/20 animate-in zoom-in duration-300">
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="20 6 9 17 4 12" />
+                                                </svg>
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </div>
@@ -381,30 +475,108 @@ export const SettingsOverlay: React.FC = () => {
                                 <span className="text-xs font-black uppercase tracking-widest">Chart Layout & Colors</span>
                             </div>
                             
-                            <button
-                                onClick={resetChartColors}
-                                className="p-2 text-gray-400 hover:text-orange-400 hover:bg-orange-500/10 transition-all rounded-xl flex items-center gap-2 px-3 border border-white/5 glass-container-flat"
-                            >
-                                <RotateCcw size={14} />
-                                <span className="text-[10px] font-black uppercase tracking-wider">Reset Colors</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <Tooltip text="Reset colors for this category" position="bottom">
+                                    <button
+                                        onClick={() => resetChartColors(activeSettingsCategory)}
+                                        className="p-2 text-gray-400 hover:text-orange-400 hover:bg-orange-500/10 transition-all rounded-xl flex items-center gap-2 px-3 border border-white/5 glass-container-flat"
+                                    >
+                                        <RotateCcw size={14} />
+                                        <span className="text-[10px] font-black uppercase tracking-wider">Reset Colors</span>
+                                    </button>
+                                </Tooltip>
+                                <Tooltip text="Reset layout and visibility for this category" position="bottom">
+                                    <button
+                                        onClick={() => {
+                                            const confirmReset = window.confirm(`Reset all ${activeSettingsCategory} charts to default layout and visibility?`);
+                                            if (confirmReset) {
+                                                // Logic to clear custom visibility/order for this category
+                                                const custom = JSON.parse(localStorage.getItem('custom_chart_settings') || '{}');
+                                                const targetIds = (CATEGORY_CHART_CONFIGS[activeSettingsCategory as keyof typeof CATEGORY_CHART_CONFIGS] || []).map(c => `${c.id}-${c.wheelIndex ?? 'all'}`);
+                                                
+                                                targetIds.forEach(key => {
+                                                    if (custom[key]) {
+                                                        delete custom[key].visible;
+                                                        delete custom[key].order;
+                                                        if (Object.keys(custom[key]).length === 0) delete custom[key];
+                                                    }
+                                                });
+                                                localStorage.setItem('custom_chart_settings', JSON.stringify(custom));
+                                                // Refresh current category
+                                                setActiveChartCategory(activeSettingsCategory as any);
+                                            }
+                                        }}
+                                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all rounded-xl flex items-center gap-2 px-3 border border-white/5 glass-container-flat"
+                                    >
+                                        <Layout size={14} />
+                                        <span className="text-[10px] font-black uppercase tracking-wider">Reset Layout</span>
+                                    </button>
+                                </Tooltip>
+                            </div>
+                        </div>
+
+                        {/* Category Navigation for Settings */}
+                        <div className="flex justify-center mb-2">
+                            <div className="relative flex items-center p-1 bg-[#1a1a1e]/60 backdrop-blur-3xl rounded-full border border-white/5 h-9 overflow-hidden group/toggle shadow-lg pointer-events-auto" onMouseMove={handleGlassMouseMove}>
+                                <div className="glass-content relative flex items-center h-full">
+                                    {(() => {
+                                        const availableTabs = [
+                                            { id: 'Driver', label: 'DRIVER' },
+                                            { id: 'Tyres', label: 'TYRES' },
+                                            { id: 'Dynamics', label: 'DYNAMICS' },
+                                            { id: 'Handling', label: 'HANDLING' },
+                                            { id: 'Systems', label: 'SYSTEMS' },
+                                        ];
+
+                                        const activeIndex = availableTabs.findIndex(t => t.id === activeSettingsCategory);
+
+                                        return (
+                                            <>
+                                                {/* Sliding Active Block */}
+                                                <div 
+                                                    className="absolute bg-blue-600 rounded-full shadow-[0_0_12px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                                                    style={{ 
+                                                        height: 'calc(100% - 4px)',
+                                                        width: `calc(${100 / availableTabs.length}% - 4px)`,
+                                                        left: `calc(${(activeIndex / availableTabs.length) * 100}% + 2px)`,
+                                                        top: '2px'
+                                                    }}
+                                                />
+
+                                                {availableTabs.map((cat) => (
+                                                    <button 
+                                                        key={cat.id} 
+                                                        onClick={() => {
+                                                            setActiveSettingsCategory(cat.id);
+                                                            // Sync back to dashboard if it's a chart category
+                                                            if (cat.id !== 'Driver') {
+                                                                setActiveChartCategory(cat.id as any);
+                                                            }
+                                                        }}
+                                                        className={`relative z-10 px-4 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-[0.1em] transition-colors duration-300 flex-1 min-w-[85px] ${
+                                                            activeSettingsCategory === cat.id ? 'text-white' : 'text-gray-500 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        {cat.label}
+                                                    </button>
+                                                ))}
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
                         </div>
 
                         {/* Chart List Container */}
                         <div 
                             className="glass-container bg-black/30 rounded-[2.5rem] border border-white/5 shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)] p-4"
-                            onMouseMove={(e) => handleGlassMouseMove(e, 0.1)}
-                            style={{ 
-                                '--glass-hover-scale': '1.005',
-                                overflow: 'visible' 
-                            } as any}
                         >
                             <div className="glass-content flex flex-col gap-3">
-                                {sorted.map((config, idx) => {
+                                {displayCharts.map((config, idx) => {
                                     const displayUnit = getDisplayUnit(config);
                                     return (
                                         <div 
-                                            key={config.id}
+                                            key={`${config.id}-${config.wheelIndex ?? 'no-wheel'}`}
                                             draggable
                                             onDragStart={(e) => handleDragStart(e, idx)}
                                             onDragOver={(e) => handleDragOver(e, idx)}
@@ -447,14 +619,14 @@ export const SettingsOverlay: React.FC = () => {
                                                     <input
                                                         type="color"
                                                         value={config.color}
-                                                        onChange={(e) => updateChartConfig(config.id, { color: e.target.value })}
+                                                        onChange={(e) => updateChartConfig(config.id, { color: e.target.value }, config.wheelIndex)}
                                                         className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer bg-transparent border-none appearance-none"
                                                     />
                                                     <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: config.color }} />
                                                 </div>
 
                                                 <button
-                                                    onClick={() => updateChartConfig(config.id, { visible: !config.visible })}
+                                                    onClick={() => updateChartConfig(config.id, { visible: !config.visible }, config.wheelIndex)}
                                                     className={`p-2.5 rounded-xl transition-all ${config.visible ? 'text-white' : 'text-gray-700 bg-white/5 border border-white/10'}`}
                                                     style={{ 
                                                         backgroundColor: config.visible ? `${config.color}40` : undefined,
@@ -482,7 +654,7 @@ export const SettingsOverlay: React.FC = () => {
                         <span className="text-[9px] text-gray-600 font-black uppercase tracking-[0.3em]">DuckDB Investigation Tool v{packageJson.version}</span>
                     </div>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 };

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo, useState, useCallback, memo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useTelemetryStore } from '../store/telemetryStore';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { useTelemetryStore, type TelemetryState } from '../store/telemetryStore';
+import type { Lap, ReferenceLap } from '../types';
 import { Tooltip } from './ui/Tooltip';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 import { CompactTelemetryOverlay } from './CompactTelemetryOverlay';
@@ -14,6 +15,26 @@ import { FileManager } from './FileManager';
 import { Maximize2, Minimize2, Play, Pause, RotateCcw, Compass, Navigation, ZoomIn, ZoomOut, Activity, ChevronRight, Check, ChevronDown } from 'lucide-react';
 
 const STICKY_THRESHOLD = 0.05;
+
+// Performance: Move variants outside to avoid recreation on every render
+const controlBarVariants: Variants = {
+    hidden: { scale: 0.7, opacity: 0 },
+    visible: {
+        scale: 0.7,
+        opacity: 0.3,
+        transition: { staggerChildren: 0.05, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }
+    },
+    hovered: {
+        scale: 1,
+        opacity: 1,
+        transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] } // Snappier
+    }
+};
+
+const innerContainerVariants: Variants = {
+    visible: { transition: { staggerChildren: 0.05 } },
+    hidden: {}
+};
 
 // Custom Icons for Map Controls
 const MapIcon = ({ size = 18, className = "" }: { size?: number; className?: string }) => (
@@ -51,6 +72,7 @@ interface TrackMapProps {
     isExpanded?: boolean;
     onToggleExpand?: () => void;
     isMiniMap?: boolean;
+    allowRotation?: boolean; // NEW
     forcedRotation?: number; // Prop to sync rotation
     isAnimating?: boolean;   // Prop to skip rotation recalibration
 }
@@ -63,7 +85,7 @@ const formatLapTime = (time: number) => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
 };
 
-export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false, forcedRotation, isAnimating = false }: TrackMapProps) => {
+export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false, allowRotation = true, forcedRotation, isAnimating = false }: TrackMapProps) => {
     const telemetryData = useTelemetryStore(state => state.telemetryData);
     const referenceTelemetryData = useTelemetryStore(state => state.referenceTelemetryData);
     const selectedStint = useTelemetryStore(state => state.selectedStint);
@@ -103,6 +125,9 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
     const singleLapXAxisMode = useTelemetryStore(state => state.singleLapXAxisMode);
     const setSingleLapXAxisMode = useTelemetryStore(state => state.setSingleLapXAxisMode);
     const setDashboardSyncMode = useTelemetryStore(state => state.setDashboardSyncMode);
+    const mapMarkerType = useTelemetryStore(state => state.mapMarkerType);
+    const track3DData = useTelemetryStore(state => state.track3DData);
+    const staticTrackBaseData = useTelemetryStore(state => state.staticTrackBaseData);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const trackCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -117,6 +142,7 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
     const lastPos = useRef({ x: 0, y: 0 });
     const startAngle = useRef(0);
     const startViewRotation = useRef(0);
+    const startViewPos = useRef({ x: 0, y: 0 });
     const [flagImage, setFlagImage] = useState<HTMLImageElement | null>(null);
     const [isBarHovered, setIsBarHovered] = useState(false);
     const showMiniMap = useTelemetryStore(state => state.showMiniMap);
@@ -205,11 +231,20 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
 
         const tempPoints = [];
         const tempOrigIdx = [];
-        for (let i = sIdx; i <= eIdx; i += step) {
+        for (let i = sIdx; i < eIdx; i += step) {
             const p = project(sourceLat[i], sourceLon[i]);
             if (!isNaN(p.x) && !isNaN(p.y)) {
                 tempPoints.push(p);
                 tempOrigIdx.push(i);
+            }
+        }
+
+        // CRITICAL: Always include the very last sample to ensure the line 'reaches' the finish
+        if (tempOrigIdx[tempOrigIdx.length - 1] !== eIdx) {
+            const lastP = project(sourceLat[eIdx], sourceLon[eIdx]);
+            if (!isNaN(lastP.x) && !isNaN(lastP.y)) {
+                tempPoints.push(lastP);
+                tempOrigIdx.push(eIdx);
             }
         }
 
@@ -414,6 +449,60 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             center: sessionBase!
         };
     }, [baseTrack, racingLineData, referenceLineData, sessionBase]);
+
+    // 1g. Sector-based performance coloring for Minimap
+    const sectorsSource = (track3DData || staticTrackBaseData)?.trackSectors;
+
+    const sectorColors = useMemo(() => {
+        // Must have both a selected lap and a reference lap (either cross-session or same-session)
+        const hasReference = referenceLap !== null || referenceLapIdx !== null;
+        if (!hasReference || selectedLapIdx === null || !laps) return null;
+
+        const currentLap = laps.find(l => l.lap === selectedLapIdx);
+        if (!currentLap) return null;
+
+        // Determine reference lap object
+        const refLapObj = referenceLap || laps.find(l => l.lap === referenceLapIdx);
+        if (!refLapObj) return null;
+
+        const colors: Record<number, string> = {};
+        [1, 2, 3].forEach(s => {
+            const cur = currentLap[`s${s}` as keyof Lap] as number;
+            const ref = refLapObj[`s${s}` as keyof Lap] as number;
+            
+            if (typeof cur === 'number' && typeof ref === 'number' && cur > 0 && ref > 0) {
+                if (cur < ref - 0.001) colors[s - 1] = '#3b82f6'; // Blue
+                else if (cur > ref + 0.001) colors[s - 1] = '#fbbf24'; // Orange
+                else colors[s - 1] = '#ffffff'; // White
+            } else {
+                colors[s - 1] = 'rgba(150, 150, 150, 0.8)';
+            }
+        });
+        return colors;
+    }, [laps, selectedLapIdx, referenceLap, referenceLapIdx]);
+
+    const sectorBreakpoints = useMemo(() => {
+        if (!trackData?.racingLine || !sectorsSource || sectorsSource.length === 0) return null;
+
+        const racingLine = trackData.racingLine;
+        const points = racingLine.points;
+
+        // Find closest racing line index for each sector boundary
+        return sectorsSource.map(s => {
+            const proj = project(s.lat, s.lon);
+            let bestIdx = 0;
+            let minDist = Infinity;
+
+            for (let i = 0; i < points.length; i++) {
+                const d = (points[i].x - proj.x) ** 2 + (points[i].y - proj.y) ** 2;
+                if (d < minDist) {
+                    minDist = d;
+                    bestIdx = i;
+                }
+            }
+            return { id: s.id, index: bestIdx };
+        }).sort((a, b) => a.id - b.id);
+    }, [trackData?.racingLine, sectorsSource, project]);
 
 
     // 2. Calculate Car Heading from GPS (Smooth window)
@@ -692,7 +781,8 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             const lons = telemetryData['GPS Longitude'];
 
             if (lats && lons && lats[baseIdx] !== undefined) {
-                const nextIdx = Math.min(lats.length - 1, baseIdx + 1);
+                // Wrap around at the end of the lap/stint to connect back to the start
+                const nextIdx = (baseIdx + 1) % lats.length;
                 const frac = activeIdx - baseIdx;
                 const clat = lats[baseIdx] + (lats[nextIdx] - lats[baseIdx]) * frac;
                 const clon = lons[baseIdx] + (lons[nextIdx] - lons[baseIdx]) * frac;
@@ -724,6 +814,15 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
         canvas.width = width;
         canvas.height = height;
         ctx.clearRect(0, 0, width, height);
+
+        // Local projection using track-specific center to ensure car and lines align perfectly
+        const project = (lat: number, lon: number) => {
+            if (!trackData?.center) return { x: 0, y: 0 };
+            return {
+                x: (lon - trackData.center.lon) * trackData.center.lonScale,
+                y: (lat - trackData.center.lat)
+            };
+        };
 
         const { referenceTrack, racingLine } = trackData;
         const x = effX, y = effY, k = effK, rotation = effRot;
@@ -799,7 +898,22 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             const t = (throttle && Array.isArray(throttle)) ? (throttle[idx] || 0) : 0;
 
             if (isMiniMap) {
-                ctx.strokeStyle = 'rgba(150, 150, 150, 0.8)'; // Solid gray for mini-map
+                // Sector-based coloring when reference lap exists
+                let color = 'rgba(150, 150, 150, 0.8)'; // Default gray
+                if (sectorColors && sectorBreakpoints) {
+                    let sectorId = 0;
+                    for (let b = 0; b < sectorBreakpoints.length; b++) {
+                        if (i <= sectorBreakpoints[b].index) {
+                            sectorId = sectorBreakpoints[b].id;
+                            break;
+                        }
+                        if (b === sectorBreakpoints.length - 1) {
+                            sectorId = sectorBreakpoints[b].id; // Last sector
+                        }
+                    }
+                    color = sectorColors[sectorId] || color;
+                }
+                ctx.strokeStyle = color;
             } else {
                 const r = Math.min(255, Math.floor(b * 2.55));
                 const g = Math.min(255, Math.floor(t * 2.55));
@@ -836,29 +950,119 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             ctx.restore();
         }
 
-        // --- 4. Draw Start/Finish Flag ---
-        if (racingLine.points.length > 2 && flagImage) {
-            const pf = racingLine.points[racingLine.points.length - 1];
-            const iconSize = (isMiniMap ? 10 : 16) / k;
-
+        // --- 3.5 Draw Sector and Finish Boundaries ---
+        const sectorsSource = (track3DData || staticTrackBaseData)?.trackSectors;
+        if (trackData) {
             ctx.save();
-            if (!isMiniMap) {
-                ctx.shadowColor = "rgba(255, 255, 255, 0.8)";
-                ctx.shadowBlur = 10 / k;
+            // Scale thickness based on mode and zoom to maintain visibility
+            const baseThickness = isMiniMap ? 3.0 : 6.0;
+            ctx.lineWidth = baseThickness / k;
+            ctx.strokeStyle = '#ffff00'; // Yellow
+            ctx.fillStyle = '#ffff00';
 
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            const degM = 111320;
+
+            const drawBoundary = (pcx: number, pcy: number, dx: number, dy: number, nx: number, ny: number, width: number, label: string) => {
+                const isFinish = label === 'S1';
+
+                // Final dimensions: MiniMap uses standard thin lines, MainMap uses premium finish line
+                // Increase length to 18m each side (36m total) for the main map finish line
+                // Minimap: Use a longer 30m line to remain visible at small scale
+                const lineHalfLen = isMiniMap ? (30.0 / degM) : ((isFinish && !isMiniMap) ? (18.0 / degM) : (12.0 / degM));
+
+                ctx.lineCap = 'butt';
+
+                // Use physical meters for thickness in main map (e.g., 8.0 meters thick)
+                // Minimap: Use a thinner line (e.g., 2.5 / k)
+                ctx.lineWidth = isMiniMap ? (2.5 / k) : ((isFinish && !isMiniMap) ? (8.0 / degM) : (4 / k));
+                const forwardShift = (isFinish && !isMiniMap) ? (2 / degM) : 0;
+
+                // Draw perpendicular line
                 ctx.beginPath();
-                ctx.arc(pf.x, pf.y, 10 / k, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.moveTo(pcx + nx * lineHalfLen + dx * forwardShift, pcy + ny * lineHalfLen + dy * forwardShift);
+                ctx.lineTo(pcx - nx * lineHalfLen + dx * forwardShift, pcy - ny * lineHalfLen + dy * forwardShift);
+                ctx.stroke();
+
+                // 2. Labels - Only in main map
+                if (!isMiniMap) {
+                    const forwardOffset = 30 / effK;
+                    const sideOffset = lineHalfLen + (12 / effK);
+
+                    const textX = pcx + dx * forwardOffset - nx * sideOffset;
+                    const textY = pcy + dy * forwardOffset - ny * sideOffset;
+
+                    ctx.save();
+                    // First move to the location in map degrees (within the current k/-k/rotate transform)
+                    ctx.translate(textX, textY);
+
+                    // Capture the resulting screen-pixel coordinates using the context matrix
+                    const matrix = ctx.getTransform();
+
+                    // Reset to identity but keep the screen position
+                    ctx.setTransform(1, 0, 0, 1, matrix.e, matrix.f);
+
+                    ctx.font = `bold 18px Inter, "Segoe UI", sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = '#ffff00';
+                    ctx.fillText(label, 0, 0);
+                    ctx.restore();
+                }
+            };
+
+            // Draw All Boundaries (Finish Line + Sectors)
+            if (sectorsSource) {
+                sectorsSource.forEach(sector => {
+                    const proj = project(sector.lat, sector.lon);
+                    const px = proj.x, py = proj.y;
+
+                    let dx = sector.dx, dy = sector.dy;
+
+                    // Fallback to search if backend didn't provide vectors (backwards compatibility)
+                    if (dx === undefined || dy === undefined || sector.id === 0) {
+                        const n = trackData.referenceTrack.points.length;
+                        const isFinish = sector.id === 0;
+
+                        if (isFinish && n > 5) {
+                            // MATCH 3D LOGIC: For finish line, use strictly points 0 and 5 for a straight start
+                            const p1 = trackData.referenceTrack.points[0];
+                            const p2 = trackData.referenceTrack.points[5];
+                            const len = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2) || 1;
+                            dx = (p2.x - p1.x) / len; dy = (p2.y - p1.y) / len;
+                        } else {
+                            let bestIdx = 0, minDist = Infinity;
+                            for (let i = 0; i < n; i++) {
+                                const p = trackData.referenceTrack.points[i];
+                                const d = (p.x - px) ** 2 + (p.y - py) ** 2;
+                                if (d < minDist) { minDist = d; bestIdx = i; }
+                            }
+                            const sampleRange = 20;
+                            const p1 = trackData.referenceTrack.points[(bestIdx - sampleRange + n) % n];
+                            const p2 = trackData.referenceTrack.points[(bestIdx + sampleRange) % n];
+                            const len = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2) || 1;
+                            dx = (p2.x - p1.x) / len; dy = (p2.y - p1.y) / len;
+                        }
+                    }
+                    const nx = -dy, ny = dx;
+
+                    // Use backend lateral offset to find the track center, same as 3D logic
+                    // IMPORTANT: Convert meters to degrees using degM for 2D coordinate space
+                    const pcx = px + nx * ((sector.lateral || 0) / degM);
+                    const pcy = py + ny * ((sector.lateral || 0) / degM);
+
+                    // Sector Color: White for Finish (S1), Yellow for others
+                    ctx.strokeStyle = sector.id === 0 ? '#ffffff' : '#ffff00';
+                    ctx.fillStyle = sector.id === 0 ? '#ffffff' : '#ffff00';
+
+                    drawBoundary(pcx, pcy, dx, dy, nx, ny, sector.width, `S${sector.id + 1}`);
+                });
             }
 
-            ctx.translate(pf.x, pf.y);
-            ctx.rotate(-rotation * Math.PI / 180);
-            ctx.scale(1, -1);
-
-            ctx.drawImage(flagImage, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
             ctx.restore();
         }
+
+        // --- 4. Draw Start/Finish Flag (Removed, replaced by line above) ---
+
 
         // --- 5. Draw Dynamic Cursors ---
         const getHeadingAtIdx = (idx: number, sourceData: any) => {
@@ -871,7 +1075,31 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             if (i1 === i2) return 0;
             const dLat = lat[i2] - lat[i1];
             const dLon = (lon[i2] - lon[i1]) * trackData.center.lonScale;
-            return Math.atan2(dLon, dLat) * 180 / Math.PI;
+            let heading = Math.atan2(dLon, dLat) * 180 / Math.PI;
+
+            // --- IMPROVEMENT: Low-Speed Stability & Yaw-Based Slip Visualization ---
+            const speed = sourceData['Ground Speed'];
+            const gLat = sourceData['G Force Lat'];
+            if (speed && gLat) {
+                const curSpeedKmh = speed[Math.floor(idx)];
+                const curGLat = gLat[Math.floor(idx)];
+
+                // 1. Low-Speed Lock: If car is barely moving, don't update heading to avoid GPS noise
+                if (curSpeedKmh < 3.0) {
+                    // Try to find last stable heading (simplified here, just return current)
+                    // In a more robust system we'd store lastHeadingRef
+                } else {
+                    // 2. Yaw-Based Slip Approximation
+                    // Formula: Slip Angle (approx) = Yaw Rate * L / V
+                    // Since we already calculated Yaw Rate = G_Lat / V
+                    // Visual Slip Offset = Constant * (G_Lat / V^2)
+                    const v_mps = curSpeedKmh / 3.6;
+                    const slipOffset = (curGLat * 9.81 / (v_mps * v_mps)) * (180 / Math.PI) * 0.5; // 0.5 is a visual damping factor
+                    heading += Math.max(-15, Math.min(15, slipOffset)); // Cap at 15 degrees for visual sanity
+                }
+            }
+
+            return heading;
         };
 
         const activeCursorIdx = isPlaying ? (smoothCursorIndex ?? cursorIndex) : cursorIndex;
@@ -881,7 +1109,7 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                 const baseIdx = Math.floor(idx);
                 const latitudeArray = sourceData['GPS Latitude'];
                 if (!latitudeArray || latitudeArray.length === 0) return;
-                const nextIdx = Math.min(latitudeArray.length - 1, baseIdx + 1);
+                const nextIdx = (baseIdx + 1) % latitudeArray.length;
                 const frac = idx - baseIdx;
 
                 const lat1 = sourceData['GPS Latitude']?.[baseIdx];
@@ -960,7 +1188,9 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
             // 1. Draw Current Cursor
             const cursorColor = isMiniMap ? "#3b82f6" : "#3b82f6";
             const radius = isMiniMap ? 3.5 : 8; // Slightly larger for arrows
-            drawCursorAtIdx(activeCursorIdx, cursorColor, radius, !isMiniMap, telemetryData, !isMiniMap);
+            // Respect user setting for main map, but stick to 'dot' for minimap
+            const currentMarkerType = isMiniMap ? 'dot' : mapMarkerType;
+            drawCursorAtIdx(activeCursorIdx, cursorColor, radius, !isMiniMap, telemetryData, currentMarkerType === 'arrow');
 
             // 2. Draw Reference Ghost Car (Using reactive indices from the store)
             const activeRefIdx = dashboardSyncMode === 'distance' ? referenceDeltaIndex : referenceCursorIndex;
@@ -969,13 +1199,13 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                 const refData = referenceTelemetryData || telemetryData;
                 const refCursorColor = isMiniMap ? "rgba(200, 200, 200, 1.0)" : "#ffc800ff"; // Rich orange
                 const refRadius = isMiniMap ? 3.5 : 6.5;
-                drawCursorAtIdx(activeRefIdx, refCursorColor, refRadius, false, refData, !isMiniMap);
+                drawCursorAtIdx(activeRefIdx, refCursorColor, refRadius, false, refData, currentMarkerType === 'arrow');
             }
         }
 
         ctx.restore();
 
-    }, [trackData, dimensions, view, telemetryData, flagImage, cursorIndex, referenceLapIdx, isMiniMap, cameraMode, followZoom, optimalRotation, smoothCursorIndex, carHeading, isPlaying, forcedRotation, isExpanded, referenceCursorIndex, referenceDeltaIndex, dashboardSyncMode]);
+    }, [trackData, dimensions, view, telemetryData, flagImage, cursorIndex, referenceLapIdx, isMiniMap, cameraMode, followZoom, optimalRotation, smoothCursorIndex, carHeading, isPlaying, forcedRotation, isExpanded, referenceCursorIndex, referenceDeltaIndex, dashboardSyncMode, mapMarkerType, staticTrackBaseData, track3DData, sectorColors, sectorBreakpoints]);
 
     // 4. Cursor rendering in separate effect is no longer needed as we draw it in main loop for synchronization if desired, 
     // but better to keep it separate for performance if cursorIndex changes fast. 
@@ -1027,8 +1257,8 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        if (isMiniMap) return; // Disable pan/rotate
-        if (e.button === 2) { // Right Click
+        if (e.button === 0) { // Left Click -> Rotate
+            if (isMiniMap || !allowRotation) return; // Disable rotation if mini-map or explicitly disallowed
             setIsRotating(true);
             const rect = containerRef.current?.getBoundingClientRect();
             if (rect) {
@@ -1038,8 +1268,10 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                 const dy = e.clientY - rect.top - centerY;
                 startAngle.current = Math.atan2(dy, dx) * 180 / Math.PI;
                 startViewRotation.current = view.rotation;
+                // Store initial offsets to rotate them around screen center
+                startViewPos.current = { x: view.x, y: view.y };
             }
-        } else {
+        } else if (e.button === 2) { // Right Click -> Drag (Pan)
             setIsDragging(true);
             lastPos.current = { x: e.clientX, y: e.clientY };
         }
@@ -1054,8 +1286,24 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                 const dx = e.clientX - rect.left - centerX;
                 const dy = e.clientY - rect.top - centerY;
                 const currentAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-                const delta = currentAngle - startAngle.current;
-                setView(v => ({ ...v, rotation: startViewRotation.current + delta }));
+                const deltaDeg = currentAngle - startAngle.current;
+                const deltaRad = deltaDeg * Math.PI / 180;
+
+                // Rotate the offset vector around (0,0) which is screen center in this context
+                const cosA = Math.cos(deltaRad);
+                const sinA = Math.sin(deltaRad);
+                const startX = startViewPos.current.x;
+                const startY = startViewPos.current.y;
+
+                const nextX = startX * cosA - startY * sinA;
+                const nextY = startX * sinA + startY * cosA;
+
+                setView(v => ({
+                    ...v,
+                    rotation: startViewRotation.current + deltaDeg,
+                    x: nextX,
+                    y: nextY
+                }));
             }
         } else if (isDragging) {
             const dx = e.clientX - lastPos.current.x;
@@ -1091,7 +1339,7 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
 
         const currentLap = laps.find(l => l.lap === selectedLapIdx);
         const refMeta = referenceLap || (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
-        
+
         const curDur = currentLap?.duration || 0;
         const hasRefData = referenceTelemetryData || (telemetryData && referenceLapIdx !== null);
         const refDur = hasRefData && refMeta ? (refMeta.duration || 0) : 0;
@@ -1140,18 +1388,184 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const PlaybackControlBar = useMemo(() => {
+        if (isMiniMap || !telemetryData) return null;
+
+        return (
+            <div className={`absolute left-1/2 -translate-x-1/2 z-[1100] w-full pointer-events-none ${isExpanded ? 'bottom-6' : 'bottom-4'} ${isMapMaximized && maximizedSidebarMode === 'data_sources' ? 'opacity-80' : ''}`}>
+                <motion.div
+                    className={`mx-auto pointer-events-auto ${isExpanded ? 'px-4 w-fit' : 'max-w-max'}`}
+                    onMouseEnter={() => setIsBarHovered(true)}
+                    onMouseLeave={() => setIsBarHovered(false)}
+                    initial="hidden"
+                    animate={isBarHovered ? "hovered" : "visible"}
+                    variants={controlBarVariants}
+                    style={{
+                        originY: "bottom",
+                        willChange: "transform, opacity",
+                        transform: "translateZ(0)"
+                    }}
+                >
+                    <motion.div
+                        initial="hidden"
+                        animate="visible"
+                        variants={innerContainerVariants}
+                        className={`flex items-center bg-black/60 backdrop-blur-2xl glass-container pointer-events-auto mx-auto border border-white/10 overflow-hidden ${isExpanded ? 'px-6 py-2.5 gap-4 rounded-full' : 'px-3 py-2 gap-2 rounded-[2rem]'}`}
+                        style={{
+                            isolation: 'isolate',
+                            width: (() => {
+                                const baseWidth = dimensions.width;
+                                const maxPadding = Math.min(380, baseWidth * 0.28);
+                                const leftPadding = isMapMaximized
+                                    ? ((hudVisibility.analysisLaps || maximizedSidebarMode === 'data_sources') ? maxPadding : 20)
+                                    : 20;
+                                const rightPadding = (isMapMaximized && hudVisibility.dataCharts) ? maxPadding : 20;
+                                const effectiveWidth = baseWidth - (leftPadding + rightPadding);
+                                return isExpanded ? Math.min(896, Math.max(320, effectiveWidth)) : undefined;
+                            })()
+                        }}
+                        transition={{ type: "spring", stiffness: 400, damping: 40 }}
+                        onMouseMove={handleGlassMouseMove}
+                    >
+                        <div className="glass-content flex items-center w-full gap-2">
+                            {isExpanded ? (
+                                <>
+                                    <div className="flex items-center gap-2">
+                                        <Tooltip text={isPlaying ? "PAUSE" : "PLAY"} position="top" className="rounded-full">
+                                            <button
+                                                onClick={togglePlayback}
+                                                className={`transition-all rounded-full glass-container hover:scale-110 active:scale-95 border ${isPlaying ? 'bg-blue-600/20 text-blue-400 border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : 'bg-white/5 text-slate-500 hover:text-white hover:bg-white/10 border-transparent'}`}
+                                                onMouseMove={handleGlassMouseMove}
+                                            >
+                                                <div className="glass-content p-2.5 flex items-center justify-center">
+                                                    {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
+                                                </div>
+                                            </button>
+                                        </Tooltip>
+                                        <div className="relative" ref={speedMenuRef}>
+                                            <Tooltip text="SPEED" position="top">
+                                                <button
+                                                    onClick={() => setIsSpeedOpen(!isSpeedOpen)}
+                                                    className={`bg-transparent border border-white/10 text-[10px] font-black rounded-lg transition-all min-w-[48px] glass-container hover:scale-110 active:scale-90 ${isSpeedOpen ? 'text-blue-400 bg-white/10 border-white/20' : 'text-gray-500 hover:text-white'}`}
+                                                    onMouseMove={handleGlassMouseMove}
+                                                >
+                                                    <div className="glass-content px-2.5 py-1.5 flex flex-col items-center justify-center">
+                                                        <span className="select-none">{playbackSpeed}x</span>
+                                                    </div>
+                                                </button>
+                                            </Tooltip>
+                                            <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-16 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom ${isSpeedOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'}`}>
+                                                <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10" onMouseMove={handleGlassMouseMove}>
+                                                    <div className="glass-content w-full h-full flex flex-col">
+                                                        {[4, 2, 1, 0.5].map(s => (
+                                                            <button
+                                                                key={s}
+                                                                onClick={() => { setPlaybackSpeed(s); setIsSpeedOpen(false); }}
+                                                                className={`px-2 py-1.5 text-[10px] font-bold transition-all text-center rounded-lg select-none ${playbackSpeed === s ? 'bg-blue-600/30 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/10 border border-transparent'} hover:scale-110 active:scale-90 z-10`}
+                                                            >
+                                                                {s}x
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 flex items-center gap-2.5">
+                                        <span className="text-[12px] font-mono text-blue-400 font-bold tracking-tighter drop-shadow-[0_0_8px_rgba(59,130,246,0.3)] select-none">
+                                            {playbackProgress.currentTime}
+                                        </span>
+                                        <div className="relative flex-1 h-6 flex items-center group/timeline">
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="1"
+                                                step="0.0001"
+                                                value={playbackProgress.progress}
+                                                onChange={(e) => setPlaybackProgress(parseFloat(e.target.value))}
+                                                className="w-full h-1 bg-white/5 rounded-full appearance-none cursor-pointer scale-y-75 group-hover/timeline:scale-y-125 transition-all outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0"
+                                                style={{ background: `linear-gradient(to right, #3b82f6 ${playbackProgress.progress * 100}%, rgba(255,255,255,0.02) ${playbackProgress.progress * 100}%)` }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 pl-4 border-l border-white/10">
+                                        {(dimensions.width - (isMapMaximized ? 680 : 40)) > 600 && (
+                                            <>
+                                                <Tooltip text="MINIMAP" position="top">
+                                                    <button onClick={() => setShowMiniMap(!showMiniMap)} className={`transition-all rounded-lg glass-container hover:scale-110 active:scale-95 border border-transparent ${showMiniMap ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.1)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`} onMouseMove={handleGlassMouseMove}>
+                                                        <div className="glass-content px-2.5 py-1.5 flex items-center justify-center"><MapIcon size={16} /></div>
+                                                    </button>
+                                                </Tooltip>
+                                                <div className="relative" ref={hudMenuRef}>
+                                                    <Tooltip text={isMapMaximized ? "HUD SETUP" : "OVERLAP"} position="top">
+                                                        <button onClick={() => isMapMaximized ? setShowHudMenu(!showHudMenu) : setShowTelemetryOverlay(!showTelemetryOverlay)} className={`transition-all rounded-lg glass-container hover:scale-110 active:scale-95 border border-transparent ${showTelemetryOverlay ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.1)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`} onMouseMove={handleGlassMouseMove}>
+                                                            <div className="glass-content px-2.5 py-1.5 flex items-center justify-center gap-1.5"><Activity size={16} />{isMapMaximized && <ChevronDown size={12} className={`transition-transform duration-300 ${showHudMenu ? 'rotate-180' : ''}`} />}</div>
+                                                        </button>
+                                                    </Tooltip>
+                                                    <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-40 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom z-[1100] ${isMapMaximized && showHudMenu ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'}`}>
+                                                        <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10" onMouseMove={handleGlassMouseMove}>
+                                                            <div className="glass-content w-full h-full flex flex-col gap-0.5">
+                                                                <button onClick={() => setHudVisibility('overlap', !hudVisibility.overlap)} className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border hover:scale-105 active:scale-90 group ${hudVisibility.overlap ? 'bg-blue-600/30 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'}`}><span className="text-[11px] font-bold">Telemetry Overlap</span></button>
+                                                                <div className="mx-2 my-1 border-t border-white/10" />
+                                                                {['trackInfo', 'vehicleInfo', 'analysisLaps', 'dataCharts'].map((id) => (
+                                                                    <button key={id} onClick={() => setHudVisibility(id as any, !hudVisibility[id as keyof typeof hudVisibility])} className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border hover:scale-105 active:scale-90 group ${hudVisibility[id as keyof typeof hudVisibility] ? 'bg-blue-600/30 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'}`}><span className="text-[11px] font-bold">{id}</span></button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <Tooltip text="RESET VIEW" position="top">
+                                                    <button onClick={fitTrack} className="transition-all rounded-lg glass-container hover:scale-110 active:scale-90 text-slate-500 hover:text-white border border-transparent hover:bg-white/5" onMouseMove={handleGlassMouseMove}><div className="glass-content px-2.5 py-1.5 flex items-center justify-center"><RotateCcw size={16} /></div></button>
+                                                </Tooltip>
+                                                <div className="glass-container rounded-lg border border-transparent hover:bg-white/5 transition-all">
+                                                    <div className="glass-content h-7 px-1 gap-0.5 flex items-center">
+                                                        <button onClick={() => setCameraMode('static')} className={`p-1 px-2 rounded-md transition-all ${cameraMode === 'static' ? 'text-blue-400 bg-blue-500/20' : 'text-slate-500 hover:text-slate-300'}`}><ViewfinderIcon size={14} /></button>
+                                                        <button onClick={() => setCameraMode('follow')} className={`p-1 px-2 rounded-md transition-all ${cameraMode === 'follow' ? 'text-blue-400 bg-blue-500/20' : 'text-slate-500 hover:text-slate-300'}`}><FollowIcon size={14} /></button>
+                                                        <button onClick={() => setCameraMode('heading-up')} className={`p-1 px-2 rounded-md transition-all ${cameraMode === 'heading-up' ? 'text-blue-400 bg-blue-500/20' : 'text-slate-500 hover:text-slate-300'}`}><Navigation size={14} /></button>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                        {onToggleExpand && !isMapMaximized && (
+                                            <button onClick={onToggleExpand} className="transition-all rounded-lg glass-container hover:scale-110 active:scale-95 text-slate-500 hover:text-white border border-transparent hover:bg-white/5" onMouseMove={handleGlassMouseMove}><div className="glass-content px-2.5 py-1.5 flex items-center justify-center"><ChevronRight size={16} /></div></button>
+                                        )}
+                                        <Tooltip text={isMapMaximized ? "RESTORE" : "MAXIMIZE"} position="top">
+                                            <button onClick={() => setIsMapMaximized(!isMapMaximized)} className={`transition-all rounded-full glass-container hover:scale-110 active:scale-95 border border-transparent ml-1 ${isMapMaximized ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`} onMouseMove={handleGlassMouseMove}><div className="glass-content p-2.5 flex items-center justify-center">{isMapMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</div></button>
+                                        </Tooltip>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <button onClick={fitTrack} className="text-gray-400 hover:text-white rounded-xl transition-all border border-transparent hover:bg-white/5 active:scale-90 glass-container" onMouseMove={handleGlassMouseMove}><div className="glass-content p-1.5"><RotateCcw size={14} /></div></button>
+                                    <div className="w-px h-3 bg-white/5 mx-0.5" />
+                                    {onToggleExpand && (
+                                        <button onClick={onToggleExpand} className="text-gray-500 hover:text-white rounded-xl transition-all border border-transparent hover:bg-white/5 active:scale-90 glass-container" onMouseMove={handleGlassMouseMove}><div className="glass-content p-1.5"><Maximize2 size={14} /></div></button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                </motion.div>
+            </div>
+        );
+    }, [isExpanded, isBarHovered, isPlaying, playbackSpeed, playbackProgress, showMiniMap, showHudMenu, showTelemetryOverlay, isMapMaximized, hudVisibility, maximizedSidebarMode, dimensions.width, telemetryData, isMiniMap, togglePlayback, setPlaybackSpeed, setPlaybackProgress, setShowMiniMap, setShowHudMenu, setShowTelemetryOverlay, setHudVisibility, fitTrack, setCameraMode, setIsMapMaximized, onToggleExpand, isSingleLap, singleLapXAxisMode, dashboardSyncMode]);
+
     return (
         <div ref={containerRef}
             onMouseMove={handleGlassMouseMove}
-            className="h-full flex flex-col min-h-[inherit] relative group transition-all duration-300 glass-container-flat glass-expand-pixel rounded-2xl">
+            className={`h-full flex flex-col min-h-[inherit] relative group/map transition-all duration-300 ${isMiniMap ? '' : 'glass-container-flat map-bg-unified'} hover:scale-100 overflow-hidden ${isMiniMap ? 'rounded-xl' : (isMapMaximized ? 'rounded-none glass-no-blur' : 'rounded-2xl')}`}
+            style={{ 
+                '--glass-hover-scale': '1', 
+                '--glass-content-scale': '1'
+            } as any}>
             <div className="glass-content flex-1 flex flex-col relative z-10 w-full h-full">
                 {/* Title Overlay */}
-                {!isMiniMap && (
-                    <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] m-4 absolute top-0 left-0 z-10 pointer-events-auto drop-shadow-md transition-all duration-300 group-hover:text-white group-hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">Track Map</h3>
+                {!isMiniMap && !isAnimating && (
+                    <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] m-4 absolute top-0 left-0 z-10 pointer-events-auto drop-shadow-md transition-all duration-300 group-hover/map:text-white group-hover/map:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">Track Map</h3>
                 )}
 
                 {/* HUD: Top Center Telemetry (Refined Alignment) */}
-                {isExpanded && !isMiniMap && (
+                {isExpanded && !isMiniMap && !isAnimating && (
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto flex flex-col items-center gap-1">
                         <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center shadow-2xl glass-container overflow-hidden"
                             onMouseMove={handleGlassMouseMove}>
@@ -1178,7 +1592,7 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
 
 
                 {/* Reset HUD Button - Top Left */}
-                <div className={`absolute top-4 left-4 z-[3000] transition-all duration-300 ease-out transform ${editHudMode && !isMiniMap ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
+                <div className={`absolute top-4 left-4 z-[3000] transition-all duration-300 ease-out transform ${editHudMode && !isMiniMap && !isAnimating ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
                     <button
                         onClick={resetHudConfigs}
                         className="flex items-center justify-center gap-2 w-40 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all animate-in fade-in slide-in-from-left-4 duration-300 pointer-events-auto"
@@ -1188,336 +1602,20 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                     </button>
                 </div>
 
-                {!isMiniMap && (
-                    <div 
-                        className={`absolute left-1/2 -translate-x-1/2 z-[1100] w-full pointer-events-none ${isExpanded ? 'bottom-6' : 'bottom-4'}`}
-                    >
-                        {(() => {
-                            const baseWidth = dimensions.width;
-                            const maxPadding = Math.min(380, baseWidth * 0.28);
-                            
-                            const leftPadding = isMapMaximized 
-                                ? ((hudVisibility.analysisLaps || maximizedSidebarMode === 'data_sources') ? maxPadding : 20)
-                                : 20;
-                            const rightPadding = (isMapMaximized && hudVisibility.dataCharts) ? maxPadding : 20;
-                            const effectiveWidth = baseWidth - (leftPadding + rightPadding);
-                            
-                            const barWidth = Math.min(896, Math.max(320, effectiveWidth));
+                {!isMiniMap && !isAnimating && PlaybackControlBar}
 
-                            return (
-                                <motion.div
-                                    className={`mx-auto pointer-events-auto ${isExpanded ? 'px-4 w-fit' : 'max-w-max'}`}
-                                    onMouseEnter={() => setIsBarHovered(true)}
-                                    onMouseLeave={() => setIsBarHovered(false)}
-                                    initial="hidden"
-                                    animate={isBarHovered ? "hovered" : "visible"}
-                                    variants={{
-                                        hidden: { scale: 0.7, opacity: 0 },
-                                        visible: { 
-                                            scale: 0.7, 
-                                            opacity: 0.3,
-                                            transition: { staggerChildren: 0.05, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }
-                                        },
-                                        hovered: { 
-                                            scale: 1, 
-                                            opacity: 1,
-                                            transition: { duration: 0.65, ease: [0.34, 1.56, 0.64, 1] }
-                                        }
-                                    }}
-                                    style={{ originY: "bottom", willChange: "transform, opacity" }}
-                                >
-                                    <motion.div
-                                        layout
-                                        initial="hidden"
-                                        animate="visible"
-                                        variants={{
-                                            visible: { transition: { staggerChildren: 0.05 } },
-                                            hidden: {}
-                                        }}
-                                        className={`flex items-center bg-black/60 glass-container shadow-[0_30px_60px_rgba(0,0,0,0.6)] pointer-events-auto mx-auto backdrop-blur-2xl border border-white/10 ${isExpanded ? 'px-6 py-2.5 gap-4 rounded-full' : 'px-3 py-2 gap-2 rounded-[2rem]'}`}
-                                        style={{ width: isExpanded ? barWidth : undefined }}
-                                        transition={{ 
-                                            type: "spring",
-                                            stiffness: 300,
-                                            damping: 30
-                                        }}
-                                        onMouseMove={handleGlassMouseMove}
-                                    >
-                                <div className="glass-content flex items-center w-full gap-2">
-                                    {isExpanded ? (
-                                        <>
-                                            {/* Playback Controls */}
-                                            <div className="flex items-center gap-2">
-                                                <Tooltip text={isPlaying ? "PAUSE" : "PLAY"} position="top">
-                                                    <button
-                                                        onClick={togglePlayback}
-                                                        className={`rounded-full transition-all glass-container hover:scale-110 active:scale-95 ${isPlaying ? 'bg-blue-600 border border-blue-500/50 text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]' : 'bg-transparent text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'}`}
-                                                        onMouseMove={handleGlassMouseMove}
-                                                    >
-                                                        <div className="glass-content p-2.5 flex items-center justify-center">
-                                                            {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
-                                                        </div>
-                                                    </button>
-                                                </Tooltip>
-
-                                                <div className="relative" ref={speedMenuRef}>
-                                                    <Tooltip text="SPEED" position="top">
-                                                        <button
-                                                            onClick={() => setIsSpeedOpen(!isSpeedOpen)}
-                                                            className={`bg-transparent border border-white/10 text-[10px] font-black rounded-lg transition-all min-w-[48px] glass-container hover:scale-110 active:scale-90 ${isSpeedOpen ? 'text-blue-400 bg-white/10 border-white/20' : 'text-gray-500 hover:text-white'}`}
-                                                            onMouseMove={handleGlassMouseMove}
-                                                        >
-                                                            <div className="glass-content px-2.5 py-1.5 flex flex-col items-center justify-center">
-                                                                <span className="select-none">{playbackSpeed}x</span>
-                                                            </div>
-                                                        </button>
-                                                    </Tooltip>
-
-                                                    <div
-                                                        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-16 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom ${isSpeedOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'}`}
-                                                    >
-                                                        <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
-                                                            onMouseMove={handleGlassMouseMove}>
-                                                            <div className="glass-content w-full h-full flex flex-col">
-                                                                {[4, 2, 1, 0.5].map(s => (
-                                                                    <button
-                                                                        key={s}
-                                                                        onClick={() => { setPlaybackSpeed(s); setIsSpeedOpen(false); }}
-                                                                        className={`px-2 py-1.5 text-[10px] font-bold transition-all text-center rounded-lg select-none ${playbackSpeed === s ? 'bg-blue-600/30 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/10 border border-transparent'} hover:scale-110 active:scale-90 z-10`}
-                                                                    >
-                                                                        {s}x
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Timeline Slider */}
-                                            <div className="flex-1 flex items-center gap-2.5">
-                                                <span className="text-[12px] font-mono text-blue-400 font-bold tracking-tighter drop-shadow-[0_0_8px_rgba(59,130,246,0.3)] select-none">
-                                                    {playbackProgress.currentTime}
-                                                </span>
-                                                <div className="relative flex-1 h-6 flex items-center group/timeline">
-                                                    <input
-                                                        type="range"
-                                                        min="0"
-                                                        max="1"
-                                                        step="0.0001"
-                                                        value={playbackProgress.progress}
-                                                        onChange={(e) => setPlaybackProgress(parseFloat(e.target.value))}
-                                                        className="w-full h-1 bg-white/5 rounded-full appearance-none cursor-pointer scale-y-75 group-hover/timeline:scale-y-125 transition-all outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0"
-                                                        style={{
-                                                            background: `linear-gradient(to right, #3b82f6 ${playbackProgress.progress * 100}%, rgba(255,255,255,0.02) ${playbackProgress.progress * 100}%)`
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* View Controls - Responsive hiding */}
-                                            <div className="flex items-center gap-3 pl-4 border-l border-white/10">
-                                                {(dimensions.width - (isMapMaximized ? 680 : 40)) > 600 && (
-                                                    <>
-                                                        <Tooltip text="MINIMAP" position="top">
-                                                            <button
-                                                                onClick={() => setShowMiniMap(!showMiniMap)}
-                                                                className={`transition-all rounded-lg glass-container hover:scale-110 active:scale-95 border border-transparent ${showMiniMap ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.1)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
-                                                                onMouseMove={handleGlassMouseMove}
-                                                            >
-                                                                <div className="glass-content px-2.5 py-1.5 flex items-center justify-center">
-                                                                    <MapIcon size={16} />
-                                                                </div>
-                                                            </button>
-                                                        </Tooltip>
-
-                                                        <div className="relative" ref={hudMenuRef}>
-                                                            <Tooltip text={isMapMaximized ? "HUD SETUP" : "OVERLAP"} position="top">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        if (isMapMaximized) setShowHudMenu(!showHudMenu);
-                                                                        else setShowTelemetryOverlay(!showTelemetryOverlay);
-                                                                    }}
-                                                                    className={`transition-all rounded-lg glass-container hover:scale-110 active:scale-95 border border-transparent ${showTelemetryOverlay ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.1)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
-                                                                    onMouseMove={handleGlassMouseMove}
-                                                                >
-                                                                    <div className="glass-content px-2.5 py-1.5 flex items-center justify-center gap-1.5">
-                                                                        <Activity size={16} />
-                                                                        {isMapMaximized && (
-                                                                            <ChevronDown size={12} className={`transition-transform duration-300 ${showHudMenu ? 'rotate-180' : ''}`} />
-                                                                        )}
-                                                                    </div>
-                                                                </button>
-                                                            </Tooltip>
-
-                                                            {/* HUD Selection Dropdown (Fullscreen Only) */}
-                                                            <div
-                                                                className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-40 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom z-[1100] ${isMapMaximized && showHudMenu ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'}`}
-                                                            >
-                                                                <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
-                                                                    onMouseMove={handleGlassMouseMove}>
-                                                                    <div className="glass-content w-full h-full flex flex-col gap-0.5">
-                                                                        {/* 1. Primary HUD (Draggable) */}
-                                                                        <button
-                                                                            onClick={() => setHudVisibility('overlap', !hudVisibility.overlap)}
-                                                                            className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border hover:scale-105 active:scale-90 group ${hudVisibility.overlap ?
-                                                                                'bg-blue-600/30 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]' :
-                                                                                'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'
-                                                                                }`}
-                                                                        >
-                                                                            <span className="text-[11px] font-bold">Telemetry Overlap</span>
-                                                                        </button>
-
-                                                                        {/* Divider */}
-                                                                        <div className="mx-2 my-1 border-t border-white/10" />
-
-                                                                        {/* 2. Sidebar HUDs (Fixed) */}
-                                                                        {[
-                                                                            { id: 'trackInfo', label: 'Track Info', active: true },
-                                                                            { id: 'vehicleInfo', label: 'Car Info', active: true },
-                                                                            { id: 'analysisLaps', label: 'Analysis Laps', active: true },
-                                                                            { id: 'dataCharts', label: 'Data Charts', active: true },
-                                                                        ].map((item) => (
-                                                                            <button
-                                                                                key={item.id}
-                                                                                disabled={!item.active}
-                                                                                onClick={() => setHudVisibility(item.id as any, !hudVisibility[item.id as keyof typeof hudVisibility])}
-                                                                                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border hover:scale-105 active:scale-90 group ${!item.active ? 'opacity-20 cursor-not-allowed border-transparent' :
-                                                                                    hudVisibility[item.id as keyof typeof hudVisibility] ?
-                                                                                        'bg-blue-600/30 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]' :
-                                                                                        'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'
-                                                                                    }`}
-                                                                            >
-                                                                                <span className="text-[11px] font-bold">
-                                                                                    {item.label}
-                                                                                </span>
-                                                                            </button>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        <Tooltip text="RESET VIEW" position="top">
-                                                            <button
-                                                                onClick={fitTrack}
-                                                                className="transition-all rounded-lg glass-container hover:scale-110 active:scale-90 text-slate-500 hover:text-white border border-transparent hover:bg-white/5"
-                                                                onMouseMove={handleGlassMouseMove}
-                                                            >
-                                                                <div className="glass-content px-2.5 py-1.5 flex items-center justify-center">
-                                                                    <RotateCcw size={16} />
-                                                                </div>
-                                                            </button>
-                                                        </Tooltip>
-
-                                                        {/* Camera Mode Toggles */}
-                                                        <div className="glass-container rounded-lg border border-transparent hover:bg-white/5 transition-all">
-                                                            <div className="glass-content h-7 px-1 gap-0.5 flex items-center">
-                                                                <Tooltip text="STATIC" position="top">
-                                                                    <button
-                                                                        onClick={() => setCameraMode('static')}
-                                                                        className={`p-1 px-2 rounded-md transition-all flex items-center justify-center ${cameraMode === 'static' ? 'text-blue-400 bg-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'text-slate-500 hover:text-slate-300'}`}
-                                                                    >
-                                                                        <ViewfinderIcon size={14} />
-                                                                    </button>
-                                                                </Tooltip>
-                                                                <Tooltip text="FOLLOW" position="top">
-                                                                    <button
-                                                                        onClick={() => setCameraMode('follow')}
-                                                                        className={`p-1 px-2 rounded-md transition-all flex items-center justify-center ${cameraMode === 'follow' ? 'text-blue-400 bg-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'text-slate-500 hover:text-slate-300'}`}
-                                                                    >
-                                                                        <FollowIcon size={14} />
-                                                                    </button>
-                                                                </Tooltip>
-                                                                <Tooltip text="HEADING UP" position="top">
-                                                                    <button
-                                                                        onClick={() => setCameraMode('heading-up')}
-                                                                        className={`p-1 px-2 rounded-md transition-all flex items-center justify-center ${cameraMode === 'heading-up' ? 'text-blue-400 bg-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'text-slate-500 hover:text-slate-300'}`}
-                                                                    >
-                                                                        <Navigation size={14} />
-                                                                    </button>
-                                                                </Tooltip>
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                )}
-
-                                                {onToggleExpand && !isMapMaximized && (
-                                                    <Tooltip text="sidebar map" position="top">
-                                                        <button
-                                                            onClick={onToggleExpand}
-                                                            className="transition-all rounded-lg glass-container hover:scale-110 active:scale-95 text-slate-500 hover:text-white border border-transparent hover:bg-white/5"
-                                                            onMouseMove={handleGlassMouseMove}
-                                                        >
-                                                            <div className="glass-content px-2.5 py-1.5 flex items-center justify-center">
-                                                                <ChevronRight size={16} />
-                                                            </div>
-                                                        </button>
-                                                    </Tooltip>
-                                                )}
-
-                                                <Tooltip text={isMapMaximized ? "RESTORE" : "MAXIMIZE"} position="top">
-                                                    <button
-                                                        onClick={() => setIsMapMaximized(!isMapMaximized)}
-                                                        className={`transition-all rounded-full glass-container hover:scale-110 active:scale-95 border border-transparent ml-1 ${isMapMaximized ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
-                                                        onMouseMove={handleGlassMouseMove}
-                                                    >
-                                                        <div className="glass-content p-2.5 flex items-center justify-center">
-                                                            {isMapMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                                                        </div>
-                                                    </button>
-                                                </Tooltip>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        /* Simplified Sidebar View */
-                                        <div className="flex items-center gap-2">
-                                            <Tooltip text="RESET" position="top">
-                                                <button
-                                                    onClick={fitTrack}
-                                                    className="text-gray-400 hover:text-white rounded-xl transition-all border border-transparent hover:bg-white/5 active:scale-90 glass-container"
-                                                    onMouseMove={handleGlassMouseMove}
-                                                >
-                                                    <div className="glass-content p-1.5">
-                                                        <RotateCcw size={14} />
-                                                    </div>
-                                                </button>
-                                            </Tooltip>
-                                            <div className="w-px h-3 bg-white/5 mx-0.5" />
-                                            {onToggleExpand && (
-                                                <Tooltip text="EXPAND" position="top">
-                                                    <button
-                                                        onClick={onToggleExpand}
-                                                        className="text-gray-500 hover:text-white rounded-xl transition-all border border-transparent hover:bg-white/5 active:scale-90 glass-container"
-                                                        onMouseMove={handleGlassMouseMove}
-                                                    >
-                                                        <div className="glass-content p-1.5">
-                                                            <Maximize2 size={14} />
-                                                        </div>
-                                                    </button>
-                                                </Tooltip>
-                                            )}
-                                        </div>
-                                    )}
-                                        </div>
-                                    </motion.div>
-                                </motion.div>
-                            );
-                        })()}
-                    </div>
-                )}
-
-                {/* Minimap Overlay (Expanded Only) */}
-                {isExpanded && !isMiniMap && (
+                {/* Minimap Overlay (Expanded or Maximized) */}
+                {(isExpanded || isMapMaximized) && !isMiniMap && !isAnimating && (
                     <div
-                        className={`absolute top-4 right-4 z-50 pointer-events-none group/mini transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${showMiniMap ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-75 -translate-y-4'}`}
+                        className={`absolute ${isMapMaximized ? 'top-6 right-8' : 'top-4 right-4'} z-50 pointer-events-none group/mini transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${showMiniMap ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-75 -translate-y-4'}`}
                         style={{
                             width: '14rem', // Increased size
                             aspectRatio: '5/3'
                         }}
                     >
-                        <div className="w-full h-full glass-container rounded-3xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.6)] relative transition-all duration-300 group-hover/mini:bg-white/10 group-hover/mini:scale-[1.02] group-hover/mini:shadow-[0_30px_70px_rgba(0,0,0,0.7)]"
-                            onMouseMove={handleGlassMouseMove}>
+                        <div className="w-full h-full glass-container rounded-xl overflow-hidden relative transition-all duration-300 pointer-events-auto"
+                            onMouseMove={handleGlassMouseMove}
+                            style={{ '--glass-hover-scale': '1', '--glass-content-scale': '1' } as any}>
                             <div className="glass-content w-full h-full">
                                 {/* We render a non-expanded version for the minimap, forcing rotation to match main map */}
                                 <TrackMap key="minimap-overlay" isMiniMap={true} />
@@ -1545,7 +1643,7 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                 </div>
 
                 {/* HUD OVERLAYS - Moved to end of DOM for consistent event capturing in 2D mode */}
-                {isExpanded && !isMiniMap && (
+                {isExpanded && !isMiniMap && !isAnimating && (
                     <>
                         {/* 1. Telemetry Overlap */}
                         <div
@@ -1575,7 +1673,11 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
 
                         {/* 2. Smart Sidebar */}
                         {isMapMaximized && (
-                            <div className={`absolute top-10 left-4 z-[200] w-[320px] flex flex-col gap-0 ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}`}>
+                            <div 
+                                className={`absolute top-10 left-4 z-[200] w-[320px] flex flex-col gap-0 isolate ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}`}
+                                onMouseMove={(e) => e.stopPropagation()}
+                                onMouseEnter={(e) => e.stopPropagation()}
+                            >
                                 <AnimatePresence mode="popLayout">
                                     {maximizedSidebarMode === 'data_sources' && (
                                         <motion.div
@@ -1586,7 +1688,13 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                                             transition={{ type: 'spring', stiffness: 120, damping: 20 }}
                                             className="pointer-events-auto flex flex-col gap-2 h-full w-full"
                                         >
-                                            <div className="flex-1 flex flex-col overflow-hidden rounded-2xl glass-container-static">
+                                            <div 
+                                                className="flex-1 flex flex-col overflow-hidden rounded-2xl glass-container-static"
+                                                onMouseMove={(e) => {
+                                                    e.stopPropagation();
+                                                    handleGlassMouseMove(e);
+                                                }}
+                                            >
                                                 <FileManager />
                                             </div>
                                             <button
@@ -1667,38 +1775,39 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                             </div>
                         )}
 
+
                         {/* 3. Distance/Time Sync Toggle (Dynamic Positioning) */}
                         <AnimatePresence>
                             {isMapMaximized && (
                                 <motion.div
                                     initial={{ opacity: 0, x: 20 }}
-                                    animate={{ 
-                                        opacity: 1, 
+                                    animate={{
+                                        opacity: 1,
                                         x: 0,
-                                        top: showMiniMap ? 166 : 16 // Unified 16px gap (150.4 + 16)
+                                        top: showMiniMap ? 166 : 16 // Aligned above charts
                                     }}
                                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                                     className="absolute right-[20px] z-[2001] pointer-events-auto"
                                 >
                                     <div className="glass-container rounded-xl shadow-xl overflow-hidden pointer-events-auto" onMouseMove={handleGlassMouseMove}>
-                                            <div className="glass-content relative flex items-center p-1 w-44 h-8 bg-black/20">
-                                                <div 
-                                                    className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
-                                                    style={{ left: (isSingleLap ? singleLapXAxisMode === 'distance' : dashboardSyncMode === 'distance') ? '4px' : 'calc(50%)' }}
-                                                />
-                                                <button
-                                                    onClick={() => isSingleLap ? setSingleLapXAxisMode('distance') : setDashboardSyncMode('distance')}
-                                                    className={`relative z-10 flex-1 h-full flex items-center justify-center text-[8px] font-black uppercase tracking-widest transition-colors duration-300 ${(isSingleLap ? singleLapXAxisMode === 'distance' : dashboardSyncMode === 'distance') ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                                                >
-                                                    {isSingleLap ? 'Distance' : 'Dist Sync'}
-                                                </button>
-                                                <button
-                                                    onClick={() => isSingleLap ? setSingleLapXAxisMode('time') : setDashboardSyncMode('time')}
-                                                    className={`relative z-10 flex-1 h-full flex items-center justify-center text-[8px] font-black uppercase tracking-widest transition-colors duration-300 ${(isSingleLap ? singleLapXAxisMode === 'time' : dashboardSyncMode === 'time') ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                                                >
-                                                    {isSingleLap ? 'Time' : 'Time Sync'}
-                                                </button>
-                                            </div>
+                                        <div className="glass-content relative flex items-center p-1 w-44 h-8 bg-black/20">
+                                            <div
+                                                className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
+                                                style={{ left: (isSingleLap ? singleLapXAxisMode === 'distance' : dashboardSyncMode === 'distance') ? '4px' : 'calc(50%)' }}
+                                            />
+                                            <button
+                                                onClick={() => isSingleLap ? setSingleLapXAxisMode('distance') : setDashboardSyncMode('distance')}
+                                                className={`relative z-10 flex-1 h-full flex items-center justify-center text-[8px] font-black uppercase tracking-widest transition-colors duration-300 ${(isSingleLap ? singleLapXAxisMode === 'distance' : dashboardSyncMode === 'distance') ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                            >
+                                                {isSingleLap ? 'Distance' : 'Dist Sync'}
+                                            </button>
+                                            <button
+                                                onClick={() => isSingleLap ? setSingleLapXAxisMode('time') : setDashboardSyncMode('time')}
+                                                className={`relative z-10 flex-1 h-full flex items-center justify-center text-[8px] font-black uppercase tracking-widest transition-colors duration-300 ${(isSingleLap ? singleLapXAxisMode === 'time' : dashboardSyncMode === 'time') ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                            >
+                                                {isSingleLap ? 'Time' : 'Time Sync'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}
@@ -1710,10 +1819,10 @@ export const TrackMap = ({ isExpanded = false, onToggleExpand, isMiniMap = false
                                 <motion.div
                                     key="data-charts-sidebar"
                                     initial={{ opacity: 0, x: 40 }}
-                                    animate={{ 
-                                        opacity: 1, 
-                                        x: 0, 
-                                        top: showMiniMap ? 214 : 64 // Unified 16px gap (166 + 32 + 16)
+                                    animate={{
+                                        opacity: 1,
+                                        x: 0,
+                                        top: showMiniMap ? 198 : 48 // Perfectly aligned with bottom of toggle
                                     }}
                                     exit={{ opacity: 0, x: 40 }}
                                     transition={{ type: 'spring', stiffness: 120, damping: 20 }}

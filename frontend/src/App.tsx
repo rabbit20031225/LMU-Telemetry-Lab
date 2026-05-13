@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, memo, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { MapTransitionOverlay } from './components/MapTransitionOverlay';
-import { useTelemetryStore } from './store/telemetryStore';
+import { useTelemetryStore, CATEGORY_CHART_CONFIGS } from './store/telemetryStore';
 import { FileManager } from './components/FileManager';
 import { TelemetryChart } from './components/TelemetryChart';
 import { TrackMap } from './components/TrackMap';
@@ -18,14 +19,18 @@ import { F1Dashboard } from './components/F1Dashboard';
 import { Tooltip } from './components/ui/Tooltip';
 import { Lab3DRoot } from './components/Lab3D/Lab3DRoot';
 import { UpdateNotifier } from './components/UpdateNotifier';
+import { CarSetupView } from './components/CarSetupView';
 import {
   ArrowLeft,
   Settings,
   Users,
+  Database,
   ChevronDown,
   RefreshCcw,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download,
+  Loader2
 } from 'lucide-react';
 import {
   handleGlassMouseMove
@@ -260,6 +265,22 @@ const FuelDashboard = memo(({ data, cursorIndex, fuelCapacity, theme = 'current'
 });
 
 
+const CategoryTab = memo(({ id, label, isActive }: { id: any, label: string, isActive: boolean }) => {
+    const setActiveChartCategory = useTelemetryStore(state => state.setActiveChartCategory);
+
+    return (
+        <button
+            onClick={() => setActiveChartCategory(id)}
+            className={`relative z-10 px-8 h-full flex items-center justify-center text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-300 flex-1 min-w-[120px] ${
+                isActive ? 'text-white' : 'text-gray-500 hover:text-white'
+            }`}
+        >
+            {label}
+        </button>
+    );
+});
+
+
 function App() {
   const sessions = useTelemetryStore(state => state.sessions);
   const currentSessionId = useTelemetryStore(state => state.currentSessionId);
@@ -280,6 +301,8 @@ function App() {
   const selectedStint = useTelemetryStore(state => state.selectedStint);
   const fetchStint = useTelemetryStore(state => state.fetchStint);
   const cursorIndex = useTelemetryStore(state => state.cursorIndex);
+  const setActiveChartCategory = useTelemetryStore(state => state.setActiveChartCategory);
+  const activeChartCategory = useTelemetryStore(state => state.activeChartCategory);
   const referenceCursorIndex = useTelemetryStore(state => state.referenceCursorIndex);
   const referenceDeltaIndex = useTelemetryStore(state => state.referenceDeltaIndex);
   const liveDeltaStore = useTelemetryStore(state => state.liveDelta);
@@ -306,7 +329,14 @@ function App() {
   const setRightPanelCollapsed = useTelemetryStore(state => state.setRightPanelCollapsed);
   const isMapMaximized = useTelemetryStore(state => state.isMapMaximized);
   const setIsMapMaximized = useTelemetryStore(state => state.setIsMapMaximized);
+  const isMapTransitioning = useTelemetryStore(state => state.isMapTransitioning);
+  const isGlobalTransitioning = useTelemetryStore(state => state.isGlobalTransitioning);
+  const setIsMapTransitioning = useTelemetryStore(state => state.setIsMapTransitioning);
   const referenceSessionMetadata = useTelemetryStore(state => state.referenceSessionMetadata);
+  const showSetupView = useTelemetryStore(state => state.showSetupView);
+  const fetchSetup = useTelemetryStore(state => state.fetchSetup);
+  const exportLap = useTelemetryStore(state => state.exportLap);
+  const isListLoading = useTelemetryStore(state => state.isListLoading);
 
   const handleReload = () => {
     window.location.reload();
@@ -394,8 +424,37 @@ function App() {
 
     return () => cancelAnimationFrame(requestRef);
   }, [isPlaying, updatePlayback]);
+  
+  // NEW: Calculate Session Bests for Theoretical Lap
+  const sessionBests = useMemo(() => {
+    if (!laps || laps.length === 0) return null;
+    let bestS1 = { val: Infinity, lap: 0 };
+    let bestS2 = { val: Infinity, lap: 0 };
+    let bestS3 = { val: Infinity, lap: 0 };
 
-  const [showFileManager, setShowFileManager] = useState(true);
+    laps.forEach(l => {
+      if (l.isValid) {
+        if (l.s1 > 0 && l.s1 < bestS1.val) { bestS1 = { val: l.s1, lap: l.lap }; }
+        if (l.s2 > 0 && l.s2 < bestS2.val) { bestS2 = { val: l.s2, lap: l.lap }; }
+        if (l.s3 > 0 && l.s3 < bestS3.val) { bestS3 = { val: l.s3, lap: l.lap }; }
+      }
+    });
+
+    if (bestS1.val === Infinity) return null;
+
+    const theoreticalBest = bestS1.val + bestS2.val + bestS3.val;
+    return { bestS1, bestS2, bestS3, theoreticalBest };
+  }, [laps]);
+
+  const [showFileManager, setShowFileManager] = useState(() => {
+    const wasOpen = localStorage.getItem('file_manager_open') === 'true';
+    const hadActive = localStorage.getItem('had_active_session') === 'true';
+    return wasOpen || hadActive;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('file_manager_open', showFileManager.toString());
+  }, [showFileManager]);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
 
   // States for coordinated map animations
@@ -423,6 +482,7 @@ function App() {
 
   // Coordinated Map Transition Lifecycle
   useEffect(() => {
+    setIsMapTransitioning(true);
     if (isMapExpanded) {
       // SIDEBAR -> EXPANDED (Staggered: Resizer package starts first)
       setIsAnimatingSidebarMap(false);
@@ -430,25 +490,20 @@ function App() {
       // Give the container/resizer a head start
       const startExpanded = setTimeout(() => setIsAnimatingExpandedMap(true), 50);
       const cleanSidebar = setTimeout(() => setShouldRenderSidebarMap(false), 450);
-      return () => { clearTimeout(startExpanded); clearTimeout(cleanSidebar); };
+      const settle = setTimeout(() => setIsMapTransitioning(false), 600);
+      return () => { clearTimeout(startExpanded); clearTimeout(cleanSidebar); clearTimeout(settle); };
     } else {
       // EXPANDED -> SIDEBAR
       setIsAnimatingExpandedMap(false);
       setShouldRenderSidebarMap(true);
       const startSidebar = setTimeout(() => setIsAnimatingSidebarMap(true), 50);
       const cleanExpanded = setTimeout(() => setShouldRenderExpandedMap(false), 450);
-      return () => { clearTimeout(startSidebar); clearTimeout(cleanExpanded); };
+      const settle = setTimeout(() => setIsMapTransitioning(false), 600);
+      return () => { clearTimeout(startSidebar); clearTimeout(cleanExpanded); clearTimeout(settle); };
     }
   }, [isMapExpanded]);
 
-  // Auto-switch view when session changes
-  useEffect(() => {
-    if (currentSessionId) {
-      setShowFileManager(false);
-    } else {
-      setShowFileManager(true);
-    }
-  }, [currentSessionId]);
+
 
   // Force map to expanded view when 3D mode is activated
   useEffect(() => {
@@ -513,15 +568,15 @@ function App() {
 
   // Auto-expand/revert right panel based on reference selection
   useEffect(() => {
-    const hasRef = (!!referenceTelemetryData || referenceLapIdx !== null) && (referenceCursorIndex !== null || referenceDeltaIndex !== null);
+    const hasRefSelection = referenceLapIdx !== null || referenceLap !== null;
     if (!isRightPanelCollapsed) {
-      if (hasRef && mapWidth < DUAL_MAP_WIDTH) {
+      if (hasRefSelection && mapWidth < DUAL_MAP_WIDTH) {
         setMapWidth(DUAL_MAP_WIDTH);
-      } else if (!hasRef && mapWidth === DUAL_MAP_WIDTH) {
+      } else if (!hasRefSelection && mapWidth === DUAL_MAP_WIDTH) {
         setMapWidth(DEFAULT_MAP_WIDTH);
       }
     }
-  }, [referenceTelemetryData, referenceLapIdx, referenceCursorIndex, referenceDeltaIndex, isRightPanelCollapsed]);
+  }, [referenceLapIdx, referenceLap, isRightPanelCollapsed]);
 
   const [trackMapHeight, setTrackMapHeight] = useState(DEFAULT_TRACK_MAP_HEIGHT);
 
@@ -546,6 +601,11 @@ function App() {
       fetchSessions();
     }
   }, [activeProfileId, fetchSessions]);
+
+  // NEW: State to track if mouse is within window to stabilize hover effects in fullscreen
+  const [isMouseInWindow, setIsMouseInWindow] = useState(true);
+
+
 
   // --- Pure Helper Functions ---
 
@@ -615,8 +675,8 @@ function App() {
         className="glass-container-flat rounded-xl hover:bg-white/5 transition-all duration-300 group/teleRow"
         onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
       >
-        <div className={`glass-content grid ${compact ? 'grid-cols-[14px_1fr_1fr] gap-2 py-1.5 px-2' : 'grid-cols-[18px_1fr_70px_70px] gap-2 py-2.5 px-4'} items-center cursor-default`}>
-          <Icon size={compact ? 10 : 12} className="text-gray-500 group-hover/teleRow:text-blue-400 transition-colors" />
+        <div className={`glass-content grid ${compact ? 'grid-cols-[14px_1fr_1fr] gap-2 py-1.5 px-2' : 'grid-cols-[18px_1fr_110px] gap-2 py-2.5 px-4'} items-center cursor-default`}>
+          <Icon size={compact ? 10 : 12} className="text-gray-300 brightness-125 group-hover/teleRow:text-blue-400 transition-colors" />
           {!compact && <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight group-hover/teleRow:text-gray-200 transition-colors">{label}</span>}
 
           {/* Current Value with Visualization */}
@@ -652,38 +712,40 @@ function App() {
             )}
           </div>
 
-          {/* Reference Value */}
-          <div className={`relative ${compact ? 'h-5' : 'h-6'} rounded-md bg-gray-900/40 overflow-hidden flex items-center justify-center border border-white/5`}>
-            {label === "Steering" ? (
-              <>
-                <div className="absolute inset-x-1 flex items-center justify-center opacity-30">
-                  <div className="w-full h-[1px] bg-white/10" />
-                  <div className="absolute left-1/2 w-[1px] h-2 bg-white/20 -translate-x-1/2" />
+          {/* Reference Value (Only shown if compact/hasRef) */}
+          {compact && (
+            <div className={`relative ${compact ? 'h-5' : 'h-6'} rounded-md bg-gray-900/40 overflow-hidden flex items-center justify-center border border-white/5`}>
+              {label === "Steering" ? (
+                <>
+                  <div className="absolute inset-x-1 flex items-center justify-center opacity-30">
+                    <div className="w-full h-[1px] bg-white/10" />
+                    <div className="absolute left-1/2 w-[1px] h-2 bg-white/20 -translate-x-1/2" />
+                    <div
+                      className="absolute w-[3px] h-[14px] shadow-sm rounded-full"
+                      style={{
+                        backgroundColor: color,
+                        left: `${50 + (Math.max(-1, Math.min(1, (refVal || 0) / max)) * 50)}%`,
+                        transform: 'translateX(-50%)'
+                      }}
+                    />
+                  </div>
+                  <span className={`relative z-10 font-mono font-bold ${compact ? 'text-[8px]' : 'text-[9px]'} text-gray-400 pointer-events-none`}>
+                    {format(refVal)}{unit}
+                  </span>
+                </>
+              ) : (
+                <>
                   <div
-                    className="absolute w-[3px] h-[14px] shadow-sm rounded-full"
-                    style={{
-                      backgroundColor: color,
-                      left: `${50 + (Math.max(-1, Math.min(1, (refVal || 0) / max)) * 50)}%`,
-                      transform: 'translateX(-50%)'
-                    }}
+                    className="absolute left-0 top-0 h-full transition-all duration-75 rounded-r-md"
+                    style={{ width: `${refPercent}%`, backgroundColor: color, opacity: 0.3 }}
                   />
-                </div>
-                <span className={`relative z-10 font-mono font-bold ${compact ? 'text-[8px]' : 'text-[9px]'} text-gray-400 pointer-events-none`}>
-                  {format(refVal)}{unit}
-                </span>
-              </>
-            ) : (
-              <>
-                <div
-                  className="absolute left-0 top-0 h-full transition-all duration-75 rounded-r-md"
-                  style={{ width: `${refPercent}%`, backgroundColor: color, opacity: 0.3 }}
-                />
-                <span className={`relative z-10 font-mono font-bold ${compact ? 'text-[9px]' : 'text-[11px]'} text-gray-500 pointer-events-none`}>
-                  {format(refVal)}{unit}
-                </span>
-              </>
-            )}
-          </div>
+                  <span className={`relative z-10 font-mono font-bold ${compact ? 'text-[9px]' : 'text-[11px]'} text-gray-500 pointer-events-none`}>
+                    {format(refVal)}{unit}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -701,12 +763,6 @@ function App() {
     }
   }, [rightPanelRef.current?.clientHeight, selectedLapIdx]); // Add selectedLapIdx to trigger when view appears
 
-  // Auto-show file manager if no session is active
-  useEffect(() => {
-    if (!currentSessionId) {
-      setShowFileManager(true);
-    }
-  }, [currentSessionId]);
 
   // Handle Dragging
   useEffect(() => {
@@ -765,210 +821,262 @@ function App() {
 
 
   return (
-    <div className="flex h-screen bg-black text-gray-100 overflow-hidden font-sans">
+    <div 
+      className={`flex h-screen bg-black text-gray-100 overflow-hidden font-sans relative ${!isMouseInWindow ? 'mouse-outside' : ''}`}
+      onMouseEnter={() => setIsMouseInWindow(true)}
+      onMouseLeave={(e) => {
+        setIsMouseInWindow(false);
+        // Reset mouse coordinates to far away to prevent glow artifacts on re-entry
+        const root = e.currentTarget;
+        root.style.setProperty('--mouse-x', '-9999px');
+        root.style.setProperty('--mouse-y', '-9999px');
+        root.style.setProperty('--mouse-x-inv', '-9999px');
+        root.style.setProperty('--mouse-y-inv', '-9999px');
+      }}
+      style={{ 
+        isolation: 'isolate',
+        backfaceVisibility: 'hidden',
+        transform: 'translateZ(0)'
+      }}
+    >
+      {/* Car Setup Full-Screen Overlay ??covers entire app */}
+      {showSetupView && (
+        <div className="absolute inset-0 z-[100]">
+          <CarSetupView />
+        </div>
+      )}
       {/* Sidebar - Data Controls */}
-      <div
-        className={`h-full bg-[#111115] border-r border-[#1f1f26] flex flex-col flex-shrink-0 relative overflow-hidden group/sidebar transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${isMapMaximized ? 'hidden' : ''}`}
-        style={{
-          width: isLeftSidebarCollapsed ? 0 : sidebarWidth,
-          minWidth: isLeftSidebarCollapsed ? 0 : DEFAULT_SIDEBAR_WIDTH,
-          maxWidth: isLeftSidebarCollapsed ? 0 : MAX_SIDEBAR_WIDTH,
-          opacity: isLeftSidebarCollapsed ? 0 : 1,
-          borderRightWidth: isLeftSidebarCollapsed ? 0 : 1,
-          transition: isResizingSidebar ? 'none' : undefined
-        }}
-      >
-        {!showFileManager ? (
-          <>
-            {/* Scrollable Main Sidebar Content */}
-            <div className="flex-1 overflow-y-scroll custom-scrollbar flex flex-col min-h-0 pb-2 pl-4 pr-[10px]">
-              {/* Session Info (Top of Sidebar) */}
-              {sessionMetadata && (
-                <SessionInfo
-                  sessionMetadata={sessionMetadata}
-                  referenceMetadata={referenceSessionMetadata}
-                />
-              )}
-              {/* Lap Controls (Middle of Sidebar) */}
-              {currentSessionId && laps.length > 0 && (
-                <div className="mb-3 p-4 glass-container glass-expand-pixel rounded-2xl border border-white/25 flex flex-col gap-3 hover:shadow-[0_0_30px_rgba(255,255,255,0.05)] transition-all duration-300 group/analysis" onMouseMove={handleGlassMouseMove}>
-                  <div className="glass-content size-full flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] px-1 group-hover/analysis:text-white transition-colors">Analysis Laps</h3>
+      {!isMapMaximized && (
+        <div
+          className={`h-full bg-[#111115] border-r border-[#1f1f26] flex flex-col flex-shrink-0 relative overflow-hidden group/sidebar transition-[width,opacity] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]`}
+          style={{
+            width: isLeftSidebarCollapsed ? 0 : sidebarWidth,
+            minWidth: isLeftSidebarCollapsed ? 0 : DEFAULT_SIDEBAR_WIDTH,
+            maxWidth: isLeftSidebarCollapsed ? 0 : MAX_SIDEBAR_WIDTH,
+            opacity: isLeftSidebarCollapsed ? 0 : 1,
+            borderRightWidth: isLeftSidebarCollapsed ? 0 : 1,
+            transition: isResizingSidebar ? 'none' : 'width 0.5s ease, opacity 0.5s ease'
+          }}
+        >
+          {!showFileManager ? (
+            <>
+              {/* Scrollable Main Sidebar Content */}
+              <div className="flex-1 overflow-y-scroll custom-scrollbar flex flex-col min-h-0 pb-2 pl-4 pr-[10px]">
+                {/* Session Info (Top of Sidebar) */}
+                {sessionMetadata && (
+                  <SessionInfo
+                    sessionMetadata={sessionMetadata}
+                    referenceMetadata={referenceSessionMetadata}
+                  />
+                )}
+                {/* Lap Controls (Middle of Sidebar) */}
+                {laps.length > 0 ? (
+                  <div className="mb-3 p-4 glass-container glass-expand-pixel rounded-2xl border border-white/25 flex flex-col gap-3 hover:shadow-[0_0_30px_rgba(255,255,255,0.05)] transition-all duration-300 group/analysis" onMouseMove={handleGlassMouseMove}>
+                    <div className="glass-content size-full flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] px-1 group-hover/analysis:text-white transition-colors">Analysis Laps</h3>
+                        {selectedLapIdx !== null && (
+                          <Tooltip text="EXPORT CURRENT LAP AS .DUCKDB" position="bottom">
+                            <button
+                              onClick={() => { if (!isListLoading) exportLap(selectedLapIdx!); }}
+                              disabled={isListLoading}
+                              className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-white/10 border border-transparent hover:border-white/15 transition-all active:scale-90 glass-container"
+                              onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
+                            >
+                              <div className="glass-content">
+                                {isListLoading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                              </div>
+                            </button>
+                          </Tooltip>
+                        )}
+                      </div>
+                      
+                      <AnalysisLapsWidget />
                     </div>
-                    
-                    <AnalysisLapsWidget />
                   </div>
-                </div>
-              )}
-            </div>
+                ) : !currentSessionId && (
+                  <div className="flex-1 flex flex-col items-center justify-center opacity-30 group-hover/sidebar:opacity-50 transition-opacity duration-700 select-none">
+                    <div className="p-6 rounded-full bg-white/5 border border-white/10 mb-4">
+                      <Database size={48} className="text-gray-500" />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 text-center px-8 leading-relaxed">
+                      No active session.<br/>Click below to select data.
+                    </span>
+                  </div>
+                )}
+              </div>
 
-            <div className="mt-auto p-4 border-t border-white/5 bg-transparent">
-              <button
-                onClick={() => setShowFileManager(true)}
-                className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-gray-500 rounded-2xl border border-white/10 shadow-lg flex items-center justify-center gap-2 font-black text-[12px] uppercase tracking-[0.2em] transition-all hover:text-white ring-1 ring-inset ring-white/5 glass-container group"
-                onMouseMove={handleGlassMouseMove}
-              >
-                <div className="glass-content flex items-center justify-center gap-2 w-full">
-                  <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-                  Data Sources
-                </div>
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="flex-1 overflow-y-auto">
-              <FileManager />
-            </div>
-            {currentSessionId && (
               <div className="mt-auto p-4 border-t border-white/5 bg-transparent">
                 <button
-                  onClick={() => setShowFileManager(false)}
-                  className="w-full py-3 px-4 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-2xl border border-blue-500/30 shadow-[0_0_20px_rgba(37,99,235,0.2)] flex items-center justify-center font-black text-[10px] uppercase tracking-[0.2em] transition-all ring-1 ring-inset ring-blue-400/20 glass-container group"
+                  onClick={() => setShowFileManager(true)}
+                  className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-gray-500 rounded-2xl border border-white/10 shadow-lg flex items-center justify-center gap-2 font-black text-[12px] uppercase tracking-[0.2em] transition-all hover:text-white ring-1 ring-inset ring-white/5 glass-container group"
                   onMouseMove={handleGlassMouseMove}
                 >
-                  <div className="glass-content flex items-center justify-center w-full">
-                    Return to Active Session
+                  <div className="glass-content flex items-center justify-center gap-2 w-full">
+                    <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                    Data Sources
                   </div>
                 </button>
               </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <Tooltip text={isLeftSidebarCollapsed ? "" : "DOUBLE-CLICK TO RESET"} position="right">
-        <div
-          className={`w-1.5 flex justify-center items-center group/sidebar-resizer relative z-50 h-full transition-all duration-300 ${isMapMaximized ? 'hidden' : ''} ${isLeftSidebarCollapsed ? 'cursor-default' : 'cursor-col-resize'}`}
-          onMouseDown={() => !isLeftSidebarCollapsed && setIsResizingSidebar(true)}
-          onDoubleClick={() => !isLeftSidebarCollapsed && setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)}
-        >
-          <div className={`w-1 h-[60%] bg-white/10 backdrop-blur-3xl rounded-full transition-all duration-300 border border-white/20 group-hover/sidebar-resizer:h-full group-hover/sidebar-resizer:bg-blue-500 group-hover/sidebar-resizer:w-1.5 relative overflow-hidden ${isLeftSidebarCollapsed ? 'opacity-0' : 'opacity-100'}`}>
-            <div className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-transparent via-white/30 to-transparent translate-y-[-100%] group-hover/sidebar-resizer:translate-y-[100%] transition-transform duration-1000" />
-          </div>
-
-          {/* Left Collapse Button */}
-          <button
-            onClick={() => setLeftSidebarCollapsed(!isLeftSidebarCollapsed)}
-            className={`absolute top-20 z-[60] w-5 h-12 flex items-center justify-center bg-blue-600 border border-blue-400 group/collapse-btn shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-500 ${isLeftSidebarCollapsed ? 'left-0 rounded-r-xl scale-110 translate-x-0' : 'left-1/2 -translate-x-1/2 rounded-full opacity-0 group-hover/sidebar-resizer:opacity-100 hover:scale-110 hover:bg-blue-500'}`}
-          >
-            <Tooltip text={isLeftSidebarCollapsed ? "EXPAND" : "COLLAPSE"} position="right" delay={100}>
-              <div className="w-full h-full flex items-center justify-center">
-                {isLeftSidebarCollapsed ? (
-                  <ChevronRight size={12} className="text-white animate-pulse" />
-                ) : (
-                  <ChevronLeft size={12} className="text-white" />
-                )}
+            </>
+          ) : (
+            <div className="flex-1 overflow-hidden flex flex-col" style={{ transform: 'translateZ(0)', isolation: 'isolate' }}>
+              <div className="flex-1 overflow-y-scroll">
+                <FileManager onClose={() => setShowFileManager(false)} />
               </div>
-            </Tooltip>
-          </button>
+                {currentSessionId && (
+                  <div className="mt-auto p-4 border-t border-white/5 bg-transparent">
+                    <button
+                      onClick={() => setShowFileManager(false)}
+                      className="w-full py-3 px-4 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-2xl border border-blue-500/30 shadow-[0_0_20px_rgba(37,99,235,0.2)] flex items-center justify-center font-black text-[10px] uppercase tracking-[0.2em] transition-all ring-1 ring-inset ring-blue-400/20 glass-container group"
+                      onMouseMove={handleGlassMouseMove}
+                    >
+                      <div className="glass-content flex items-center justify-center w-full">
+                        Return to Active Session
+                      </div>
+                    </button>
+                  </div>
+                )}
+            </div>
+          )}
         </div>
-      </Tooltip>
+      )}
+
+      {!isMapMaximized && (
+        <Tooltip text={isLeftSidebarCollapsed ? "" : "DOUBLE-CLICK TO RESET"} position="right">
+          <div
+            className={`w-1.5 flex justify-center items-center group/sidebar-resizer relative z-50 h-full transition-all duration-300 ${isLeftSidebarCollapsed ? 'cursor-default' : 'cursor-col-resize'}`}
+            onMouseDown={() => !isLeftSidebarCollapsed && setIsResizingSidebar(true)}
+            onDoubleClick={() => !isLeftSidebarCollapsed && setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)}
+          >
+            <div className={`w-1 h-[60%] bg-white/10 backdrop-blur-3xl rounded-full transition-all duration-300 border border-white/20 group-hover/sidebar-resizer:h-full group-hover/sidebar-resizer:bg-blue-500 group-hover/sidebar-resizer:w-1.5 relative overflow-hidden ${isLeftSidebarCollapsed ? 'opacity-0' : 'opacity-100'}`}>
+              <div className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-transparent via-white/30 to-transparent translate-y-[-100%] group-hover/sidebar-resizer:translate-y-[100%] transition-transform duration-1000" />
+            </div>
+
+            {/* Left Collapse Button */}
+            <button
+              onClick={() => setLeftSidebarCollapsed(!isLeftSidebarCollapsed)}
+              className={`absolute top-20 z-[60] w-5 h-12 flex items-center justify-center bg-blue-600 border border-blue-400 group/collapse-btn shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-500 ${isLeftSidebarCollapsed ? 'left-0 rounded-r-xl scale-110 translate-x-0' : 'left-1/2 -translate-x-1/2 rounded-full opacity-0 group-hover/sidebar-resizer:opacity-100 hover:scale-110 hover:bg-blue-500'}`}
+            >
+              <Tooltip text={isLeftSidebarCollapsed ? "EXPAND" : "COLLAPSE"} position="right" delay={100}>
+                <div className="w-full h-full flex items-center justify-center">
+                  {isLeftSidebarCollapsed ? (
+                    <ChevronRight size={12} className="text-white animate-pulse" />
+                  ) : (
+                    <ChevronLeft size={12} className="text-white" />
+                  )}
+                </div>
+              </Tooltip>
+            </button>
+          </div>
+        </Tooltip>
+      )}
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col bg-gray-900 min-w-0 relative">
         {/* Top Navbar */}
-        <div className={`bg-[#111115] border-b border-[#1f1f26] flex items-center justify-between px-6 py-2 flex-shrink-0 h-14 ${isMapMaximized ? 'hidden' : ''}`}>
-          {/* Logo / Title */}
-          <div
-            className="flex items-center gap-3 px-3 py-1.5 rounded-xl transition-all duration-300 hover:bg-white/5 glass-container group/logo cursor-pointer"
-            onMouseMove={handleGlassMouseMove}
-          >
-            <div className="glass-content flex items-center gap-3">
-              <img
-                src="/lmu_logo.png"
-                alt="Logo"
-                className="h-8 object-contain select-none group-hover/logo:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] transition-all"
-              />
-              <span className="text-gray-500 font-bold text-sm select-none">|</span>
-              <span className="text-gray-400 font-bold text-sm uppercase tracking-widest select-none group-hover/logo:text-white transition-colors">Telemetry View</span>
-            </div>
-          </div>
-
-          {/* Right Side: Account / Profile Switcher */}
-          <div className="flex items-center gap-3">
-            {/* 2D/3D Dimension Toggle - NAVBAR INTEGRATION */}
-            {selectedLapIdx !== null && (
-              <div className="relative flex items-center p-1 bg-[#1a1a1e]/60 backdrop-blur-md rounded-xl border border-white/10 glass-container mr-3 h-8 w-28 overflow-hidden group/toggle" onMouseMove={handleGlassMouseMove}>
-                {/* Sliding Indicator Pill */}
-                <div 
-                  className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
-                  style={{ left: !show3DLab ? '4px' : 'calc(50%)' }}
+        {!isMapMaximized && (
+          <div className={`bg-[#111115] border-b border-[#1f1f26] flex items-center justify-between px-6 py-2 flex-shrink-0 h-14`}>
+            {/* Logo / Title */}
+            <div
+              className="flex items-center gap-3 px-3 py-1.5 rounded-xl transition-all duration-300 hover:bg-white/5 glass-container group/logo cursor-pointer"
+              onMouseMove={handleGlassMouseMove}
+            >
+              <div className="glass-content flex items-center gap-3">
+                <img
+                  src="/lmu_logo.png"
+                  alt="Logo"
+                  className="h-8 object-contain select-none group-hover/logo:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] transition-all"
                 />
-                
-                <button
-                  onClick={() => setShow3DLab(false)}
-                  className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${!show3DLab ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                >
-                  2D
-                </button>
-                <button
-                  onClick={() => setShow3DLab(true)}
-                  className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${show3DLab ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                >
-                  3D
-                </button>
+                <span className="text-gray-500 font-bold text-sm select-none">|</span>
+                <span className="text-gray-400 font-bold text-sm uppercase tracking-widest select-none group-hover/logo:text-white transition-colors">Telemetry View</span>
               </div>
-            )}
+            </div>
 
-            <Tooltip text="SWITCH IDENTITY OR DATA CATEGORY (E.G. TRACKS, CARS)" position="bottom">
-              <div className="relative group/user">
+            {/* Right Side: Account / Profile Switcher */}
+            <div className="flex items-center gap-3">
+              {/* 2D/3D Dimension Toggle - NAVBAR INTEGRATION */}
+              {selectedLapIdx !== null && (
+                <div className="relative flex items-center p-1 bg-[#1a1a1e]/60 backdrop-blur-md rounded-xl border border-white/10 glass-container mr-3 h-8 w-28 overflow-hidden group/toggle" onMouseMove={handleGlassMouseMove}>
+                  {/* Sliding Indicator Pill */}
+                  <div 
+                    className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
+                    style={{ left: !show3DLab ? '4px' : 'calc(50%)' }}
+                  />
+                  
+                  <button
+                    onClick={() => setShow3DLab(false)}
+                    className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${!show3DLab ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    2D
+                  </button>
+                  <button
+                    onClick={() => setShow3DLab(true)}
+                    className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${show3DLab ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    3D
+                  </button>
+                </div>
+              )}
+
+              <Tooltip text="SWITCH IDENTITY OR DATA CATEGORY (E.G. TRACKS, CARS)" position="bottom">
+                <div className="relative group/user">
+                  <button
+                    onClick={() => setShowLogin(true)}
+                    className="flex items-center gap-2.5 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 glass-container rounded-2xl border border-white/10 transition-all duration-300"
+                    onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
+                  >
+                    <div className="glass-content flex items-center gap-2.5">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center overflow-hidden ${activeProfile?.avatar_url ? '' : 'bg-blue-500/20 border border-blue-500/40 text-blue-400'}`}>
+                        {activeProfile?.avatar_url ? (
+                          <img
+                            src={activeProfile.avatar_url.startsWith('http') ? activeProfile.avatar_url : `${window.location.protocol}//${window.location.hostname}:8000${activeProfile.avatar_url}`}
+                            alt={activeProfile?.name || 'Avatar'}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              (e.target as HTMLImageElement).parentElement!.classList.add('bg-blue-500/20', 'border', 'border-blue-500/40', 'text-blue-400');
+                            }}
+                          />
+                        ) : (
+                          <Users size={14} />
+                        )}
+                      </div>
+                      <div className="flex flex-col items-start leading-none pr-1">
+                        <span className="text-[10px] font-black text-white/90 uppercase tracking-widest">{activeProfile?.name || 'IDENTITY / CATEGORY'}</span>
+                        <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tighter">Workspace Environment</span>
+                      </div>
+                      <ChevronDown size={11} className="text-gray-500 group-hover/user:text-blue-400 transition-colors" />
+                    </div>
+                  </button>
+                </div>
+              </Tooltip>
+
+              <Tooltip text="HARD RELOAD (F5)" position="bottom">
                 <button
-                  onClick={() => setShowLogin(true)}
-                  className="flex items-center gap-2.5 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 glass-container rounded-2xl border border-white/10 transition-all duration-300"
+                  className="text-gray-500 hover:text-blue-400 transition-all glass-container p-2 rounded-xl border border-transparent hover:bg-white/5 active:scale-95 group/reload"
                   onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
+                  onClick={handleReload}
                 >
-                  <div className="glass-content flex items-center gap-2.5">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center overflow-hidden ${activeProfile?.avatar_url ? '' : 'bg-blue-500/20 border border-blue-500/40 text-blue-400'}`}>
-                      {activeProfile?.avatar_url ? (
-                        <img
-                          src={activeProfile.avatar_url.startsWith('http') ? activeProfile.avatar_url : `${window.location.protocol}//${window.location.hostname}:8000${activeProfile.avatar_url}`}
-                          alt={activeProfile?.name || 'Avatar'}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement!.classList.add('bg-blue-500/20', 'border', 'border-blue-500/40', 'text-blue-400');
-                          }}
-                        />
-                      ) : (
-                        <Users size={14} />
-                      )}
-                    </div>
-                    <div className="flex flex-col items-start leading-none pr-1">
-                      <span className="text-[10px] font-black text-white/90 uppercase tracking-widest">{activeProfile?.name || 'IDENTITY / CATEGORY'}</span>
-                      <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tighter">Workspace Environment</span>
-                    </div>
-                    <ChevronDown size={11} className="text-gray-500 group-hover/user:text-blue-400 transition-colors" />
+                  <div className="glass-content">
+                    <RefreshCcw size={18} className="group-hover/reload:rotate-180 transition-all duration-700" />
                   </div>
                 </button>
-              </div>
-            </Tooltip>
+              </Tooltip>
 
-            <Tooltip text="HARD RELOAD (F5)" position="bottom">
-              <button
-                className="text-gray-500 hover:text-blue-400 transition-all glass-container p-2 rounded-xl border border-transparent hover:bg-white/5 active:scale-95 group/reload"
-                onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
-                onClick={handleReload}
-              >
-                <div className="glass-content">
-                  <RefreshCcw size={18} className="group-hover/reload:rotate-180 transition-all duration-700" />
-                </div>
-              </button>
-            </Tooltip>
-
-            <Tooltip text="SETTINGS" position="bottom">
-              <button
-                className="text-gray-500 hover:text-white transition-all glass-container p-2 rounded-xl border border-transparent hover:bg-white/5 active:scale-95 group/settings"
-                onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
-                onClick={() => setShowSettings(true)}
-              >
-                <div className="glass-content">
-                  <Settings size={18} className="group-hover/settings:rotate-180 transition-all duration-700" />
-                </div>
-              </button>
-            </Tooltip>
+              <Tooltip text="SETTINGS" position="bottom">
+                <button
+                  className="text-gray-500 hover:text-white transition-all glass-container p-2 rounded-xl border border-transparent hover:bg-white/5 active:scale-95 group/settings"
+                  onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
+                  onClick={() => setShowSettings(true)}
+                >
+                  <div className="glass-content">
+                    <Settings size={18} className="group-hover/settings:rotate-180 transition-all duration-700" />
+                  </div>
+                </button>
+              </Tooltip>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Main Content Area Body */}
         <div className="flex-1 flex flex-row min-h-0 relative">
@@ -976,7 +1084,7 @@ function App() {
             {/* Telemetry Charts Area */}
             <div className="flex-1 flex flex-col min-w-0 relative">
               {isLoading && (
-                <div className="absolute inset-0 bg-gray-950/60 backdrop-blur-[2px] z-[100] flex items-center justify-center transition-all duration-300">
+                <div className="absolute inset-0 bg-gray-950/60 backdrop-blur-[4px] z-[5000] flex items-center justify-center transition-all duration-300 pointer-events-auto">
                   <div className="flex flex-col items-center gap-4 bg-gray-900/80 p-8 rounded-2xl border border-gray-700/50 shadow-2xl scale-in-center">
                     <div className="relative">
                       <div className="w-16 h-16 border-4 border-blue-500/20 rounded-full" />
@@ -996,73 +1104,146 @@ function App() {
                 <div className="flex flex-col flex-1 h-full">
                   {shouldRenderExpandedMap && (
                     <div
-                      className={`flex flex-col relative flex-shrink-0 origin-top overflow-hidden min-h-0 ${isMapMaximized ? 'fixed inset-0 z-[2000] p-0' : 'px-4 p-2'} ${isDraggingExpandedMap ? '' : 'transition-all duration-400 ease-[cubic-bezier(0.34,1.56,0.64,1)]'}`}
+                      className={`flex flex-col relative flex-shrink-0 origin-top overflow-hidden min-h-0 ${isMapMaximized ? 'fixed inset-0 z-[2000] p-0' : 'px-4 p-2'} ${(isDraggingExpandedMap || isMapMaximized) ? '' : 'transition-all duration-400 ease-[cubic-bezier(0.34,1.56,0.64,1)]'}`}
                       style={{
                         height: isMapMaximized ? '100vh' : (isAnimatingExpandedMap ? expandedMapHeight + 52 : 0),
                         opacity: isAnimatingExpandedMap ? 1 : 0,
                         transform: isMapMaximized ? 'none' : (isAnimatingExpandedMap ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(-10px)'),
                         willChange: 'transform, height, opacity',
-                        transition: isDraggingExpandedMap ? 'none' : undefined
+                        transition: (isDraggingExpandedMap || isMapMaximized) ? 'none' : undefined
                       }}
                     >
-                      <div className="flex-1 relative min-h-0">
-                        {/* Loading Overlay for Dimension Switching */}
-                        <MapTransitionOverlay isVisible={isSwitchingDimension} />
+                      <div className="flex-1 relative min-h-0 overflow-hidden">
+                        {/* Loading Overlay for Dimension Switching & Layout Transitions */}
+                        <MapTransitionOverlay isVisible={isSwitchingDimension || isMapTransitioning} />
                         {show3DLab ? (
                           <TrackMap3D 
                             key={`expanded-${currentSessionId}`}
-                            onToggleExpand={() => setIsMapExpanded(false)} 
+                            onToggleExpand={() => {
+                              setIsMapTransitioning(true);
+                              setIsMapExpanded(false);
+                            }} 
+                            isAnimating={isMapTransitioning}
                           />
                         ) : (
                           <TrackMap
                             key={`expanded-${currentSessionId}`}
                             isExpanded={isMapExpanded}
-                            onToggleExpand={() => setIsMapExpanded(false)}
-                            isAnimating={!isAnimatingExpandedMap}
+                            onToggleExpand={() => {
+                              setIsMapTransitioning(true);
+                              setIsMapExpanded(false);
+                            }}
+                            isAnimating={isMapTransitioning}
                           />
                         )}
                       </div>
-                      <Tooltip text="DOUBLE-CLICK TO RESET" position="top">
-                        <div
-                          className={`w-full h-2 pt-3 pb-0 flex justify-center items-center cursor-row-resize group/resizer relative z-20 ${isMapMaximized ? 'hidden' : ''}`}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setIsDraggingExpandedMap(true);
-                          }}
-                          onDoubleClick={() => setExpandedMapHeight(DEFAULT_EXPANDED_MAP_HEIGHT)}
-                        >
-                          <div className="h-1.5 w-24 bg-white/10 backdrop-blur-3xl rounded-full transition-all duration-300 border border-white/20 group-hover/resizer:w-36 group-hover/resizer:bg-blue-500 group-hover/resizer:scale-110 relative overflow-hidden">
-                            <div className="absolute inset-x-0 top-0 h-full bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover/resizer:translate-x-[100%] transition-transform duration-1000" />
+                      {!isMapMaximized && (
+                        <Tooltip text="DOUBLE-CLICK TO RESET" position="top">
+                          <div
+                            className={`w-full h-2 pt-3 pb-0 flex justify-center items-center cursor-row-resize group/resizer relative z-20`}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setIsDraggingExpandedMap(true);
+                            }}
+                            onDoubleClick={() => setExpandedMapHeight(DEFAULT_EXPANDED_MAP_HEIGHT)}
+                          >
+                            <div className="h-1.5 w-24 bg-white/10 backdrop-blur-3xl rounded-full transition-all duration-300 border border-white/20 group-hover/resizer:w-36 group-hover/resizer:bg-blue-500 group-hover/resizer:scale-110 relative overflow-hidden">
+                              <div className="absolute inset-x-0 top-0 h-full bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover/resizer:translate-x-[100%] transition-transform duration-1000" />
+                            </div>
                           </div>
-                        </div>
-                      </Tooltip>
+                        </Tooltip>
+                      )}
                     </div>
                   )}
 
-                  <div
-                    className="flex-1 min-w-0 flex flex-col p-4 gap-4 overflow-y-auto custom-scrollbar"
-                    style={{ minWidth: MIN_CHART_WIDTH }}
-                  >
-                    <div className="flex flex-col gap-2 min-w-0">
-                      {chartConfigs
-                        .filter(c => c.visible && (c.id !== 'Time Delta' || referenceLapIdx !== null || referenceLap !== null))
-                        .sort((a, b) => a.order - b.order)
-                        .map(config => (
-                          <TelemetryChart
-                            key={config.id}
-                            channel={config.id}
-                            alias={config.alias}
-                            color={config.color}
-                            height={config.height}
-                            syncKey="telemetry"
-                            unit={config.unit}
-                            isPlaying={isPlaying}
-                            showLapTime={config.id === 'Ground Speed' || config.id === 'Speed'}
-                          />
-                        ))
-                      }
+                  {!isMapMaximized && (
+                    <div
+                      className="flex-1 min-w-0 flex flex-col p-4 gap-4 overflow-y-auto custom-scrollbar"
+                      style={{ minWidth: MIN_CHART_WIDTH }}
+                    >
+                      {/* Category Navigation Tabs - Extended Capsule Style */}
+                      <div className="sticky top-0 z-[100] flex justify-center pt-2 pb-1 -mx-4">
+                        <div className="relative flex items-center px-2 py-1 bg-[#1a1a1e]/80 backdrop-blur-3xl rounded-full border border-white/10 h-10 group/toggle shadow-[0_8px_20px_rgba(0,0,0,0.5)] pointer-events-auto" onMouseMove={handleGlassMouseMove}>
+                          <div className="relative flex items-center h-full">
+                            {(() => {
+                              const availableTabs = [
+                                { id: 'Driver', label: 'DRIVER' },
+                                { id: 'Tyres', label: 'TYRES' },
+                                { id: 'Dynamics', label: 'DYNAMICS' },
+                                { id: 'Handling', label: 'HANDLING' },
+                                { id: 'Systems', label: 'SYSTEMS' },
+                              ].filter(cat => {
+                                if (cat.id === 'Driver') return true;
+                                if (!telemetryData) return false;
+                                const configs = CATEGORY_CHART_CONFIGS[cat.id as any];
+                                return configs?.some(c => telemetryData[c.id] !== undefined);
+                              });
+
+                              const activeIndex = availableTabs.findIndex(t => t.id === activeChartCategory);
+
+                              return (
+                                <>
+                                  {/* Sliding Active Block with Layout Transition */}
+                                  <AnimatePresence>
+                                    <motion.div 
+                                      layoutId="activeCategoryBlock"
+                                      className="absolute bg-blue-600 rounded-full shadow-[0_0_12px_rgba(37,99,235,0.5)]"
+                                      style={{ 
+                                        height: 'calc(100% - 2px)',
+                                        width: `calc(${100 / availableTabs.length}% - 4px)`,
+                                        left: `calc(${(activeIndex / availableTabs.length) * 100}% + 2px)`,
+                                        top: '1px'
+                                      }}
+                                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                    />
+                                  </AnimatePresence>
+
+                                  {availableTabs.map((cat) => (
+                                    <CategoryTab 
+                                      key={cat.id} 
+                                      id={cat.id as any} 
+                                      label={cat.label}
+                                      isActive={activeChartCategory === cat.id}
+                                    />
+                                  ))}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 min-w-0">
+                        {chartConfigs
+                          .filter(c => {
+                            if (!c.visible) return false;
+                            if (c.id === 'Time Delta' && referenceLapIdx === null && referenceLap === null) return false;
+                            
+                            // Class-based visibility
+                            if (c.id === 'SoC' && sessionMetadata?.carClass !== 'Hyper') return false;
+                            if (c.id === 'ABS' && sessionMetadata?.carClass !== 'GT3') return false;
+                            
+                            return true;
+                          })
+                          .sort((a, b) => a.order - b.order)
+                          .map(config => (
+                            <TelemetryChart
+                              key={`${config.id}-${config.wheelIndex ?? 'none'}`}
+                              channel={config.id}
+                              alias={config.alias}
+                              color={config.color}
+                              height={config.height}
+                              syncKey="telemetry"
+                              unit={config.unit}
+                              wheelIndex={config.wheelIndex}
+                              isPlaying={isPlaying}
+                              showLapTime={false}
+                            />
+                          ))
+                        }
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-gray-500">
@@ -1072,238 +1253,315 @@ function App() {
               )}
             </div>
 
-            {/* Right: Map & Stats */}
-            {selectedLapIdx !== null && (
-              <>
-                <Tooltip text={isRightPanelCollapsed ? "" : "DOUBLE-CLICK TO RESET"} position="left">
-                  <div
-                    className={`w-1.5 flex justify-center items-center group/right-resizer relative z-50 h-full transition-all duration-300 ${isMapMaximized ? 'hidden' : ''} ${isRightPanelCollapsed ? 'cursor-default' : 'cursor-col-resize'}`}
-                    onMouseDown={() => !isRightPanelCollapsed && setIsDraggingMap(true)}
-                    onDoubleClick={() => {
-                      if (isRightPanelCollapsed) return;
-                      const hasRef = (!!referenceTelemetryData || referenceLapIdx !== null) && (referenceCursorIndex !== null || referenceDeltaIndex !== null);
-                      setMapWidth(hasRef ? DUAL_MAP_WIDTH : DEFAULT_MAP_WIDTH);
-                    }}
-                  >
-                    <div className={`w-1 h-[60%] bg-white/10 backdrop-blur-3xl rounded-full transition-all duration-300 border border-white/20 group-hover/right-resizer:h-full group-hover/right-resizer:bg-blue-500 group-hover/right-resizer:w-1.5 relative overflow-hidden ${isRightPanelCollapsed ? 'opacity-0' : 'opacity-100'}`}>
-                      <div className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-transparent via-white/30 to-transparent translate-y-[-100%] group-hover/right-resizer:translate-y-[100%] transition-transform duration-1000" />
-                    </div>
-
-                    {/* Right Collapse Button */}
-                    <button
-                      onClick={() => setRightPanelCollapsed(!isRightPanelCollapsed)}
-                      className={`absolute top-20 z-[60] w-5 h-12 flex items-center justify-center bg-blue-600 border border-blue-400 group/collapse-btn shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-500 ${isRightPanelCollapsed ? 'right-0 rounded-l-xl scale-110 translate-x-0' : 'left-1/2 -translate-x-1/2 rounded-full opacity-0 group-hover/right-resizer:opacity-100 hover:scale-110 hover:bg-blue-500'}`}
-                    >
-                      <Tooltip text={isRightPanelCollapsed ? "EXPAND" : "COLLAPSE"} position="left" delay={100}>
-                        <div className="w-full h-full flex items-center justify-center">
-                          {isRightPanelCollapsed ? (
-                            <ChevronLeft size={12} className="text-white animate-pulse" />
-                          ) : (
-                            <ChevronRight size={12} className="text-white" />
-                          )}
+              {/* Right: Map & Stats */}
+              {selectedLapIdx !== null && (
+                <>
+                  {!isMapMaximized && (
+                    <Tooltip text={isRightPanelCollapsed ? "" : "DOUBLE-CLICK TO RESET"} position="left">
+                      <div
+                        className={`w-1.5 flex justify-center items-center group/right-resizer relative z-50 h-full transition-all duration-300 ${isRightPanelCollapsed ? 'cursor-default' : 'cursor-col-resize'}`}
+                        onMouseDown={() => !isRightPanelCollapsed && setIsDraggingMap(true)}
+                        onDoubleClick={() => {
+                          if (isRightPanelCollapsed) return;
+                          const hasRef = (!!referenceTelemetryData || referenceLapIdx !== null) && (referenceCursorIndex !== null || referenceDeltaIndex !== null);
+                          setMapWidth(hasRef ? DUAL_MAP_WIDTH : DEFAULT_MAP_WIDTH);
+                        }}
+                      >
+                        <div className={`w-1 h-[60%] bg-white/10 backdrop-blur-3xl rounded-full transition-all duration-300 border border-white/20 group-hover/right-resizer:h-full group-hover/right-resizer:bg-blue-500 group-hover/right-resizer:w-1.5 relative overflow-hidden ${isRightPanelCollapsed ? 'opacity-0' : 'opacity-100'}`}>
+                          <div className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-transparent via-white/30 to-transparent translate-y-[-100%] group-hover/right-resizer:translate-y-[100%] transition-transform duration-1000" />
                         </div>
-                      </Tooltip>
-                    </button>
-                  </div>
-                </Tooltip>
 
-                <div
-                  ref={rightPanelRef}
-                  className={`border-l border-gray-800 bg-gray-950 flex flex-col transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden ${isMapMaximized ? 'hidden' : ''}`}
-                  style={{
-                    width: isRightPanelCollapsed ? 0 : mapWidth,
-                    minWidth: isRightPanelCollapsed ? 0 : DEFAULT_MAP_WIDTH,
-                    maxWidth: isRightPanelCollapsed ? 0 : MAX_MAP_WIDTH,
-                    opacity: isRightPanelCollapsed ? 0 : 1,
-                    borderLeftWidth: isRightPanelCollapsed ? 0 : 1,
-                    transition: isDraggingMap ? 'none' : undefined
-                  }}
-                >
-                  <div
-                    className={`flex flex-col relative flex-shrink-0 origin-top px-4 overflow-hidden p-2 min-h-0 ${shouldRenderSidebarMap ? 'my-3' : 'my-0'} ${isResizingTrackMap ? '' : 'transition-all duration-400 ease-[cubic-bezier(0.34,1.56,0.64,1)]'}`}
-                    style={{
-                      height: isAnimatingSidebarMap ? trackMapHeight + 52 : 0,
-                      opacity: isAnimatingSidebarMap ? 1 : 0,
-                      transform: isAnimatingSidebarMap ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(-10px)',
-                      willChange: 'transform, opacity, height',
-                      transition: isResizingTrackMap ? 'none' : undefined
-                    }}
-                  >
-                    {shouldRenderSidebarMap && (
-                      <>
-                        <div className="flex-1 relative min-h-0">
-                          <TrackMap
-                            key={`sidebar-${currentSessionId}`}
-                            isExpanded={false}
-                            onToggleExpand={() => setIsMapExpanded(true)}
-                            isMiniMap={false}
-                            isAnimating={!isAnimatingSidebarMap}
-                          />
-                        </div>
-                        <Tooltip text="DOUBLE-CLICK TO RESET" position="top">
-                          <div
-                            className="w-full h-2 pt-4 pb-0 flex justify-center items-center cursor-row-resize group/sidebar-resizer relative z-50"
-                            onMouseDown={() => setIsResizingTrackMap(true)}
-                            onDoubleClick={() => setTrackMapHeight(DEFAULT_TRACK_MAP_HEIGHT)}
-                          >
-                            <div className="h-1.5 w-24 bg-white/10 backdrop-blur-3xl rounded-full transition-all duration-300 border border-white/20 group-hover/sidebar-resizer:w-36 group-hover/sidebar-resizer:bg-blue-500 group-hover/sidebar-resizer:scale-110 relative overflow-hidden">
-                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover/sidebar-resizer:translate-x-[100%] transition-transform duration-1000" />
+                        {/* Right Collapse Button */}
+                        <button
+                          onClick={() => setRightPanelCollapsed(!isRightPanelCollapsed)}
+                          className={`absolute top-20 z-[60] w-5 h-12 flex items-center justify-center bg-blue-600 border border-blue-400 group/collapse-btn shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-500 ${isRightPanelCollapsed ? 'right-0 rounded-l-xl scale-110 translate-x-0' : 'left-1/2 -translate-x-1/2 rounded-full opacity-0 group-hover/right-resizer:opacity-100 hover:scale-110 hover:bg-blue-500'}`}
+                        >
+                          <Tooltip text={isRightPanelCollapsed ? "EXPAND" : "COLLAPSE"} position="left" delay={100}>
+                            <div className="w-full h-full flex items-center justify-center">
+                              {isRightPanelCollapsed ? (
+                                <ChevronLeft size={12} className="text-white animate-pulse" />
+                              ) : (
+                                <ChevronRight size={12} className="text-white" />
+                              )}
                             </div>
-                          </div>
-                        </Tooltip>
-                      </>
-                    )}
-                  </div>
+                          </Tooltip>
+                        </button>
+                      </div>
+                    </Tooltip>
+                  )}
 
-                  <div className="pl-4 pr-[10px] pt-4 pb-4 flex-1 overflow-y-auto custom-scrollbar min-h-0 bg-transparent flex flex-col gap-3">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] px-1 whitespace-nowrap">Lap Details</h3>
-                      <div className="h-[1px] flex-1 bg-white/10 relative overflow-hidden group/linkage">
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] animate-[sweep_3s_infinite]" />
+                  {!isMapMaximized && (
+                    <div
+                      ref={rightPanelRef}
+                      className={`border-l border-gray-800 bg-gray-950 flex flex-col transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden`}
+                      style={{
+                        width: isRightPanelCollapsed ? 0 : mapWidth,
+                        minWidth: isRightPanelCollapsed ? 0 : DEFAULT_MAP_WIDTH,
+                        maxWidth: isRightPanelCollapsed ? 0 : MAX_MAP_WIDTH,
+                        opacity: isRightPanelCollapsed ? 0 : 1,
+                        borderLeftWidth: isRightPanelCollapsed ? 0 : 1,
+                        transition: isDraggingMap ? 'none' : undefined
+                      }}
+                    >
+                      <div
+                        className={`flex flex-col relative flex-shrink-0 origin-top px-4 overflow-hidden p-2 min-h-0 ${shouldRenderSidebarMap ? 'my-3' : 'my-0'} ${isResizingTrackMap ? '' : 'transition-all duration-400 ease-[cubic-bezier(0.34,1.56,0.64,1)]'}`}
+                        style={{
+                          height: isAnimatingSidebarMap ? trackMapHeight + 52 : 0,
+                          opacity: isAnimatingSidebarMap ? 1 : 0,
+                          transform: isAnimatingSidebarMap ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(-10px)',
+                          willChange: 'transform, opacity, height',
+                          transition: isResizingTrackMap ? 'none' : undefined
+                        }}
+                      >
+                        {shouldRenderSidebarMap && (
+                          <>
+                            <div className="flex-1 relative min-h-0 overflow-hidden">
+                              {/* Loading Overlay for Sidebar Map Transitions */}
+                              <MapTransitionOverlay isVisible={isSwitchingDimension || isMapTransitioning} />
+                              <TrackMap
+                                key={`sidebar-${currentSessionId}`}
+                                isExpanded={false}
+                                onToggleExpand={() => {
+                                  setIsMapTransitioning(true);
+                                  setIsMapExpanded(true);
+                                }}
+                                isMiniMap={false}
+                                allowRotation={false}
+                                isAnimating={!isAnimatingSidebarMap || isMapTransitioning}
+                              />
+                            </div>
+                            <Tooltip text="DOUBLE-CLICK TO RESET" position="top">
+                              <div
+                                className="w-full h-2 pt-4 pb-0 flex justify-center items-center cursor-row-resize group/sidebar-resizer relative z-50"
+                                onMouseDown={() => setIsResizingTrackMap(true)}
+                                onDoubleClick={() => setTrackMapHeight(DEFAULT_TRACK_MAP_HEIGHT)}
+                              >
+                                <div className="h-1.5 w-24 bg-white/10 backdrop-blur-3xl rounded-full transition-all duration-300 border border-white/20 group-hover/sidebar-resizer:w-36 group-hover/sidebar-resizer:bg-blue-500 group-hover/sidebar-resizer:scale-110 relative overflow-hidden">
+                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover/sidebar-resizer:translate-x-[100%] transition-transform duration-1000" />
+                                </div>
+                              </div>
+                            </Tooltip>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="pl-4 pr-[10px] pt-4 pb-4 flex-1 overflow-y-auto custom-scrollbar min-h-0 bg-transparent flex flex-col gap-3">
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] px-1 whitespace-nowrap">Lap Details</h3>
+                          <div className="h-[1px] flex-1 bg-white/10 relative overflow-hidden group/linkage">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] animate-[sweep_3s_infinite]" />
+                          </div>
+                        </div>
+
+                        {selectedLapIdx !== null ? (
+                          (() => {
+                            const currentLap = laps.find(l => l.lap === selectedLapIdx);
+                            const isCrossSession = !!referenceLap && !!referenceTelemetryData;
+                            const refLap = isCrossSession ? referenceLap : (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
+
+                            const getVal = (chan: string, idx: number | null, isRefSource: boolean = false) => {
+                              const source = isRefSource && referenceTelemetryData ? referenceTelemetryData : telemetryData;
+                              if (!source || !source[chan] || idx === null) return null;
+
+                              const channel = source[chan];
+                              if (!Array.isArray(channel)) return null;
+                              const baseIdx = Math.floor(idx);
+                              const nextIdx = Math.min(channel.length - 1, baseIdx + 1);
+                              const frac = idx - baseIdx;
+
+                              const v1 = channel[baseIdx];
+                              const v2 = channel[nextIdx];
+
+                              if (v1 === undefined) return null;
+                              if (v2 === undefined) return v1;
+                              return v1 + (v2 - v1) * frac;
+                            };
+
+                            const getMax = (arr: any) => {
+                              if (!arr || arr.length === 0) return 0;
+                              let m = -Infinity;
+                              for (let i = 0; i < arr.length; i++) if (arr[i] > m) m = arr[i];
+                              return m;
+                            };
+
+                            const maxSpeed = (telemetryData?.['Ground Speed'] && Array.isArray(telemetryData['Ground Speed'])) ? getMax(telemetryData['Ground Speed']) : 300;
+                            const maxGear = (telemetryData?.['Gear'] && Array.isArray(telemetryData['Gear'])) ? getMax(telemetryData['Gear']) : 8;
+                            const refIdx = dashboardSyncMode === 'time' ? referenceCursorIndex : referenceDeltaIndex;
+                            const hasRef = referenceLapIdx !== null || !!referenceTelemetryData;
+                            const refData = referenceTelemetryData || telemetryData;
+                            const refMeta = referenceSessionMetadata || sessionMetadata;
+
+                            return (
+                              <div className="min-w-max flex flex-col gap-3">
+                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
+                                  <div
+                                    className={`bg-white/10 glass-container-flat ${hasRef ? 'p-2 pt-6' : 'p-4 pt-10'} rounded-2xl border border-white/25 shadow-xl hover:bg-white/15 transition-all relative group/laptime`}
+                                    onMouseMove={handleGlassMouseMove}
+                                  >
+                                    <div className={`absolute top-0 left-0 flex items-center gap-2 ${hasRef ? 'p-2' : 'p-4'}`}>
+                                      <span className={`${hasRef ? 'text-[8px]' : 'text-[10px]'} font-black uppercase tracking-[0.2em] text-gray-500 group-hover/laptime:text-white transition-colors`}>Lap Time</span>
+                                    </div>
+                                    <div className="glass-content">
+                                      {hasRef ? (
+                                        <div className="flex flex-col gap-1.5">
+                                          <ComparisonRow label={<img src="/finish-flag.png" width={12} height={12} className="opacity-70" alt="Flag" />} val={currentLap?.duration} refVal={(refLap as any)?.duration} compact={true} />
+                                          <ComparisonRow label="S1" val={currentLap?.s1} refVal={(refLap as any)?.s1} valColorClass="text-gray-300" compact={true} />
+                                          <ComparisonRow label="S2" val={currentLap?.s2} refVal={(refLap as any)?.s2} valColorClass="text-gray-300" compact={true} />
+                                          <ComparisonRow label="S3" val={currentLap?.s3} refVal={(refLap as any)?.s3} valColorClass="text-gray-300" compact={true} />
+                                        </div>
+                                      ) : (
+                                        /* COMPACT TWO-TIER LAYOUT FOR SINGLE LAP */
+                                        <div className="flex flex-col gap-3 min-w-[260px]">
+                                          {/* Upper Section: Theoretical / Bests (Only show if multiple laps exist) */}
+                                          {laps.length > 1 && (
+                                            <>
+                                              <div className="flex flex-col gap-2">
+                                                <div className="flex justify-between items-baseline border-b border-white/5 pb-1.5 px-1">
+                                                  <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Theoretical Best</span>
+                                                  <span className="text-[17px] font-black text-purple-400 font-mono tracking-tighter">
+                                                    {formatTime(sessionBests?.theoreticalBest)}
+                                                  </span>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2 px-1">
+                                                  {[
+                                                    { label: 'BS1', val: sessionBests?.bestS1.val, lap: sessionBests?.bestS1.lap },
+                                                    { label: 'BS2', val: sessionBests?.bestS2.val, lap: sessionBests?.bestS2.lap },
+                                                    { label: 'BS3', val: sessionBests?.bestS3.val, lap: sessionBests?.bestS3.lap }
+                                                  ].map((item, i) => {
+                                                    const formatted = formatTime(item.val);
+                                                    const displayTime = formatted.startsWith('0:') ? formatted.slice(2) : formatted;
+                                                    return (
+                                                      <div key={i} className="flex flex-col">
+                                                        <span className="text-[8px] font-black text-gray-500 uppercase tracking-[0.15em] mb-0.5">{item.label}</span>
+                                                        <div className="flex items-baseline gap-1.5">
+                                                          <span className="text-[12px] font-black text-purple-400 font-mono tracking-tighter">
+                                                            {displayTime}
+                                                          </span>
+                                                          {item.lap && (
+                                                            <span className="px-1.5 py-0.5 rounded-sm bg-purple-500/20 text-white text-[7px] font-black border border-purple-500/20 leading-none">
+                                                              L{item.lap}
+                                                            </span>
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+
+                                              {/* Separator Line */}
+                                              <div className="h-px bg-white/10 w-full" />
+                                            </>
+                                          )}
+
+                                          {/* Lower Section: Current Lap */}
+                                          <div className="flex flex-col gap-2">
+                                            <div className="flex justify-between items-baseline border-b border-white/5 pb-1.5 px-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Current Lap</span>
+                                                {currentLap && (
+                                                  <span className="px-1.5 py-0.5 rounded-sm bg-blue-500/20 text-white text-[7px] font-black border border-blue-500/20 leading-none">
+                                                    L{currentLap.lap}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <span className="text-[20px] font-black text-white font-mono tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
+                                                {formatTime(currentLap?.duration)}
+                                              </span>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2 px-1">
+                                              {[
+                                                { label: 'S1', val: currentLap?.s1, isBest: currentLap?.s1 > 0 && currentLap?.s1 <= (sessionBests?.bestS1.val || 0) },
+                                                { label: 'S2', val: currentLap?.s2, isBest: currentLap?.s2 > 0 && currentLap?.s2 <= (sessionBests?.bestS2.val || 0) },
+                                                { label: 'S3', val: currentLap?.s3, isBest: currentLap?.s3 > 0 && currentLap?.s3 <= (sessionBests?.bestS3.val || 0) }
+                                              ].map((item, i) => {
+                                                const formatted = formatTime(item.val);
+                                                const displayTime = formatted.startsWith('0:') ? formatted.slice(2) : formatted;
+                                                return (
+                                                  <div key={i} className="flex flex-col">
+                                                    <span className="text-[8px] font-black text-gray-400 uppercase tracking-[0.15em] mb-0.5">{item.label}</span>
+                                                    <span className={`text-[13px] font-black font-mono tracking-tighter ${item.isBest ? 'text-purple-400' : 'text-yellow-500'}`}>
+                                                      {displayTime}
+                                                    </span>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div
+                                    className={`bg-white/10 glass-container-flat ${hasRef ? 'p-2 pt-6' : 'p-4 pt-10'} rounded-2xl border border-white/25 shadow-xl hover:bg-white/15 transition-all relative group/telemetry`}
+                                    onMouseMove={handleGlassMouseMove}
+                                  >
+                                    <div className={`absolute top-0 left-0 w-full flex items-center justify-between ${hasRef ? 'p-2' : 'p-4'} mix-blend-screen`}>
+                                      <span className={`${hasRef ? 'text-[8px]' : 'text-[10px]'} font-black uppercase tracking-[0.2em] text-gray-500 group-hover/telemetry:text-white transition-colors`}>Live Telemetry</span>
+                                    </div>
+                                    <div className="glass-content">
+                                      <div className="flex flex-col gap-1.5">
+                                        <LiveTelemetryRow icon={({ size, className }: any) => <img src="/speed.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="S" />} label="Speed" color={chartConfigs.find(c => c.id === 'Ground Speed' || c.id === 'Speed')?.color || '#00aaff'} unit={speedUnit === 'kmh' ? "kmh" : "mph"} max={speedUnit === 'kmh' ? maxSpeed : maxSpeed * 0.621371} val={getVal('Ground Speed', cursorIndex)} refVal={getVal('Ground Speed', refIdx, true)} compact={hasRef} />
+                                        <LiveTelemetryRow icon={({ size, className }: any) => <img src="/throttle.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="T" />} label="Throttle" color={chartConfigs.find(c => c.id === 'Throttle Pos' || c.id === 'Throttle')?.color || '#00ff00'} unit="%" val={getVal('Throttle Pos', cursorIndex)} refVal={getVal('Throttle Pos', refIdx, true)} compact={hasRef} />
+                                        <LiveTelemetryRow icon={({ size, className }: any) => <img src="/brake.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="B" />} label="Brake" color={chartConfigs.find(c => c.id === 'Brake Pos' || c.id === 'Brake')?.color || '#ff0000'} unit="%" val={getVal('Brake Pos', cursorIndex)} refVal={getVal('Brake Pos', refIdx, true)} compact={hasRef} />
+                                        <LiveTelemetryRow icon={({ size, className }: any) => <img src="/gear.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="G" />} label="Gear" color={chartConfigs.find(c => c.id === 'Gear')?.color || '#ffaa00'} max={maxGear} val={getVal('Gear', cursorIndex)} refVal={getVal('Gear', refIdx, true)} compact={hasRef} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {hasRef && (
+                                  <div className="relative flex items-center p-1 bg-black/30 rounded-xl border border-white/10 self-center w-48 h-8 overflow-hidden group/sync-toggle" onMouseMove={handleGlassMouseMove}>
+                                    {/* Sliding Indicator Pill */}
+                                    <div 
+                                      className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
+                                      style={{ left: dashboardSyncMode === 'distance' ? '4px' : 'calc(50%)' }}
+                                    />
+                                    
+                                    <button
+                                      onClick={() => setDashboardSyncMode('distance')}
+                                      className={`relative z-10 flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-widest transition-colors duration-300 ${dashboardSyncMode === 'distance' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                      Distance Sync
+                                    </button>
+                                    <button
+                                      onClick={() => setDashboardSyncMode('time')}
+                                      className={`relative z-10 flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-widest transition-colors duration-300 ${dashboardSyncMode === 'time' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                      Time Sync
+                                    </button>
+                                  </div>
+                                )}
+
+                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
+                                  <F1Dashboard data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} theme="current" compact={hasRef} />
+                                  {hasRef && <F1Dashboard data={refData} cursorIndex={refIdx} theme="reference" compact={hasRef} />}
+                                </div>
+
+                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
+                                  <SteeringWheelView data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} carModel={sessionMetadata?.modelName} theme="current" compact={hasRef} />
+                                  {hasRef && <SteeringWheelView data={refData} cursorIndex={refIdx} carModel={refMeta?.modelName} theme="reference" compact={hasRef} />}
+                                </div>
+
+                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
+                                  <TyreDashboard data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} carClass={sessionMetadata?.carClass} tyreCompoundMax={sessionMetadata?.tyreCompoundMax} theme="current" compact={hasRef} />
+                                  {hasRef && <TyreDashboard data={refData} cursorIndex={refIdx} carClass={refMeta?.carClass} tyreCompoundMax={refMeta?.tyreCompoundMax} theme="reference" compact={hasRef} />}
+                                </div>
+
+                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
+                                  <FuelDashboard data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} fuelCapacity={sessionMetadata?.fuelCapacity} theme="current" compact={hasRef} />
+                                  {hasRef && <FuelDashboard data={refData} cursorIndex={refIdx} fuelCapacity={refMeta?.fuelCapacity} theme="reference" compact={hasRef} />}
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <div className="text-gray-500 text-sm italic border-t border-gray-800 pt-4">Select a lap to view details</div>
+                        )}
                       </div>
                     </div>
-
-                    {selectedLapIdx !== null ? (
-                      (() => {
-                        const currentLap = laps.find(l => l.lap === selectedLapIdx);
-                        const isCrossSession = !!referenceLap && !!referenceTelemetryData;
-                        const refLap = isCrossSession ? referenceLap : (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
-
-                        const getVal = (chan: string, idx: number | null, isRefSource: boolean = false) => {
-                          const source = isRefSource && referenceTelemetryData ? referenceTelemetryData : telemetryData;
-                          if (!source || !source[chan] || idx === null) return null;
-
-                          const channel = source[chan];
-                          if (!Array.isArray(channel)) return null;
-                          const baseIdx = Math.floor(idx);
-                          const nextIdx = Math.min(channel.length - 1, baseIdx + 1);
-                          const frac = idx - baseIdx;
-
-                          const v1 = channel[baseIdx];
-                          const v2 = channel[nextIdx];
-
-                          if (v1 === undefined) return null;
-                          if (v2 === undefined) return v1;
-                          return v1 + (v2 - v1) * frac;
-                        };
-
-                        const getMax = (arr: any) => {
-                          if (!arr || arr.length === 0) return 0;
-                          let m = -Infinity;
-                          for (let i = 0; i < arr.length; i++) if (arr[i] > m) m = arr[i];
-                          return m;
-                        };
-
-                        const maxSpeed = (telemetryData?.['Ground Speed'] && Array.isArray(telemetryData['Ground Speed'])) ? getMax(telemetryData['Ground Speed']) : 300;
-                        const maxGear = (telemetryData?.['Gear'] && Array.isArray(telemetryData['Gear'])) ? getMax(telemetryData['Gear']) : 8;
-                        const refIdx = dashboardSyncMode === 'time' ? referenceCursorIndex : referenceDeltaIndex;
-                        const hasRef = (!!referenceTelemetryData || referenceLapIdx !== null) && refIdx !== null;
-                        const refData = referenceTelemetryData || telemetryData;
-                        const refMeta = referenceSessionMetadata || sessionMetadata;
-
-                        return (
-                          <div className="min-w-max flex flex-col gap-3">
-                            <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                              <div
-                                className={`bg-white/10 glass-container-flat ${hasRef ? 'p-2 pt-6' : 'p-4 pt-10'} rounded-2xl border border-white/25 shadow-xl hover:bg-white/15 transition-all relative group/laptime`}
-                                onMouseMove={handleGlassMouseMove}
-                              >
-                                <div className={`absolute top-0 left-0 flex items-center gap-2 ${hasRef ? 'p-2' : 'p-4'}`}>
-                                  <span className={`${hasRef ? 'text-[8px]' : 'text-[10px]'} font-black uppercase tracking-[0.2em] text-gray-500 group-hover/laptime:text-white transition-colors`}>Lap Time</span>
-                                </div>
-                                <div className="glass-content flex flex-col gap-2">
-                                  {!hasRef && (
-                                    <div className="grid grid-cols-[30px_1fr_50px_1fr] gap-2 mb-2 border-b border-white/10 pb-2 px-4">
-                                      <div />
-                                      <div className="text-[11px] text-blue-400 font-black uppercase tracking-wider text-left">Current</div>
-                                      <div className="text-[11px] text-gray-500 font-black uppercase tracking-wider text-left">Delta</div>
-                                      <div className="text-[11px] text-amber-500 font-black uppercase tracking-wider text-left">Reference</div>
-                                    </div>
-                                  )}
-                                  <div className="flex flex-col gap-1.5">
-                                    <ComparisonRow label={<img src="/finish-flag.png" width={hasRef ? 12 : 16} height={hasRef ? 12 : 16} className="opacity-70" alt="Flag" />} val={currentLap?.duration} refVal={(refLap as any)?.duration} compact={hasRef} />
-                                    <ComparisonRow label="S1" val={currentLap?.s1} refVal={(refLap as any)?.s1} valColorClass="text-gray-300" compact={hasRef} />
-                                    <ComparisonRow label="S2" val={currentLap?.s2} refVal={(refLap as any)?.s2} valColorClass="text-gray-300" compact={hasRef} />
-                                    <ComparisonRow label="S3" val={currentLap?.s3} refVal={(refLap as any)?.s3} valColorClass="text-gray-300" compact={hasRef} />
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div
-                                className={`bg-white/10 glass-container-flat ${hasRef ? 'p-2 pt-6' : 'p-4 pt-10'} rounded-2xl border border-white/25 shadow-xl hover:bg-white/15 transition-all relative group/telemetry`}
-                                onMouseMove={handleGlassMouseMove}
-                              >
-                                <div className={`absolute top-0 left-0 w-full flex items-center justify-between ${hasRef ? 'p-2' : 'p-4'} mix-blend-screen`}>
-                                  <span className={`${hasRef ? 'text-[8px]' : 'text-[10px]'} font-black uppercase tracking-[0.2em] text-gray-500 group-hover/telemetry:text-white transition-colors`}>Live Telemetry</span>
-
-                                  <div className={`${hasRef ? 'px-1.5 py-0.5 text-[8px]' : 'px-2.5 py-1 text-[10px]'} bg-black/40 rounded-lg font-mono font-black border border-white/10 flex items-center gap-1 backdrop-blur-md`}>
-                                    <img src="/delta.png" width={hasRef ? 8 : 10} height={hasRef ? 8 : 10} className="opacity-60" alt="Delta" />
-                                    <span className={liveDeltaStore !== null ? (liveDeltaStore > 0 ? 'text-red-400' : 'text-green-400') : 'text-gray-500'}>
-                                      {liveDeltaStore !== null ? (liveDeltaStore >= 0 ? '+' : '-') + Math.abs(liveDeltaStore).toFixed(3) : "---"}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="glass-content">
-                                  <div className="flex flex-col gap-1.5">
-                                    <LiveTelemetryRow icon={({ size, className }: any) => <img src="/speed.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="S" />} label="Speed" color={chartConfigs.find(c => c.id === 'Ground Speed' || c.id === 'Speed')?.color || '#00aaff'} unit={speedUnit === 'kmh' ? "kmh" : "mph"} max={speedUnit === 'kmh' ? maxSpeed : maxSpeed * 0.621371} val={getVal('Ground Speed', cursorIndex)} refVal={getVal('Ground Speed', refIdx, true)} compact={hasRef} />
-                                    <LiveTelemetryRow icon={({ size, className }: any) => <img src="/throttle.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="T" />} label="Throttle" color={chartConfigs.find(c => c.id === 'Throttle Pos' || c.id === 'Throttle')?.color || '#00ff00'} unit="%" val={getVal('Throttle Pos', cursorIndex)} refVal={getVal('Throttle Pos', refIdx, true)} compact={hasRef} />
-                                    <LiveTelemetryRow icon={({ size, className }: any) => <img src="/brake.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="B" />} label="Brake" color={chartConfigs.find(c => c.id === 'Brake Pos' || c.id === 'Brake')?.color || '#ff0000'} unit="%" val={getVal('Brake Pos', cursorIndex)} refVal={getVal('Brake Pos', refIdx, true)} compact={hasRef} />
-                                    <LiveTelemetryRow icon={({ size, className }: any) => <img src="/gear.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="G" />} label="Gear" color={chartConfigs.find(c => c.id === 'Gear')?.color || '#ffaa00'} max={maxGear} val={getVal('Gear', cursorIndex)} refVal={getVal('Gear', refIdx, true)} compact={hasRef} />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {hasRef && (
-                              <div className="relative flex items-center p-1 bg-black/30 rounded-xl border border-white/10 self-center w-48 h-8 overflow-hidden group/sync-toggle" onMouseMove={handleGlassMouseMove}>
-                                {/* Sliding Indicator Pill */}
-                                <div 
-                                  className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
-                                  style={{ left: dashboardSyncMode === 'distance' ? '4px' : 'calc(50%)' }}
-                                />
-                                
-                                <button
-                                  onClick={() => setDashboardSyncMode('distance')}
-                                  className={`relative z-10 flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-widest transition-colors duration-300 ${dashboardSyncMode === 'distance' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                                >
-                                  Distance Sync
-                                </button>
-                                <button
-                                  onClick={() => setDashboardSyncMode('time')}
-                                  className={`relative z-10 flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-widest transition-colors duration-300 ${dashboardSyncMode === 'time' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                                >
-                                  Time Sync
-                                </button>
-                              </div>
-                            )}
-
-                            <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                              <F1Dashboard data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} theme="current" compact={hasRef} />
-                              {hasRef && <F1Dashboard data={refData} cursorIndex={refIdx} theme="reference" compact={hasRef} />}
-                            </div>
-
-                            <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                              <SteeringWheelView data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} carModel={sessionMetadata?.modelName} theme="current" compact={hasRef} />
-                              {hasRef && <SteeringWheelView data={refData} cursorIndex={refIdx} carModel={refMeta?.modelName} theme="reference" compact={hasRef} />}
-                            </div>
-
-                            <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                              <TyreDashboard data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} carClass={sessionMetadata?.carClass} tyreCompoundMax={sessionMetadata?.tyreCompoundMax} theme="current" compact={hasRef} />
-                              {hasRef && <TyreDashboard data={refData} cursorIndex={refIdx} carClass={refMeta?.carClass} tyreCompoundMax={refMeta?.tyreCompoundMax} theme="reference" compact={hasRef} />}
-                            </div>
-
-                            <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                              <FuelDashboard data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} fuelCapacity={sessionMetadata?.fuelCapacity} theme="current" compact={hasRef} />
-                              {hasRef && <FuelDashboard data={refData} cursorIndex={refIdx} fuelCapacity={refMeta?.fuelCapacity} theme="reference" compact={hasRef} />}
-                            </div>
-                          </div>
-                        );
-                      })()
-                    ) : (
-                      <div className="text-gray-500 text-sm italic border-t border-gray-800 pt-4">Select a lap to view details</div>
-                    )}
-                  </div>
-                </div>
+                )}
               </>
             )}
           </div>
@@ -1326,16 +1584,63 @@ function App() {
           </div>
         )}
         {/* Profile/Login Overlay - Fullscreen Block if no profile selected */}
-        {(showLogin || !activeProfileId) && (
-          <LoginOverlay
-            onClose={activeProfileId ? () => setShowLogin(false) : undefined}
-          />
-        )}
-        <SettingsOverlay />
+        <AnimatePresence>
+          {(showLogin || !activeProfileId) && (
+            <motion.div
+              initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+              animate={{ opacity: 1, backdropFilter: "blur(24px)" }}
+              exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="fixed inset-0 z-[3000] bg-black/40"
+            >
+              <LoginOverlay
+                onClose={activeProfileId ? () => setShowLogin(false) : undefined}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showSettings && (
+            <motion.div
+              initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+              animate={{ opacity: 1, backdropFilter: "blur(24px)" }}
+              exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="fixed inset-0 z-[3200] bg-black/40"
+            >
+              <SettingsOverlay />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {showReferenceBrowser && (
           <ReferenceLapBrowser onClose={() => setShowReferenceBrowser(false)} />
         )}
         <UpdateNotifier />
+        <AnimatePresence>
+          {showSetupView && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98, backdropFilter: 'blur(0px)' }}
+              animate={{ opacity: 1, scale: 1, backdropFilter: 'blur(24px)' }}
+              exit={{ opacity: 0, scale: 1.02, backdropFilter: 'blur(0px)' }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed inset-0 z-[9999] bg-black/90 flex flex-col overflow-hidden"
+            >
+              <CarSetupView />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Global Transition Overlay for major events (e.g. Account Switch) */}
+        <div className="fixed inset-0 z-[10000] pointer-events-none">
+          <MapTransitionOverlay 
+            isVisible={isGlobalTransitioning} 
+            message="INITIALIZING IDENTITY..." 
+            subMessage={activeProfileId ? `Switching to ${profiles.find(p => p.id === activeProfileId)?.name || 'User'}...` : undefined}
+            avatarUrl={activeProfileId ? profiles.find(p => p.id === activeProfileId)?.avatar_url : null}
+          />
+        </div>
       </div>
     </div>
   );

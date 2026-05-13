@@ -5,26 +5,33 @@ import { TelemetryChart } from './TelemetryChart';
 
 export const DataChartsOverlay = React.memo(() => {
     const chartConfigs = useTelemetryStore(state => state.chartConfigs);
+    const activeChartCategory = useTelemetryStore(state => state.activeChartCategory);
+    const setActiveChartCategory = useTelemetryStore(state => state.setActiveChartCategory);
     const isPlaying = useTelemetryStore(state => state.isPlaying);
     const referenceLapIdx = useTelemetryStore(state => state.referenceLapIdx);
     const referenceLap = useTelemetryStore(state => state.referenceLap);
 
+    React.useEffect(() => {
+        setActiveChartCategory('Driver');
+    }, [setActiveChartCategory]);
+
     const activeCharts = chartConfigs.filter(c => 
         c.visible && 
-        (c.id !== 'Time Delta' || referenceLapIdx !== null || referenceLap !== null)
+        (c.id !== 'Time Delta' || referenceLapIdx !== null || referenceLap !== null) &&
+        // In this overlay (maximized HUD), we only show Driver charts per user request
+        useTelemetryStore.getState().activeChartCategory === 'Driver'
     );
-
-    if (activeCharts.length === 0) return null;
 
     return (
         <div 
-            className="flex flex-col gap-1.5 w-[380px] h-full overflow-y-auto pointer-events-auto custom-scrollbar px-8 pt-0 pb-0 group"
+            className="flex flex-col gap-1.5 w-[380px] h-full overflow-y-auto pointer-events-auto custom-scrollbar px-8 pt-4 pb-4 group"
             onWheelCapture={(e) => e.stopPropagation()}
         >
+
             <AnimatePresence mode="popLayout">
                 {activeCharts.map((config) => (
                     <motion.div
-                        key={`hud-chart-${config.id}`}
+                        key={`hud-chart-${config.id}-${config.wheelIndex ?? 'none'}`}
                         layout
                         initial={{ opacity: 0, x: 40 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -42,9 +49,10 @@ export const DataChartsOverlay = React.memo(() => {
                             channel={config.id}
                             alias={config.alias}
                             color={config.color}
-                            height={110} // Optimized height for HUD
+                            height={activeChartCategory === 'Driver' ? 110 : 130} // Slightly taller for complex charts
                             syncKey="telemetry" 
                             unit={config.unit}
+                            wheelIndex={config.wheelIndex}
                             showLapTime={false}
                             isPlaying={isPlaying}
                         />

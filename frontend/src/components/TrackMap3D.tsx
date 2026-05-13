@@ -1,7 +1,7 @@
 import React, { Suspense, useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text, PerspectiveCamera, Float, Stars, Bounds, Center, Line, Edges } from '@react-three/drei';
+import { OrbitControls, Text, PerspectiveCamera, Float, Stars, Bounds, Center, Line, Edges, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import { useTelemetryStore } from '../store/telemetryStore';
 import { Layers, MousePointer2, Move3d, RotateCcw, Play, Pause, Compass, Target, Navigation, Maximize2, Minimize2, Activity, ChevronRight, Check, ChevronDown } from 'lucide-react';
@@ -17,6 +17,12 @@ import { MaximizedDimensionToggle } from './MaximizedDimensionToggle';
 import { FileManager } from './FileManager';
 
 // Custom Icons matched with 2D TrackMap
+const CarMarkerIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M5 5l14 6-7 2-2 7L5 5z" />
+    </svg>
+);
+
 const MapIcon = ({ size = 20, className = "" }: { size?: number; className?: string }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z" />
@@ -121,12 +127,29 @@ const getCarTransform = (telemetryData: any, cursorIndex: number | null, smoothC
             const dLat = lats[i2] - lats[i1];
             const dLon = (lons[i2] - lons[i1]) * center.lonScale;
             heading = -Math.atan2(dLon, dLat);
+
+            // --- IMPROVEMENT: Low-Speed Stability & Yaw-Based Slip Visualization ---
+            const speed = telemetryData['Ground Speed'];
+            const gLat = telemetryData['G Force Lat'];
+            if (speed && gLat) {
+                const curSpeedKmh = speed[Math.floor(idx)];
+                const curGLat = gLat[Math.floor(idx)];
+
+                if (curSpeedKmh > 3.0) {
+                    const v_mps = curSpeedKmh / 3.6;
+                    // Note: 3D heading is in radians, so we skip the deg-to-rad conversion at the end
+                    const slipOffsetRad = (curGLat * 9.81 / (v_mps * v_mps)) * 0.5;
+                    // Negative because of 3D coordinate system (Y-up, heading is rotation around Z)
+                    heading -= Math.max(-0.26, Math.min(0.26, slipOffsetRad)); // Cap at ~15 degrees
+                }
+            }
         }
     }
 
     if (trackPoints && trackClosestIdx !== -1 && trackPoints.length > 1) {
         const p1 = trackPoints[trackClosestIdx];
-        const lookAheadSteps = Math.min(5, Math.max(1, trackPoints.length - 1));
+        // Smooth pitch by looking further ahead (e.g. 20 points)
+        const lookAheadSteps = Math.min(20, Math.floor(trackPoints.length / 4));
         const nextIdx = (trackClosestIdx + lookAheadSteps) % trackPoints.length;
         const p2 = trackPoints[nextIdx];
         if (p1 && p2 && p1.x !== undefined && p2.x !== undefined) {
@@ -134,11 +157,12 @@ const getCarTransform = (telemetryData: any, cursorIndex: number | null, smoothC
             const dy = p2.y - p1.y;
             const dist2D = Math.sqrt(dx * dx + dy * dy);
             const dz = ((p2.z || 0) - (p1.z || 0)) * zScale;
-            if (dist2D > 0.01) pitch = -Math.atan2(dz, dist2D);
+            // Negative sign for pitch as rotation around X in Z-up system
+            if (dist2D > 0.05) pitch = -Math.atan2(dz, dist2D);
         }
     }
 
-    return { x, y, z: targetZ + 0.1, heading, pitch };
+    return { x, y, z: targetZ + 1.0, heading, pitch };
 };
 
 const TrackSurface = ({ points, center, zScale = 0, onHover, onHoverOut }: {
@@ -411,6 +435,7 @@ const RacingLine = ({ points, center, zScale = 0, isReference = false }: { point
 
 const Car = ({ telemetryData, cursorIndex, smoothCursorIndex, isPlaying, center, zScale = 1, zBase = 0, isReference = false, trackPoints = null }: any) => {
     const groupRef = useRef<THREE.Group>(null);
+    const mapMarkerType = useTelemetryStore(state => state.mapMarkerType);
 
     const transform = useMemo(() => {
         return getCarTransform(telemetryData, cursorIndex, smoothCursorIndex, isPlaying, center, zScale, zBase, trackPoints);
@@ -448,25 +473,39 @@ const Car = ({ telemetryData, cursorIndex, smoothCursorIndex, isPlaying, center,
             rotation={[transform.pitch, 0, transform.heading]}
             scale={[0.72, 0.72, 0.72]}
         >
-            <mesh>
-                <extrudeGeometry args={[arrowShape, extrudeSettings]} />
-                {/* 
-                    Use meshBasicMaterial instead of meshStandardMaterial.
-                    Basic material renders raw base colors with ZERO physical lighting calculations,
-                    meaning it will NEVER look "foggy", "glowing", or "washed out" by specular highlights.
-                    It looks like a solid 2D vector object embedded in 3D space.
-                */}
-                <meshBasicMaterial
-                    color={carColor}
-                    transparent={isReference}
-                    opacity={isReference ? 0.8 : 1}
-                />
-                <Edges linewidth={0.8} threshold={15} color="#ffffff" />
-            </mesh>
+            {mapMarkerType === 'arrow' ? (
+                <mesh>
+                    <extrudeGeometry args={[arrowShape, extrudeSettings]} />
+                    <meshBasicMaterial
+                        color={carColor}
+                        transparent={isReference}
+                        opacity={isReference ? 0.8 : 1}
+                    />
+                    <Edges linewidth={0.8} threshold={15} color="#ffffff" />
+                </mesh>
+            ) : (
+                <mesh rotation={[Math.PI / 2, 0, 0]}>
+                    <cylinderGeometry args={[10, 10, 4.0, 32]} />
+                    <meshBasicMaterial
+                        color={carColor}
+                        transparent={isReference}
+                        opacity={isReference ? 0.8 : 1}
+                    />
+                    <Edges linewidth={1.0} threshold={60} color="#ffffff" />
+                </mesh>
+            )}
 
-            {/* Soft Ambient Halo: A slightly larger, faint version of the arrow for a glow effect */}
-            <mesh scale={[1.15, 1.15, 1.15]} position={[0, 0, -0.5]}>
-                <extrudeGeometry args={[arrowShape, extrudeSettings]} />
+            {/* Soft Ambient Halo */}
+            <mesh
+                scale={[1.15, 1.15, 1.15]}
+                position={[0, 0, -0.5]}
+                rotation={mapMarkerType === 'dot' ? [Math.PI / 2, 0, 0] : [0, 0, 0]}
+            >
+                {mapMarkerType === 'arrow' ? (
+                    <extrudeGeometry args={[arrowShape, extrudeSettings]} />
+                ) : (
+                    <cylinderGeometry args={[10, 10, 4.0, 32]} />
+                )}
                 <meshBasicMaterial
                     color={carColor}
                     transparent={true}
@@ -616,7 +655,98 @@ const CameraController = ({ viewMode, telemetryData, cursorIndex, smoothCursorIn
     return null;
 };
 
-export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) => {
+const SectorBoundaries = ({ trackSectors, zScale, trackPoints }: { trackSectors: any[], zScale: number, trackPoints: any[] }) => {
+    if ((!trackSectors || trackSectors.length === 0) && (!trackPoints || trackPoints.length === 0)) return null;
+
+    const drawBoundary = (px: number, py: number, pz: number, dx: number, dy: number, nx: number, ny: number, lateral: number, width: number, label: string, key: string, color: string = "#ffff00", textColor?: string) => {
+        const pcx = px + nx * (lateral || 0);
+        const pcy = py + ny * (lateral || 0);
+        const halfWidth = 12.0; // Uniform 12m each side
+
+        const finalTextColor = textColor || color;
+
+        const pointsAcross = [
+            new THREE.Vector3(pcx + nx * halfWidth, pcy + ny * halfWidth, pz * zScale + 0.2),
+            new THREE.Vector3(pcx - nx * halfWidth, pcy - ny * halfWidth, pz * zScale + 0.2)
+        ];
+
+        // Position text slightly forward along the track
+        const forwardOffset = 18;
+        const sideOffset = halfWidth + 8;
+        const textPos = new THREE.Vector3(
+            pcx + dx * forwardOffset - nx * sideOffset, // Use -nx for Right side
+            pcy + dy * forwardOffset - ny * sideOffset, // Use -ny for Right side
+            pz * zScale + 6
+        );
+
+        return (
+            <group key={key}>
+                <Line
+                    points={pointsAcross}
+                    color={color}
+                    lineWidth={7} // Thicker
+                    transparent
+                    opacity={0.9}
+                />
+                <Billboard position={textPos} follow={true} lockX={false} lockY={false} lockZ={false}>
+                    <Text
+                        color={finalTextColor}
+                        fontSize={10} // Even Larger
+                        anchorX="center"
+                        anchorY="bottom"
+                        fontWeight="bold"
+                    >
+                        {label}
+                    </Text>
+                </Billboard>
+            </group>
+        );
+    };
+
+    return (
+        <group>
+            {trackSectors.filter(s => s.id !== 0).map(sector => {
+                // Use backend pre-calculated direction if available, otherwise search nearest point
+                let dx = sector.dx, dy = sector.dy;
+
+                if (dx === undefined || dy === undefined) {
+                    let minDist = Infinity;
+                    let bestIdx = 0;
+                    for (let i = 0; i < trackPoints.length; i++) {
+                        const p = trackPoints[i];
+                        if (!p) continue;
+                        const d = (p.x - sector.x) ** 2 + (p.y - sector.y) ** 2;
+                        if (d < minDist) { minDist = d; bestIdx = i; }
+                    }
+
+                    const p1 = trackPoints[Math.max(0, bestIdx - 8)];
+                    const p2 = trackPoints[Math.min(trackPoints.length - 1, bestIdx + 8)];
+                    const lx = p2.x - p1.x;
+                    const ly = p2.y - p1.y;
+                    const len = Math.sqrt(lx * lx + ly * ly) || 1;
+                    dx = lx / len;
+                    dy = ly / len;
+                }
+
+                return drawBoundary(sector.x, sector.y, sector.z, dx, dy, -dy, dx, sector.lateral, sector.width, `S${sector.id + 1}`, `sector-${sector.id}`);
+            })}
+
+            {/* Finish Line */}
+            {trackPoints.length > 5 && (() => {
+                const p1 = trackPoints[0];
+                const p2 = trackPoints[5];
+                const lx = p2.x - p1.x;
+                const ly = p2.y - p1.y;
+                const len = Math.sqrt(lx * lx + ly * ly) || 1;
+                const dx = lx / len, dy = ly / len;
+                // Finish line: White Line, Yellow Text (S1)
+                return drawBoundary(p1.x, p1.y, p1.z, dx, dy, -dy, dx, p1.lat, p1.width, "S1", "finish-line", "#ffffff", "#ffff00");
+            })()}
+        </group>
+    );
+};
+
+export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleExpand?: () => void, isAnimating?: boolean }) => {
     const track3DData = useTelemetryStore(state => state.track3DData);
     const referenceTrack3DData = useTelemetryStore(state => state.referenceTrack3DData);
     const staticTrackBaseData = useTelemetryStore(state => state.staticTrackBaseData);
@@ -642,10 +772,10 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                 });
             }
         };
-        
+
         const observer = new ResizeObserver(measure);
         observer.observe(containerRef.current);
-        
+
         // Immediate measure
         measure();
 
@@ -672,7 +802,7 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                 });
             }
         }, 600); // After transition finishes
-        
+
         return () => {
             clearTimeout(timer1);
             clearTimeout(timer2);
@@ -1024,17 +1154,18 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
     return (
         <div
             ref={containerRef}
-            className="h-full flex flex-col min-h-[inherit] relative group transition-all duration-300 glass-container-flat glass-expand-pixel rounded-2xl"
+            className={`h-full flex flex-col min-h-[inherit] relative group/map transition-all duration-300 glass-container-flat hover:scale-100 overflow-hidden ${isMapMaximized ? 'rounded-none glass-no-blur' : 'rounded-2xl'}`}
             onMouseMove={handleGlassMouseMove}
+            style={{ '--glass-hover-scale': '1', '--glass-content-scale': '1' } as any}
         >
             {/* Fills the 5px expansion gap when hovered out with the 3D map's identical dark carbon background */}
-            <div className="glass-sync-bg bg-[#181a1d] rounded-2xl z-0" />
+            <div className={`glass-sync-bg bg-[#181a1d] ${isMapMaximized ? 'rounded-none' : 'rounded-[2rem]'} z-0`} />
 
             <div className="glass-content flex-1 flex flex-col relative z-10 w-full h-full">
 
                 {/* Title & Z-Scale Overlay */}
                 <div className={`absolute top-5 left-5 z-[200] flex pointer-events-auto transition-all duration-300 ${isMapMaximized ? 'flex-row items-center gap-6' : 'flex-col items-start gap-1'}`}>
-                    <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] drop-shadow-md transition-all duration-300 group-hover:text-white group-hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">
+                    <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] drop-shadow-md transition-all duration-300 group-hover/map:text-white group-hover/map:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">
                         3D Track Map
                     </h3>
 
@@ -1060,48 +1191,53 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                 </div>
 
                 {/* HUD: Top Center Telemetry (Refined Alignment) */}
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto flex flex-col items-center gap-3">
-                    <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center shadow-2xl glass-container overflow-hidden"
-                        onMouseMove={handleGlassMouseMove}>
-                        <div className="glass-content px-6 py-2.5 flex items-center gap-5">
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Alt</span>
-                                <span className="text-[18px] font-black text-white tabular-nums tracking-tighter leading-none">
-                                    {carStats.alt !== null ? carStats.alt.toFixed(1) : "--"}
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">m</span>
-                            </div>
-                            <div className="w-px h-5 bg-white/20" />
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Dist</span>
-                                <span className="text-[18px] font-black text-blue-400 tabular-nums tracking-tighter leading-none">
-                                    {carStats.dist !== null ? (carStats.dist / 1000).toFixed(2) : "--.--"}
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">km</span>
+                {!isAnimating && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto flex flex-col items-center gap-3">
+                        <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center shadow-2xl glass-container overflow-hidden"
+                            onMouseMove={handleGlassMouseMove}>
+                            <div className="glass-content px-6 py-2.5 flex items-center gap-5">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Alt</span>
+                                    <span className="text-[18px] font-black text-white tabular-nums tracking-tighter leading-none">
+                                        {carStats.alt !== null ? carStats.alt.toFixed(1) : "--"}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">m</span>
+                                </div>
+                                <div className="w-px h-5 bg-white/20" />
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Dist</span>
+                                    <span className="text-[18px] font-black text-blue-400 tabular-nums tracking-tighter leading-none">
+                                        {carStats.dist !== null ? (carStats.dist / 1000).toFixed(2) : "--.--"}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">km</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Maximized Dimension Toggle */}
-                    {isMapMaximized && (
-                        <MaximizedDimensionToggle />
-                    )}
-                </div>
+                        {/* Maximized Dimension Toggle */}
+                        {isMapMaximized && (
+                            <MaximizedDimensionToggle />
+                        )}
+                    </div>
+                )}
 
                 {/* HUD: Minimap (Top Right) - Fixed 5:3 Smaller */}
-                <div className={`absolute top-4 right-4 z-[100] w-[14rem] aspect-[5/3] transition-all duration-500 transform ${showMiniMap ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-4 scale-95 pointer-events-none'}`}>
-                    <div className="w-full h-full glass-container rounded-3xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.6)] relative transition-all duration-300 pointer-events-auto"
-                        onMouseMove={handleGlassMouseMove}>
-                        <div className="glass-content w-full h-full">
-                            <TrackMap key="minimap-overlay" isMiniMap={true} />
+                {!isAnimating && (
+                    <div className={`absolute ${isMapMaximized ? 'top-6 right-8' : 'top-4 right-4'} z-[100] w-[14rem] aspect-[5/3] transition-all duration-500 transform ${showMiniMap ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-4 scale-95 pointer-events-none'}`}>
+                        <div className="w-full h-full glass-container rounded-xl overflow-hidden relative transition-all duration-300 pointer-events-auto"
+                            onMouseMove={handleGlassMouseMove}
+                            style={{ '--glass-hover-scale': '1', '--glass-content-scale': '1' } as any}>
+                            <div className="glass-content w-full h-full">
+                                <TrackMap key="minimap-overlay" isMiniMap={true} />
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 {/* HUD OVERLAYS - MOVED TO END OF DOM */}
 
                 {/* Reset HUD Button - Top Left */}
-                <div className={`absolute top-4 left-4 z-[3000] transition-all duration-300 ease-out transform ${editHudMode ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
+                <div className={`absolute top-4 left-4 z-[3000] transition-all duration-300 ease-out transform ${editHudMode && !isAnimating ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
                     <button
                         onClick={resetHudConfigs}
                         className="flex items-center justify-center gap-2 w-40 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all animate-in fade-in slide-in-from-left-4 duration-300 pointer-events-auto"
@@ -1112,229 +1248,231 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                 </div>
 
                 {/* Floating Playback Controls (UNIFIED WITH 2D) */}
-                <div 
-                    className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1100] w-full pointer-events-none"
-                >
-                    {(() => {
-                        const baseWidth = dimensions.width || (containerRef.current?.clientWidth) || (window.innerWidth - 360);
-                        const maxPadding = Math.min(380, baseWidth * 0.28);
-                        const leftPadding = isMapMaximized 
-                            ? ((hudVisibility.analysisLaps || maximizedSidebarMode === 'data_sources') ? maxPadding : 20)
-                            : 20;
-                        const rightPadding = (isMapMaximized && hudVisibility.dataCharts) ? maxPadding : 20;
-                        const barWidth = Math.min(896, Math.max(320, baseWidth - (leftPadding + rightPadding)));
-                        
-                        return (
-                            <motion.div
-                                className="mx-auto px-4 w-fit pointer-events-auto"
-                                onMouseEnter={() => setIsBarHovered(true)}
-                                onMouseLeave={() => setIsBarHovered(false)}
-                                initial="hidden"
-                                animate={isBarHovered ? "hovered" : "visible"}
-                                variants={{
-                                    hidden: { scale: 0.7, opacity: 0 },
-                                    visible: { 
-                                        scale: 0.7, 
-                                        opacity: 0.3,
-                                        transition: { staggerChildren: 0.05, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }
-                                    },
-                                    hovered: { 
-                                        scale: 1, 
-                                        opacity: 1,
-                                        transition: { duration: 0.65, ease: [0.34, 1.56, 0.64, 1] }
-                                    }
-                                }}
-                                style={{ originY: "bottom", willChange: "transform, opacity" }}
-                            >
-                                <motion.div
-                                    layout
-                                    className="bg-black/60 px-6 py-2.5 rounded-full border border-white/10 backdrop-blur-2xl shadow-[0_30px_60px_rgba(0,0,0,0.6)] glass-container pointer-events-auto mx-auto"
-                                    animate={{ width: barWidth }}
-                                    transition={{ 
-                                        type: "spring",
-                                        stiffness: 300,
-                                        damping: 30
-                                    }}
-                                    onMouseMove={handleGlassMouseMove}
-                                >
-                                    <div className="glass-content flex items-center w-full gap-4 h-10">
-                                        {/* Left: Playback Controls */}
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <Tooltip text={isPlaying ? "PAUSE" : "PLAY"} position="top">
-                                                <button
-                                                    onClick={togglePlayback}
-                                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 ${isPlaying ? 'bg-blue-600/20 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : 'bg-white/5 hover:bg-white/10 text-white'}`}
-                                                >
-                                                    {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} className="ml-0.5" fill="currentColor" />}
-                                                </button>
-                                            </Tooltip>
+                {!isAnimating && (
+                    <div
+                        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1100] w-full pointer-events-none"
+                    >
+                        {(() => {
+                            const baseWidth = dimensions.width || (containerRef.current?.clientWidth) || (window.innerWidth - 360);
+                            const maxPadding = Math.min(380, baseWidth * 0.28);
+                            const leftPadding = isMapMaximized
+                                ? ((hudVisibility.analysisLaps || maximizedSidebarMode === 'data_sources') ? maxPadding : 20)
+                                : 20;
+                            const rightPadding = (isMapMaximized && hudVisibility.dataCharts) ? maxPadding : 20;
+                            const barWidth = Math.min(896, Math.max(320, baseWidth - (leftPadding + rightPadding)));
 
-                                            <div className="relative" ref={speedMenuRef}>
-                                                <Tooltip text="SPEED" position="top">
+                            return (
+                                <motion.div
+                                    className={`mx-auto px-4 w-fit pointer-events-auto ${isMapMaximized && maximizedSidebarMode === 'data_sources' ? 'opacity-50 pointer-events-none' : ''}`}
+                                    onMouseEnter={() => setIsBarHovered(true)}
+                                    onMouseLeave={() => setIsBarHovered(false)}
+                                    initial="hidden"
+                                    animate={isBarHovered ? "hovered" : "visible"}
+                                    variants={{
+                                        hidden: { scale: 0.7, opacity: 0 },
+                                        visible: {
+                                            scale: 0.7,
+                                            opacity: 0.3,
+                                            transition: { staggerChildren: 0.05, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }
+                                        },
+                                        hovered: {
+                                            scale: 1,
+                                            opacity: 1,
+                                            transition: { duration: 0.65, ease: [0.34, 1.56, 0.64, 1] }
+                                        }
+                                    }}
+                                    style={{ originY: "bottom", willChange: "transform, opacity" }}
+                                >
+                                    <motion.div
+                                        layout
+                                        className="bg-black/60 px-6 py-2.5 rounded-full border border-white/10 backdrop-blur-2xl glass-container pointer-events-auto mx-auto"
+                                        animate={{ width: barWidth }}
+                                        transition={{
+                                            type: "spring",
+                                            stiffness: 300,
+                                            damping: 30
+                                        }}
+                                        onMouseMove={handleGlassMouseMove}
+                                    >
+                                        <div className="glass-content flex items-center w-full gap-4 h-10">
+                                            {/* Left: Playback Controls */}
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <Tooltip text={isPlaying ? "PAUSE" : "PLAY"} position="top">
                                                     <button
-                                                        onClick={() => setIsSpeedOpen(!isSpeedOpen)}
-                                                        className={`h-7 px-3 min-w-[56px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-all flex items-center justify-center group/speed ${isSpeedOpen ? 'text-blue-400 bg-white/10 border-white/20' : 'text-slate-500 hover:text-white'}`}
+                                                        onClick={togglePlayback}
+                                                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 ${isPlaying ? 'bg-blue-600/20 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.2)]' : 'bg-white/5 hover:bg-white/10 text-white'}`}
                                                     >
-                                                        <span className={`text-[10px] font-black select-none ${playbackSpeed !== 1 ? 'text-blue-400' : ''}`}>{playbackSpeed}x</span>
+                                                        {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} className="ml-0.5" fill="currentColor" />}
                                                     </button>
                                                 </Tooltip>
 
-                                                <div
-                                                    className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-16 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom ${isSpeedOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'}`}
-                                                >
-                                                    <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
-                                                        onMouseMove={handleGlassMouseMove}>
-                                                        <div className="glass-content w-full h-full flex flex-col">
-                                                            {[4, 2, 1, 0.5].map(s => (
-                                                                <button
-                                                                    key={s}
-                                                                    onClick={() => { setPlaybackSpeed(s); setIsSpeedOpen(false); }}
-                                                                    className={`px-2 py-1.5 text-[10px] font-bold transition-all text-center rounded-lg select-none ${playbackSpeed === s ? 'bg-blue-600/30 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/10 border border-transparent'} hover:scale-110 active:scale-90 z-10`}
-                                                                >
-                                                                    {s}x
-                                                                </button>
-                                                            ))}
+                                                <div className="relative" ref={speedMenuRef}>
+                                                    <Tooltip text="SPEED" position="top">
+                                                        <button
+                                                            onClick={() => setIsSpeedOpen(!isSpeedOpen)}
+                                                            className={`h-7 px-3 min-w-[56px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-all flex items-center justify-center group/speed ${isSpeedOpen ? 'text-blue-400 bg-white/10 border-white/20' : 'text-slate-500 hover:text-white'}`}
+                                                        >
+                                                            <span className={`text-[10px] font-black select-none ${playbackSpeed !== 1 ? 'text-blue-400' : ''}`}>{playbackSpeed}x</span>
+                                                        </button>
+                                                    </Tooltip>
+
+                                                    <div
+                                                        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-16 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-bottom ${isSpeedOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'}`}
+                                                    >
+                                                        <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10"
+                                                            onMouseMove={handleGlassMouseMove}>
+                                                            <div className="glass-content w-full h-full flex flex-col">
+                                                                {[4, 2, 1, 0.5].map(s => (
+                                                                    <button
+                                                                        key={s}
+                                                                        onClick={() => { setPlaybackSpeed(s); setIsSpeedOpen(false); }}
+                                                                        className={`px-2 py-1.5 text-[10px] font-bold transition-all text-center rounded-lg select-none ${playbackSpeed === s ? 'bg-blue-600/30 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/10 border border-transparent'} hover:scale-110 active:scale-90 z-10`}
+                                                                    >
+                                                                        {s}x
+                                                                    </button>
+                                                                ))}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        {/* Center: Timestamp & Progress (Scales first) */}
-                                        <div className="flex-1 flex items-center gap-2.5 min-w-[60px]">
-                                            {barWidth > 500 && (
-                                                <span className="text-[12px] font-mono text-blue-400 font-bold tracking-tighter drop-shadow-[0_0_8px_rgba(59,130,246,0.3)] select-none">
-                                                    {playbackProgress.currentTime}
-                                                </span>
-                                            )}
-                                            <div className="relative flex-1 h-6 flex items-center group/timeline">
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="1"
-                                                    step="0.0001"
-                                                    value={playbackProgress.progress}
-                                                    onChange={(e) => setPlaybackProgress(parseFloat(e.target.value))}
-                                                    className="w-full h-1 bg-white/5 rounded-full appearance-none cursor-pointer scale-y-75 group-hover/timeline:scale-y-125 transition-all outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0"
-                                                    style={{
-                                                        background: `linear-gradient(to right, #3b82f6 ${playbackProgress.progress * 100}%, rgba(255,255,255,0.02) ${playbackProgress.progress * 100}%)`
-                                                    }}
-                                                />
+                                            {/* Center: Timestamp & Progress (Scales first) */}
+                                            <div className="flex-1 flex items-center gap-2.5 min-w-[60px]">
+                                                {barWidth > 500 && (
+                                                    <span className="text-[12px] font-mono text-blue-400 font-bold tracking-tighter drop-shadow-[0_0_8px_rgba(59,130,246,0.3)] select-none">
+                                                        {playbackProgress.currentTime}
+                                                    </span>
+                                                )}
+                                                <div className="relative flex-1 h-6 flex items-center group/timeline">
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="1"
+                                                        step="0.0001"
+                                                        value={playbackProgress.progress}
+                                                        onChange={(e) => setPlaybackProgress(parseFloat(e.target.value))}
+                                                        className="w-full h-1 bg-white/5 rounded-full appearance-none cursor-pointer scale-y-75 group-hover/timeline:scale-y-125 transition-all outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0"
+                                                        style={{
+                                                            background: `linear-gradient(to right, #3b82f6 ${playbackProgress.progress * 100}%, rgba(255,255,255,0.02) ${playbackProgress.progress * 100}%)`
+                                                        }}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        {/* Right: Feature Group with Divider (Responsive) */}
-                                        <div className="flex items-center gap-3 pl-4 border-l border-white/10 shrink-0 pr-2">
-                                            {/* Feature buttons Group - Ported from 2D logic: All hide if space < 600px */}
-                                            {barWidth > 600 && (
-                                                <>
-                                                    {/* 1. MiniMap */}
-                                                    <Tooltip text="MINIMAP" position="top">
-                                                        <button
-                                                            onClick={() => setShowMiniMap(!showMiniMap)}
-                                                            className={`p-2 rounded-lg transition-all ${showMiniMap ? 'text-blue-400 bg-blue-500/10 border border-blue-500/20' : 'text-slate-500 hover:text-white hover:bg-white/5 border border-transparent'}`}
-                                                        >
-                                                            <MapIcon size={16} />
-                                                        </button>
-                                                    </Tooltip>
-
-                                                    {/* 2. HUD Setup */}
-                                                    <div className="relative" ref={hudMenuRef}>
-                                                        <Tooltip text={isMapMaximized ? "HUD SETUP" : "OVERLAP"} position="top">
+                                            {/* Right: Feature Group with Divider (Responsive) */}
+                                            <div className="flex items-center gap-3 pl-4 border-l border-white/10 shrink-0 pr-2">
+                                                {/* Feature buttons Group - Ported from 2D logic: All hide if space < 600px */}
+                                                {barWidth > 600 && (
+                                                    <>
+                                                        {/* 1. MiniMap */}
+                                                        <Tooltip text="MINIMAP" position="top">
                                                             <button
-                                                                onClick={() => {
-                                                                    if (isMapMaximized) setShowHudMenu(!showHudMenu);
-                                                                    else setShowTelemetryOverlay(!showTelemetryOverlay);
-                                                                }}
-                                                                className={`transition-all rounded-lg glass-container hover:scale-110 active:scale-95 border border-transparent ${showHudMenu ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.1)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                                                                onClick={() => setShowMiniMap(!showMiniMap)}
+                                                                className={`p-2 rounded-lg transition-all ${showMiniMap ? 'text-blue-400 bg-blue-500/10 border border-blue-500/20' : 'text-slate-500 hover:text-white hover:bg-white/5 border border-transparent'}`}
                                                             >
+                                                                <MapIcon size={16} />
+                                                            </button>
+                                                        </Tooltip>
+
+                                                        {/* 2. HUD Setup */}
+                                                        <div className="relative" ref={hudMenuRef}>
+                                                            <Tooltip text={isMapMaximized ? "HUD SETUP" : "OVERLAP"} position="top">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (isMapMaximized) setShowHudMenu(!showHudMenu);
+                                                                        else setShowTelemetryOverlay(!showTelemetryOverlay);
+                                                                    }}
+                                                                    className={`transition-all rounded-lg glass-container hover:scale-110 active:scale-95 border border-transparent ${showHudMenu ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.1)]' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                                                                >
                                                                     <div className="glass-content px-2.5 py-1.5 flex items-center justify-center gap-1.5">
                                                                         <Activity size={16} />
                                                                         {isMapMaximized && <ChevronDown size={12} className={`transition-transform duration-300 ${showHudMenu ? 'rotate-180' : ''}`} />}
                                                                     </div>
+                                                                </button>
+                                                            </Tooltip>
+
+                                                            <AnimatePresence>
+                                                                {isMapMaximized && showHudMenu && (
+                                                                    <motion.div
+                                                                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                                                        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-40 z-[1100]"
+                                                                    >
+                                                                        <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10"
+                                                                            onMouseMove={handleGlassMouseMove}>
+                                                                            <div className="glass-content w-full h-full flex flex-col gap-0.5">
+                                                                                <button
+                                                                                    onClick={() => setHudVisibility('overlap', !hudVisibility.overlap)}
+                                                                                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border ${hudVisibility.overlap ? 'bg-blue-600/30 text-blue-400 border-blue-500/30' : 'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'}`}
+                                                                                >
+                                                                                    <span className="text-[11px] font-bold">Telemetry Overlap</span>
+                                                                                </button>
+                                                                                <div className="mx-2 my-1 border-t border-white/10" />
+                                                                                {['trackInfo', 'vehicleInfo', 'analysisLaps', 'dataCharts'].map((id) => (
+                                                                                    <button
+                                                                                        key={id}
+                                                                                        onClick={() => setHudVisibility(id as any, !hudVisibility[id as keyof typeof hudVisibility])}
+                                                                                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border ${hudVisibility[id as keyof typeof hudVisibility] ? 'bg-blue-600/30 text-blue-400 border-blue-500/30' : 'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'}`}
+                                                                                    >
+                                                                                        <span className="text-[11px] font-bold capitalize">{id.replace(/([A-Z])/g, ' $1')}</span>
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </motion.div>
+                                                                )}
+                                                            </AnimatePresence>
+                                                        </div>
+
+                                                        {/* 3. Reset View */}
+                                                        <Tooltip text="RESET VIEW" position="top">
+                                                            <button
+                                                                onClick={resetView}
+                                                                className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 border border-transparent transition-all"
+                                                            >
+                                                                <RotateCcw size={18} />
                                                             </button>
                                                         </Tooltip>
 
-                                                        <AnimatePresence>
-                                                            {isMapMaximized && showHudMenu && (
-                                                                <motion.div
-                                                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                                                                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-40 z-[1100]"
-                                                                >
-                                                                    <div className="flex flex-col gap-1 p-1 bg-[#1a1a1e]/90 glass-container rounded-xl border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
-                                                                        onMouseMove={handleGlassMouseMove}>
-                                                                        <div className="glass-content w-full h-full flex flex-col gap-0.5">
-                                                                            <button
-                                                                                onClick={() => setHudVisibility('overlap', !hudVisibility.overlap)}
-                                                                                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border ${hudVisibility.overlap ? 'bg-blue-600/30 text-blue-400 border-blue-500/30' : 'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'}`}
-                                                                            >
-                                                                                <span className="text-[11px] font-bold">Telemetry Overlap</span>
-                                                                            </button>
-                                                                            <div className="mx-2 my-1 border-t border-white/10" />
-                                                                            {['trackInfo', 'vehicleInfo', 'analysisLaps', 'dataCharts'].map((id) => (
-                                                                                <button
-                                                                                    key={id}
-                                                                                    onClick={() => setHudVisibility(id as any, !hudVisibility[id as keyof typeof hudVisibility])}
-                                                                                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all border ${hudVisibility[id as keyof typeof hudVisibility] ? 'bg-blue-600/30 text-blue-400 border-blue-500/30' : 'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'}`}
-                                                                                >
-                                                                                    <span className="text-[11px] font-bold capitalize">{id.replace(/([A-Z])/g, ' $1')}</span>
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                </motion.div>
-                                                            )}
-                                                        </AnimatePresence>
-                                                    </div>
+                                                        {/* 4. View Mode Switcher */}
+                                                        <div className="flex items-center bg-white/5 p-1 rounded-xl border border-white/10">
+                                                            {[
+                                                                { mode: 'free', icon: <ViewfinderIcon size={14} />, label: 'FREE VIEW' },
+                                                                { mode: 'follow', icon: <FollowIcon size={14} />, label: 'FOLLOW' },
+                                                                { mode: 'headingUp', icon: <Navigation size={14} />, label: 'HEADING UP' }
+                                                            ].map((cfg) => (
+                                                                <Tooltip key={cfg.mode} text={cfg.label} position="top">
+                                                                    <button
+                                                                        onClick={() => { if (viewMode === cfg.mode) resetView(); else setViewMode(cfg.mode as any); }}
+                                                                        className={`p-1.5 px-2.5 rounded-lg transition-all ${viewMode === cfg.mode ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                                                                    >
+                                                                        {cfg.icon}
+                                                                    </button>
+                                                                </Tooltip>
+                                                            ))}
+                                                        </div>
+                                                    </>
+                                                )}
 
-                                                    {/* 3. Reset View */}
-                                                    <Tooltip text="RESET VIEW" position="top">
-                                                        <button
-                                                            onClick={resetView}
-                                                            className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 border border-transparent transition-all"
-                                                        >
-                                                            <RotateCcw size={18} />
-                                                        </button>
-                                                    </Tooltip>
-
-                                                    {/* 4. View Mode Switcher */}
-                                                    <div className="flex items-center bg-white/5 p-1 rounded-xl border border-white/10">
-                                                        {[
-                                                            { mode: 'free', icon: <ViewfinderIcon size={14} />, label: 'FREE VIEW' },
-                                                            { mode: 'follow', icon: <FollowIcon size={14} />, label: 'FOLLOW' },
-                                                            { mode: 'headingUp', icon: <Navigation size={14} />, label: 'HEADING UP' }
-                                                        ].map((cfg) => (
-                                                            <Tooltip key={cfg.mode} text={cfg.label} position="top">
-                                                                <button
-                                                                    onClick={() => { if (viewMode === cfg.mode) resetView(); else setViewMode(cfg.mode as any); }}
-                                                                    className={`p-1.5 px-2.5 rounded-lg transition-all ${viewMode === cfg.mode ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
-                                                                >
-                                                                    {cfg.icon}
-                                                                </button>
-                                                            </Tooltip>
-                                                        ))}
-                                                    </div>
-                                                </>
-                                            )}
-
-                                            {/* 5. Maximize/Restore - ALWAYS VISIBLE */}
-                                            <Tooltip text={isMapMaximized ? "RESTORE" : "MAXIMIZE"} position="top">
-                                                <button
-                                                    onClick={() => setIsMapMaximized(!isMapMaximized)}
-                                                    className={`p-2 rounded-full transition-all border border-transparent ${isMapMaximized ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
-                                                >
-                                                    {isMapMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                                                </button>
-                                            </Tooltip>
+                                                {/* 5. Maximize/Restore - ALWAYS VISIBLE */}
+                                                <Tooltip text={isMapMaximized ? "RESTORE" : "MAXIMIZE"} position="top">
+                                                    <button
+                                                        onClick={() => setIsMapMaximized(!isMapMaximized)}
+                                                        className={`p-2 rounded-full transition-all border border-transparent ${isMapMaximized ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                                                    >
+                                                        {isMapMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                                                    </button>
+                                                </Tooltip>
+                                            </div>
                                         </div>
-                                    </div>
+                                    </motion.div>
                                 </motion.div>
-                            </motion.div>
-                        );
-                    })()}
-                </div>
+                            );
+                        })()}
+                    </div>
+                )}
 
                 <Canvas camera={{ position: [0, -4000, 2500], up: [0, 0, 1], fov: 40, near: 1, far: 200000 }}>
                     <color attach="background" args={['#181a1d']} />
@@ -1367,6 +1505,13 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                                             setIsHovering(true);
                                         }}
                                         onHoverOut={() => setIsHovering(false)}
+                                    />
+                                )}
+                                {track3DData?.trackSectors && (
+                                    <SectorBoundaries
+                                        trackSectors={track3DData.trackSectors}
+                                        zScale={zScale}
+                                        trackPoints={staticTrackBaseData?.baseMap || track3DData?.baseMap || []}
                                     />
                                 )}
                                 {fusedRacingLinePoints && (
@@ -1423,34 +1568,40 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                 </Canvas>
 
                 {/* 1. Telemetry Overlap HUD */}
-                <div
-                    className={`absolute inset-0 pointer-events-none transition-all duration-500 transform z-[150] ${(isMapMaximized ? hudVisibility.overlap : showTelemetryOverlay)
-                        ? 'opacity-100 scale-100 translate-y-0'
-                        : 'opacity-0 scale-95 -translate-y-4 pointer-events-none'
-                        }`}
-                >
-                    <CompactTelemetryOverlay
-                        data={telemetryData}
-                        cursorIndex={smoothCursorIndex}
-                        theme="current"
-                        carModel={sessionMetadata?.modelName}
-                        isMiniMap={false}
-                    />
-
-                    {(referenceTelemetryData || referenceLapIdx !== null) && (
+                {!isAnimating && (
+                    <div
+                        className={`absolute inset-0 pointer-events-none transition-all duration-500 transform z-[150] ${(isMapMaximized ? hudVisibility.overlap : showTelemetryOverlay)
+                            ? 'opacity-100 scale-100 translate-y-0'
+                            : 'opacity-0 scale-95 -translate-y-4 pointer-events-none'
+                            }`}
+                    >
                         <CompactTelemetryOverlay
-                            data={referenceTelemetryData || telemetryData}
-                            cursorIndex={dashboardSyncMode === 'distance' ? referenceDeltaIndex : referenceCursorIndex}
-                            theme="reference"
-                            carModel={referenceSessionMetadata?.modelName || sessionMetadata?.modelName}
+                            data={telemetryData}
+                            cursorIndex={smoothCursorIndex}
+                            theme="current"
+                            carModel={sessionMetadata?.modelName}
                             isMiniMap={false}
                         />
-                    )}
-                </div>
+
+                        {(referenceTelemetryData || referenceLapIdx !== null) && (
+                            <CompactTelemetryOverlay
+                                data={referenceTelemetryData || telemetryData}
+                                cursorIndex={dashboardSyncMode === 'distance' ? referenceDeltaIndex : referenceCursorIndex}
+                                theme="reference"
+                                carModel={referenceSessionMetadata?.modelName || sessionMetadata?.modelName}
+                                isMiniMap={false}
+                            />
+                        )}
+                    </div>
+                )}
 
                 {/* 2. Smart Sidebar */}
-                {isMapMaximized && (
-                    <div className={`absolute top-12 left-4 z-[200] w-[320px] flex flex-col gap-0 ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}`}>
+                {isMapMaximized && !isAnimating && (
+                    <div 
+                        className={`absolute top-12 left-4 z-[200] w-[320px] flex flex-col gap-0 isolate ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}`}
+                        onMouseMove={(e) => e.stopPropagation()}
+                        onMouseEnter={(e) => e.stopPropagation()}
+                    >
                         <AnimatePresence mode="popLayout">
                             {maximizedSidebarMode === 'data_sources' ? (
                                 <motion.div
@@ -1461,9 +1612,12 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
                                     transition={{ type: 'spring', stiffness: 120, damping: 20 }}
                                     className="pointer-events-auto flex flex-col gap-2 h-full w-full"
                                 >
-                                    <div 
-                                        className="relative w-full h-full group bg-[#0a0a0c] overflow-hidden glass-container-static" 
-                                        ref={containerRef}
+                                    <div
+                                        className="relative w-full flex-1 flex flex-col bg-[#0a0a0c] overflow-hidden glass-container-static rounded-2xl"
+                                        onMouseMove={(e) => {
+                                            e.stopPropagation();
+                                            handleGlassMouseMove(e);
+                                        }}
                                         onMouseEnter={() => setIsBarHovered(true)}
                                         onMouseLeave={() => setIsBarHovered(false)}
                                     >
@@ -1551,36 +1705,36 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
 
                 {/* 4. Distance/Time Sync Toggle (Dynamic Positioning) */}
                 <AnimatePresence>
-                    {isMapMaximized && (
+                    {isMapMaximized && !isAnimating && (
                         <motion.div
                             initial={{ opacity: 0, x: 20 }}
                             animate={{
                                 opacity: 1,
                                 x: 0,
-                                top: showMiniMap ? 166 : 16
+                                top: showMiniMap ? 166 : 16 // Synchronized with 2D
                             }}
                             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                             className="absolute right-[20px] z-[2001] pointer-events-auto"
                         >
                             <div className="glass-container rounded-xl shadow-xl overflow-hidden pointer-events-auto" onMouseMove={handleGlassMouseMove}>
-                                    <div className="glass-content relative flex items-center p-1 w-44 h-8 bg-black/20">
-                                        <div
-                                            className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
-                                            style={{ left: (isSingleLap ? singleLapXAxisMode === 'distance' : dashboardSyncMode === 'distance') ? '4px' : 'calc(50%)' }}
-                                        />
-                                        <button
-                                            onClick={() => isSingleLap ? setSingleLapXAxisMode('distance') : setDashboardSyncMode('distance')}
-                                            className={`relative z-10 flex-1 h-full flex items-center justify-center text-[8px] font-black uppercase tracking-widest transition-colors duration-300 ${(isSingleLap ? singleLapXAxisMode === 'distance' : dashboardSyncMode === 'distance') ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                                        >
-                                            {isSingleLap ? 'Distance' : 'Dist Sync'}
-                                        </button>
-                                        <button
-                                            onClick={() => isSingleLap ? setSingleLapXAxisMode('time') : setDashboardSyncMode('time')}
-                                            className={`relative z-10 flex-1 h-full flex items-center justify-center text-[8px] font-black uppercase tracking-widest transition-colors duration-300 ${(isSingleLap ? singleLapXAxisMode === 'time' : dashboardSyncMode === 'time') ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                                        >
-                                            {isSingleLap ? 'Time' : 'Time Sync'}
-                                        </button>
-                                    </div>
+                                <div className="glass-content relative flex items-center p-1 w-44 h-8 bg-black/20">
+                                    <div
+                                        className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
+                                        style={{ left: (isSingleLap ? singleLapXAxisMode === 'distance' : dashboardSyncMode === 'distance') ? '4px' : 'calc(50%)' }}
+                                    />
+                                    <button
+                                        onClick={() => isSingleLap ? setSingleLapXAxisMode('distance') : setDashboardSyncMode('distance')}
+                                        className={`relative z-10 flex-1 h-full flex items-center justify-center text-[8px] font-black uppercase tracking-widest transition-colors duration-300 ${(isSingleLap ? singleLapXAxisMode === 'distance' : dashboardSyncMode === 'distance') ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        {isSingleLap ? 'Distance' : 'Dist Sync'}
+                                    </button>
+                                    <button
+                                        onClick={() => isSingleLap ? setSingleLapXAxisMode('time') : setDashboardSyncMode('time')}
+                                        className={`relative z-10 flex-1 h-full flex items-center justify-center text-[8px] font-black uppercase tracking-widest transition-colors duration-300 ${(isSingleLap ? singleLapXAxisMode === 'time' : dashboardSyncMode === 'time') ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        {isSingleLap ? 'Time' : 'Time Sync'}
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
                     )}
@@ -1588,14 +1742,14 @@ export const TrackMap3D = ({ onToggleExpand }: { onToggleExpand?: () => void }) 
 
                 {/* 5. Data Charts (Right Sidebar) */}
                 <AnimatePresence>
-                    {isMapMaximized && hudVisibility.dataCharts && (
+                    {isMapMaximized && hudVisibility.dataCharts && !isAnimating && (
                         <motion.div
                             key="data-charts-sidebar-3d"
                             initial={{ opacity: 0, x: 40 }}
                             animate={{
                                 opacity: 1,
                                 x: 0,
-                                top: showMiniMap ? 214 : 64
+                                top: showMiniMap ? 198 : 48 // Perfectly aligned with bottom of toggle
                             }}
                             exit={{ opacity: 0, x: 40 }}
                             transition={{ type: 'spring', stiffness: 120, damping: 20 }}

@@ -13,19 +13,38 @@ interface CarInfoOverlayProps {
 }
 
 export const CarInfoOverlay = React.memo(({ sessionMetadata, referenceMetadata }: CarInfoOverlayProps) => {
+    const fetchSetup = useTelemetryStore(s => s.fetchSetup);
+    const setShowSetupView = useTelemetryStore(s => s.setShowSetupView);
+    const currentSessionId = useTelemetryStore(s => s.currentSessionId);
+
     const renderCarBlock = (meta: SessionMetadata, isRef: boolean) => {
         const accentColor = isRef ? 'text-amber-500' : 'text-blue-400';
         const dotColor = isRef ? 'bg-amber-500' : 'bg-blue-500';
         const shadowColor = isRef ? 'shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'shadow-[0_0_8px_rgba(59,130,246,0.5)]';
 
         return (
-            <div className={`flex flex-col gap-2.5 p-3 ${isRef ? 'bg-amber-500/5' : 'bg-blue-500/5'}`}>
+            <div className={`flex flex-col gap-2.5 p-3 relative ${isRef ? 'bg-amber-500/5' : 'bg-blue-500/5'}`}>
                 {/* Identification Row */}
-                <div className="flex items-center gap-2 mb-0.5">
-                    <div className={`w-1.5 h-1.5 rounded-full ${dotColor} ${shadowColor} animate-pulse`} />
-                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${accentColor}`}>
-                        {isRef ? 'Reference' : 'Current'}
-                    </span>
+                <div className="flex items-center justify-between mb-0.5">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${dotColor} ${shadowColor} animate-pulse`} />
+                        <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${accentColor}`}>
+                            {isRef ? 'Reference' : 'Current'}
+                        </span>
+                    </div>
+
+                    {!isRef && currentSessionId && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                fetchSetup(currentSessionId);
+                                setShowSetupView(true);
+                            }}
+                            className="px-2 py-1 rounded-lg text-[8px] font-black tracking-[0.15em] text-gray-500 hover:text-blue-400 hover:bg-white/5 transition-all border border-transparent hover:border-white/10 uppercase"
+                        >
+                            Car Setup
+                        </button>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-3">

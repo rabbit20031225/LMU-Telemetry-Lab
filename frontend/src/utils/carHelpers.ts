@@ -31,9 +31,9 @@ export const getBrandLogoPath = (modelName: string) => {
 
 export const getClassColor = (cls: string = '') => {
     const c = (cls || "").toUpperCase();
-    if (c.includes('HYPERCAR')) return 'border-blue-500/50 text-blue-400 bg-blue-500/10';
-    if (c.includes('LMGT3') || c.includes('GT3')) return 'border-orange-500/50 text-orange-400 bg-orange-500/10';
-    if (c.includes('LMP2')) return 'border-red-500/50 text-red-400 bg-red-500/10';
-    if (c.includes('LMP1')) return 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10';
+    if (c.includes('HYPER')) return 'border-amber-500/20 text-amber-400 bg-amber-500/10 shadow-[0_0_10px_rgba(251,191,36,0.1)]';
+    if (c.includes('LMP2')) return 'border-sky-500/20 text-sky-400 bg-sky-500/10 shadow-[0_0_10px_rgba(56,189,248,0.1)]';
+    if (c.includes('LMP3')) return 'border-indigo-500/20 text-indigo-400 bg-indigo-500/10 shadow-[0_0_10px_rgba(99,102,241,0.1)]';
+    if (c.includes('GT3') || c.includes('GTE')) return 'border-emerald-500/20 text-emerald-400 bg-emerald-500/10 shadow-[0_0_10px_rgba(52,211,153,0.1)]';
     return 'border-gray-500/50 text-gray-400 bg-gray-500/10';
 };

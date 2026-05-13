@@ -6,9 +6,10 @@ interface TooltipProps {
     children: React.ReactNode;
     position?: 'top' | 'bottom' | 'left' | 'right';
     delay?: number;
+    className?: string;
 }
 
-export const Tooltip = ({ text, children, position = 'top', delay = 300 }: TooltipProps) => {
+export const Tooltip = ({ text, children, position = 'top', delay = 300, className = "" }: TooltipProps) => {
     const [isVisible, setIsVisible] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0 });
     const triggerRef = useRef<HTMLDivElement>(null);
@@ -64,7 +65,7 @@ export const Tooltip = ({ text, children, position = 'top', delay = 300 }: Toolt
     return (
         <div 
             ref={triggerRef} 
-            className="inline-block"
+            className={`inline-block ${className}`}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             onClick={handleMouseLeave}

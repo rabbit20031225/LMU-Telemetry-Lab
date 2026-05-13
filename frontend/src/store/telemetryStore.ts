@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Session, Lap, TelemetryData, SessionMetadata, Profile, ChartConfig } from '../types';
+import type { Session, Lap, TelemetryData, SessionMetadata, Profile, ChartConfig, CarSetupData } from '../types';
 import { apiClient } from '../api/client';
 
 // Helper for finding fractional index in a mapped channel array (Time, Distance)
@@ -54,6 +54,7 @@ export interface TelemetryState {
             lon: number;
             lonScale: number;
         };
+        trackSectors?: any[];
         fastestLap?: number;
         selectedLapInfo?: any;
         zBase?: number;
@@ -66,11 +67,17 @@ export interface TelemetryState {
             lon: number;
             lonScale: number;
         };
+        trackSectors?: any[];
         fastestLap?: number;
         selectedLapInfo?: any;
         zBase?: number;
     } | null;
-    staticTrackBaseData: { baseMap: any[]; racingLine: any[]; center?: any } | null; // NEW: Static base map from fastest lap
+    staticTrackBaseData: {
+        baseMap: any[];
+        racingLine: any[];
+        center?: any;
+        trackSectors?: any[];
+    } | null; // NEW: Static base map from fastest lap
     isProcessingTrack: boolean; // NEW: Loading state for track calculation
     show3DLab: boolean;
     isLoading: boolean;
@@ -91,6 +98,18 @@ export interface TelemetryState {
     // Settings
     speedUnit: 'kmh' | 'mph';
     tempUnit: 'c' | 'f';
+    suspensionViewMode: 'split' | 'merged';
+    toggleSuspensionViewMode: () => void;
+    thirdDeflectionViewMode: 'split' | 'merged';
+    toggleThirdDeflectionViewMode: () => void;
+    handlingViewMode: 'split' | 'merged';
+    toggleHandlingViewMode: () => void;
+    tyresPressureViewMode: 'split' | 'merged';
+    toggleTyresPressureViewMode: () => void;
+    rideHeightViewMode: 'split' | 'merged';
+    toggleRideHeightViewMode: () => void;
+    slipRatioViewMode: 'split' | 'merged';
+    toggleSlipRatioViewMode: () => void;
     showSettings: boolean;
     chartConfigs: ChartConfig[];
     chartPresets: ChartPreset[];
@@ -136,8 +155,19 @@ export interface TelemetryState {
     showReferenceBrowser: boolean;
     maximizedSidebarMode: 'hud' | 'data_sources'; // NEW: For navigating within maximized sidebar
     showMiniMap: boolean; // NEW
+    isUserInteractingWithCharts: boolean; // NEW: Track if user is clicking/dragging charts
     isHudAnimating: boolean; // NEW: To suppress avoidance during transitions
+    isMapTransitioning: boolean; // NEW: Global state for map animations
+    isGlobalTransitioning: boolean; // NEW: Full-screen transition for major events
     singleLapXAxisMode: 'distance' | 'time'; // NEW: Independent X-axis mode for single lap
+    mapMarkerType: 'arrow' | 'dot'; // NEW: Phase 2 marker selection
+
+    // Car Setup
+    carSetupData: CarSetupData | null;
+    referenceCarSetupData: CarSetupData | null;
+    setupLoading: boolean;
+    showSetupView: boolean;
+    activeChartCategory: ChartCategory;
 
     // Actions
     setSpeedUnit: (unit: 'kmh' | 'mph') => void;
@@ -150,14 +180,19 @@ export interface TelemetryState {
     setLeftSidebarCollapsed: (collapsed: boolean) => void;
     setRightPanelCollapsed: (collapsed: boolean) => void;
     setSingleLapXAxisMode: (mode: 'distance' | 'time') => void; // NEW
-    updateChartHeight: (id: string, height: number) => void;
-    resetChartHeight: (id: string) => void;
+    setMapMarkerType: (type: 'arrow' | 'dot') => void; // NEW
+    fetchSetup: (sessionId: string) => Promise<void>;
+    fetchReferenceSetup: (sessionId: string) => Promise<void>;
+    clearReferenceSetup: () => void;
+    setShowSetupView: (show: boolean) => void;
+    updateChartHeight: (id: string, height: number, wheelIndex?: number) => void;
+    resetChartHeight: (id: string, wheelIndex?: number) => void;
     setChartConfigs: (configs: ChartConfig[]) => void;
-    updateChartConfig: (id: string, updates: Partial<ChartConfig>) => void;
+    updateChartConfig: (id: string, updates: Partial<ChartConfig>, wheelIndex?: number) => void;
     saveChartPreset: (name: string) => void;
     loadChartPreset: (id: string) => void;
     deleteChartPreset: (id: string) => void;
-    resetChartColors: () => void;
+    resetChartColors: (category?: string) => void;
     resetChartConfigs: () => void;
     setUserWheelRotation: (rotation: number | null) => void;
     setShowTelemetryOverlay: (show: boolean) => void; // NEW
@@ -166,6 +201,7 @@ export interface TelemetryState {
     setTelemetryHistorySeconds: (seconds: number) => void; // NEW
     setZScale: (scale: number) => void; // NEW
     setEditHudMode: (is: boolean) => void;
+    setIsUserInteractingWithCharts: (isInteracting: boolean) => void;
     updateOverlapConfig: (config: Partial<{ current: { x: number; y: number }; reference: { x: number; y: number }; scale: number }>) => void;
     updateHudRect: (id: string, rect: { left: number; right: number; top: number; bottom: number; active: boolean }, dims?: { width: number; height: number }) => void;
     validateHudLayout: () => void;
@@ -174,6 +210,9 @@ export interface TelemetryState {
     setIsMapMaximized: (is: boolean) => void;
     setMaximizedSidebarMode: (mode: 'hud' | 'data_sources') => void; // NEW
     setShowMiniMap: (show: boolean) => void; // NEW
+    setActiveChartCategory: (category: ChartCategory) => void;
+    setIsMapTransitioning: (is: boolean) => void;
+    setIsGlobalTransitioning: (is: boolean) => void;
 
     fetchSessions: () => Promise<void>;
     selectSession: (sessionId: string) => Promise<void>;
@@ -210,16 +249,17 @@ export interface TelemetryState {
     syncReferenceIndex: () => void;
     syncFromElapsed: (elapsed: number) => void; // NEW: Decoupled time synchronization
     setDashboardSyncMode: (mode: 'distance' | 'time') => void;
+    exportLap: (lapNumber: number) => Promise<void>;
 }
 
 const DEFAULT_CHARTS: ChartConfig[] = [
     { id: 'Time Delta', alias: 'Delta', color: '#bf00ff', visible: true, order: 0, height: 100, unit: 's' },
     { id: 'Ground Speed', alias: 'Speed', color: '#00aaff', visible: true, order: 1, height: 180, unit: 'km/h' },
-    { id: 'Throttle Pos', alias: 'Throttle', color: '#00ff00', visible: true, order: 2, height: 120, unit: '%' },
-    { id: 'Brake Pos', alias: 'Brake', color: '#ff0000', visible: true, order: 3, height: 150, unit: '%' },
+    { id: 'Throttle Pos', alias: 'Throttle', color: '#00ff00', visible: true, order: 2, height: 140, unit: '%' },
+    { id: 'Brake Pos', alias: 'Brake', color: '#ff0000', visible: true, order: 3, height: 140, unit: '%' },
     { id: 'Gear', alias: 'Gear', color: '#ffaa00', visible: true, order: 4, height: 100 },
-    { id: 'Steering Angle', alias: 'Steering', color: '#ff00ff', visible: true, order: 5, height: 150, unit: 'deg' },
-    { id: 'Engine RPM', alias: 'Engine RPM', color: '#ffff00', visible: true, order: 6, height: 150, unit: 'rpm' },
+    { id: 'Steering Angle', alias: 'Steering', color: '#ff00ff', visible: true, order: 5, height: 140, unit: 'deg' },
+    { id: 'Engine RPM', alias: 'Engine RPM', color: '#ffff00', visible: true, order: 6, height: 140, unit: 'rpm' },
 ];
 
 export interface ChartPreset {
@@ -228,6 +268,65 @@ export interface ChartPreset {
     isBuiltIn?: boolean;
     configs: ChartConfig[];
 }
+
+export type ChartCategory = 'Driver' | 'Tyres' | 'Dynamics' | 'Handling' | 'Systems';
+
+export const CATEGORY_CHART_CONFIGS: Record<ChartCategory, ChartConfig[]> = {
+    Driver: DEFAULT_CHARTS,
+    Tyres: [
+        { id: 'TireHeat', alias: 'FL Temp', color: '#3b82f6', visible: true, order: 0, height: 140, unit: '°C', wheelIndex: 0 },
+        { id: 'TireHeat', alias: 'FR Temp', color: '#ef4444', visible: true, order: 1, height: 140, unit: '°C', wheelIndex: 1 },
+        { id: 'TireHeat', alias: 'RL Temp', color: '#3b82f6', visible: true, order: 2, height: 140, unit: '°C', wheelIndex: 2 },
+        { id: 'TireHeat', alias: 'RR Temp', color: '#ef4444', visible: true, order: 3, height: 140, unit: '°C', wheelIndex: 3 },
+        { id: 'TyresPressure', alias: 'Pressures (4-Wheel)', color: '#a855f7', visible: true, order: 4, height: 160, unit: 'kPa' },
+        { id: 'Slip Ratio', alias: 'Slip Ratio (All Wheels)', color: '#00ff88', visible: true, order: 5, height: 160, unit: '%' },
+    ],
+    Dynamics: [
+        { id: 'Susp Pos', alias: 'FL Susp', color: '#3b82f6', visible: true, order: 0, height: 120, unit: 'mm', wheelIndex: 0 },
+        { id: 'Susp Pos', alias: 'FR Susp', color: '#ef4444', visible: true, order: 1, height: 120, unit: 'mm', wheelIndex: 1 },
+        { id: 'Susp Pos', alias: 'RL Susp', color: '#3b82f6', visible: true, order: 2, height: 120, unit: 'mm', wheelIndex: 2 },
+        { id: 'Susp Pos', alias: 'RR Susp', color: '#ef4444', visible: true, order: 3, height: 120, unit: 'mm', wheelIndex: 3 },
+        { id: 'RideHeights', alias: 'Ride Heights (F/R)', color: '#00aaff', visible: true, order: 4, height: 160, unit: 'mm' },
+        { id: 'Front3rdDeflection', alias: 'Front 3rd Deflection', color: '#22d3ee', visible: true, order: 5, height: 100, unit: 'mm' },
+        { id: 'Rear3rdDeflection', alias: 'Rear 3rd Deflection', color: '#fb923c', visible: true, order: 6, height: 100, unit: 'mm' },
+    ],
+    Handling: [
+        { id: 'Slip Ratio', alias: 'Slip Ratio (All Wheels)', color: '#00ff88', visible: true, order: 0, height: 140, unit: '%' },
+        { id: 'Yaw Rate', alias: 'Yaw Rate (Calc)', color: '#f43f5e', visible: true, order: 1, height: 120, unit: 'deg/s' },
+        { id: 'Steering Angle', alias: 'Steering Angle', color: '#ff00ff', visible: true, order: 2, height: 120, unit: 'deg' },
+        { id: 'G Force Lat', alias: 'Lateral G', color: '#fbbf24', visible: true, order: 3, height: 100, unit: 'G' },
+        { id: 'G Force Long', alias: 'Longitudinal G', color: '#60a5fa', visible: true, order: 4, height: 100, unit: 'G' },
+    ],
+    Systems: [
+        { id: 'TC', alias: 'TC Active', color: '#fb923c', visible: true, order: 0, height: 120 },
+        { id: 'ABS', alias: 'ABS Active', color: '#38bdf8', visible: true, order: 1, height: 120 },
+        { id: 'SoC', alias: 'Hybrid SoC', color: '#10b981', visible: true, order: 2, height: 120, unit: 'MJ' },
+        { id: 'Fuel Level', alias: 'Fuel Level', color: '#facc15', visible: true, order: 3, height: 120, unit: 'L' },
+    ]
+};
+
+const SUSPENSION_MERGED_CONFIGS: ChartConfig[] = [
+    { id: 'SuspPosFront', alias: 'Front Susp (L/R)', color: '#3b82f6', visible: true, order: 0, height: 160, unit: 'mm' },
+    { id: 'SuspPosRear', alias: 'Rear Susp (L/R)', color: '#ef4444', visible: true, order: 1, height: 160, unit: 'mm' },
+    { id: 'RideHeights', alias: 'Ride Heights (F/R)', color: '#00aaff', visible: true, order: 2, height: 160, unit: 'mm' },
+    { id: 'Front3rdDeflection', alias: 'Front 3rd Deflection', color: '#22d3ee', visible: true, order: 3, height: 100, unit: 'mm' },
+    { id: 'Rear3rdDeflection', alias: 'Rear 3rd Deflection', color: '#fb923c', visible: true, order: 4, height: 100, unit: 'mm' },
+];
+
+const THIRD_DEFLECTION_MERGED_CONFIGS: ChartConfig[] = [
+    { id: 'SuspPosFront', alias: 'Front Susp (L/R)', color: '#3b82f6', visible: true, order: 0, height: 120, unit: 'mm', wheelIndex: 0 },
+    { id: 'Susp Pos', alias: 'FR Susp', color: '#ef4444', visible: true, order: 1, height: 120, unit: 'mm', wheelIndex: 1 },
+    { id: 'Susp Pos', alias: 'RL Susp', color: '#3b82f6', visible: true, order: 2, height: 120, unit: 'mm', wheelIndex: 2 },
+    { id: 'Susp Pos', alias: 'RR Susp', color: '#ef4444', visible: true, order: 3, height: 120, unit: 'mm', wheelIndex: 3 },
+    { id: 'RideHeights', alias: 'Ride Heights (F/R)', color: '#00aaff', visible: true, order: 4, height: 160, unit: 'mm' },
+    { id: 'ThirdDeflectionMerged', alias: '3rd Deflection (F/R)', color: '#10b981', visible: true, order: 6, height: 160, unit: 'mm' },
+];
+
+const HANDLING_MERGED_CONFIGS: ChartConfig[] = [
+    { id: 'Slip Ratio', alias: 'Slip Ratio (Calculated)', color: '#00ff88', visible: true, order: 0, height: 160, unit: '%' },
+    { id: 'HandlingMerged', alias: 'Yaw vs Steering', color: '#f43f5e', visible: true, order: 1, height: 180, unit: 'mixed' },
+    { id: 'G Force Lat', alias: 'Lateral G', color: '#ffaa00', visible: true, order: 2, height: 100, unit: 'G' },
+];
 
 const BUILT_IN_PRESETS: ChartPreset[] = [
     {
@@ -280,6 +379,113 @@ const DEFAULT_OVERLAP_CONFIG_MAXIMIZED = {
     scale: 1.0
 };
 
+export const getCategoryTemplateConfigs = (category: ChartCategory, state: {
+    tyresPressureViewMode: 'split' | 'merged';
+    suspensionViewMode: 'split' | 'merged';
+    thirdDeflectionViewMode: 'split' | 'merged';
+    rideHeightViewMode: 'split' | 'merged';
+    slipRatioViewMode: 'split' | 'merged';
+    handlingViewMode: 'split' | 'merged';
+}): ChartConfig[] => {
+    let configs = [...CATEGORY_CHART_CONFIGS[category]];
+
+    if (category === 'Tyres') {
+        let baseConfigs = configs.filter(c => c.id !== 'TyresPressure' && c.id !== 'Slip Ratio');
+
+        if (state.tyresPressureViewMode === 'split') {
+            const splitPressures = [
+                { id: 'TyresPressure', alias: 'FL Pressure', color: '#3b82f6', visible: true, order: 4.1, height: 120, unit: 'kPa', wheelIndex: 0 },
+                { id: 'TyresPressure', alias: 'FR Pressure', color: '#ef4444', visible: true, order: 4.2, height: 120, unit: 'kPa', wheelIndex: 1 },
+                { id: 'TyresPressure', alias: 'RL Pressure', color: '#3b82f6', visible: true, order: 4.3, height: 120, unit: 'kPa', wheelIndex: 2 },
+                { id: 'TyresPressure', alias: 'RR Pressure', color: '#ef4444', visible: true, order: 4.4, height: 120, unit: 'kPa', wheelIndex: 3 },
+            ];
+            baseConfigs = [...baseConfigs, ...splitPressures];
+        } else {
+            const mergedPressure = configs.find(c => c.id === 'TyresPressure');
+            if (mergedPressure) baseConfigs.push(mergedPressure);
+        }
+
+        if (state.slipRatioViewMode === 'split') {
+            const splitSlip = [
+                { id: 'Slip Ratio', alias: 'FL Slip', color: '#3b82f6', visible: true, order: 5.1, height: 120, unit: '%', wheelIndex: 0 },
+                { id: 'Slip Ratio', alias: 'FR Slip', color: '#ef4444', visible: true, order: 5.2, height: 120, unit: '%', wheelIndex: 1 },
+                { id: 'Slip Ratio', alias: 'RL Slip', color: '#3b82f6', visible: true, order: 5.3, height: 120, unit: '%', wheelIndex: 2 },
+                { id: 'Slip Ratio', alias: 'RR Slip', color: '#ef4444', visible: true, order: 5.4, height: 120, unit: '%', wheelIndex: 3 },
+            ];
+            baseConfigs = [...baseConfigs, ...splitSlip];
+        } else {
+            const mergedSlip = configs.find(c => c.id === 'Slip Ratio');
+            if (mergedSlip) baseConfigs.push(mergedSlip);
+        }
+        configs = baseConfigs;
+    } else if (category === 'Dynamics') {
+        let baseConfigs = configs.filter(c =>
+            !c.id.startsWith('SuspPos') &&
+            c.id !== 'Susp Pos' &&
+            c.id !== 'RideHeights' &&
+            !c.id.includes('3rdDeflection') &&
+            c.id !== 'ThirdDeflectionMerged'
+        );
+
+        // 1. Suspension Logic
+        if (state.suspensionViewMode === 'merged') {
+            baseConfigs.push(
+                { id: 'SuspPosFront', alias: 'Front Susp (L/R)', color: '#3b82f6', visible: true, order: 0, height: 160, unit: 'mm' },
+                { id: 'SuspPosRear', alias: 'Rear Susp (L/R)', color: '#ef4444', visible: true, order: 1, height: 160, unit: 'mm' }
+            );
+        } else {
+            const splitSusp = configs.filter(c => c.id === 'Susp Pos');
+            baseConfigs = [...baseConfigs, ...splitSusp];
+        }
+
+        // 2. Ride Heights Logic
+        if (state.rideHeightViewMode === 'split') {
+            baseConfigs.push(
+                { id: 'RideHeights', alias: 'Front Ride Height', color: '#00aaff', visible: true, order: 4.1, height: 120, unit: 'mm', wheelIndex: 0 },
+                { id: 'RideHeights', alias: 'Rear Ride Height', color: '#fb923c', visible: true, order: 4.2, height: 120, unit: 'mm', wheelIndex: 1 },
+            );
+        } else {
+            const mergedRH = configs.find(c => c.id === 'RideHeights');
+            if (mergedRH) baseConfigs.push(mergedRH);
+        }
+
+        // 3. 3rd Deflection Logic
+        if (state.thirdDeflectionViewMode === 'merged') {
+            baseConfigs.push({ id: 'ThirdDeflectionMerged', alias: '3rd Deflection (F/R)', color: '#22d3ee', visible: true, order: 5, height: 160, unit: 'mm' });
+        } else {
+            const split3rd = configs.filter(c => c.id.includes('3rdDeflection') && c.id !== 'ThirdDeflectionMerged');
+            baseConfigs = [...baseConfigs, ...split3rd];
+        }
+
+        configs = baseConfigs;
+    } else if (category === 'Handling') {
+        let baseConfigs = configs;
+        if (state.handlingViewMode === 'merged') {
+            baseConfigs = [
+                configs.find(c => c.id === 'Slip Ratio') || { id: 'Slip Ratio', alias: 'Slip Ratio (All Wheels)', color: '#00ff88', visible: true, order: 0, height: 140, unit: '%' },
+                { id: 'HandlingMerged', alias: 'Yaw vs Steering', color: '#f43f5e', visible: true, order: 1, height: 180, unit: 'mixed' },
+                { id: 'G Force Lat', alias: 'Lateral G', color: '#fbbf24', visible: true, order: 2, height: 100, unit: 'G' },
+                { id: 'G Force Long', alias: 'Longitudinal G', color: '#60a5fa', visible: true, order: 3, height: 100, unit: 'G' },
+            ];
+        }
+
+        if (state.slipRatioViewMode === 'split') {
+            const base = baseConfigs.filter(c => c.id !== 'Slip Ratio');
+            const splitSlip = [
+                { id: 'Slip Ratio', alias: 'FL Slip', color: '#3b82f6', visible: true, order: 0.1, height: 120, unit: '%', wheelIndex: 0 },
+                { id: 'Slip Ratio', alias: 'FR Slip', color: '#ef4444', visible: true, order: 0.2, height: 120, unit: '%', wheelIndex: 1 },
+                { id: 'Slip Ratio', alias: 'RL Slip', color: '#3b82f6', visible: true, order: 0.3, height: 120, unit: '%', wheelIndex: 2 },
+                { id: 'Slip Ratio', alias: 'RR Slip', color: '#ef4444', visible: true, order: 0.4, height: 120, unit: '%', wheelIndex: 3 },
+            ];
+            configs = [...splitSlip, ...base];
+        } else {
+            configs = baseConfigs;
+        }
+    }
+
+    return configs;
+};
+
 export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     sessions: [],
     currentSessionId: null,
@@ -322,7 +528,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     speedUnit: (localStorage.getItem('speed_unit') as 'kmh' | 'mph') || 'kmh',
     tempUnit: (localStorage.getItem('temp_unit') as 'c' | 'f') || 'c',
     showSettings: false,
-    chartConfigs: JSON.parse(localStorage.getItem('chart_configs') || 'null') || DEFAULT_CHARTS,
+    chartConfigs: DEFAULT_CHARTS,
     chartPresets: [
         ...BUILT_IN_PRESETS,
         ...(JSON.parse(localStorage.getItem('chart_presets') || '[]') as ChartPreset[]),
@@ -352,8 +558,25 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     parentDimensions: { width: 1920, height: 1080 },
     maximizedSidebarMode: 'hud',
     showMiniMap: localStorage.getItem('show_minimap') !== 'false',
+    isUserInteractingWithCharts: false,
     isHudAnimating: false,
+    isMapTransitioning: false,
+    isGlobalTransitioning: false,
     singleLapXAxisMode: (localStorage.getItem('singleLapXAxisMode') as 'distance' | 'time') || 'distance',
+    mapMarkerType: (localStorage.getItem('map_marker_type') as 'arrow' | 'dot') || 'arrow',
+    suspensionViewMode: (localStorage.getItem('suspension_view_mode') as 'split' | 'merged') || 'split',
+    thirdDeflectionViewMode: (localStorage.getItem('third_deflection_view_mode') as 'split' | 'merged') || 'split',
+    handlingViewMode: (localStorage.getItem('handling_view_mode') as 'split' | 'merged') || 'split',
+    tyresPressureViewMode: (localStorage.getItem('tyres_pressure_view_mode') as 'split' | 'merged') || 'merged',
+    rideHeightViewMode: (localStorage.getItem('ride_height_view_mode') as 'split' | 'merged') || 'merged',
+    slipRatioViewMode: (localStorage.getItem('slip_ratio_view_mode') as 'split' | 'merged') || 'merged',
+
+    // Car Setup
+    carSetupData: null,
+    referenceCarSetupData: null,
+    setupLoading: false,
+    showSetupView: false,
+    activeChartCategory: 'Driver',
 
     setSpeedUnit: (unit) => {
         localStorage.setItem('speed_unit', unit);
@@ -367,6 +590,41 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     setCameraMode: (mode) => set({ cameraMode: mode }),
     setFollowZoom: (zoom) => set({ followZoom: zoom }),
     setTrackBaseData: (data) => set({ staticTrackBaseData: data }),
+    setShowSetupView: (show) => set({ showSetupView: show }),
+    fetchSetup: async (sessionId) => {
+        set({ setupLoading: true, carSetupData: null });
+        try {
+            const res = await apiClient.getSetup(sessionId, get().activeProfileId || 'guest');
+            set({ carSetupData: res.setup });
+        } catch (e) {
+            console.error('Failed to fetch setup:', e);
+        } finally {
+            set({ setupLoading: false });
+        }
+    },
+    fetchReferenceSetup: async (sessionId) => {
+        try {
+            const res = await apiClient.getSetup(sessionId, get().activeProfileId || 'guest');
+            set({ referenceCarSetupData: res.setup });
+        } catch (e) {
+            console.error('Failed to fetch reference setup:', e);
+            set({ referenceCarSetupData: null });
+        }
+    },
+    clearReferenceSetup: () => set({ referenceCarSetupData: null }),
+    exportLap: async (lapNumber) => {
+        const sessionId = get().currentSessionId;
+        if (!sessionId) return;
+        set({ isListLoading: true });
+        try {
+            await apiClient.exportLap(sessionId, lapNumber, get().activeProfileId || 'guest');
+        } catch (e) {
+            console.error('Failed to export lap:', e);
+            set({ error: 'Failed to export lap file' });
+        } finally {
+            set({ isListLoading: false });
+        }
+    },
     setShowTelemetryOverlay: (show) => set({ showTelemetryOverlay: show }),
     setSelectedWheel: (wheel) => {
         if (wheel) localStorage.setItem('selected_steering_wheel', wheel);
@@ -461,10 +719,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
             // Skip complex avoidance (sidebar & other HUDs) if we are in the middle of a transition
             const skipAvoidance = state.isHudAnimating;
-            
+
             const MIN_LEFT_PCT = (isMax && parentW > 800 && hasLeftHud && !skipAvoidance) ? (340 / parentW) * 100 : EDGE_MARGIN;
             const MIN_RIGHT_PCT = (isMax && parentW > 800 && hasRightHud && !skipAvoidance) ? (340 / parentW) * 100 : EDGE_MARGIN;
-            
+
             // Bottom avoidance for control center (applies to both dashboard and fullscreen)
             // Skip during animation to avoid jumps while parentH is unstable
             const BOTTOM_RESERVE_PCT = skipAvoidance ? EDGE_MARGIN : (100 / parentH) * 100;
@@ -526,19 +784,37 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         }
 
         set({ hudVisibility: newVisibility });
-        
+
         // Push overlap HUD smoothly by triggering layout validation
         get().validateHudLayout();
     },
     setIsMapMaximized: (is) => {
-        set({ isMapMaximized: is, isHudAnimating: true });
+        const updates: any = { isMapMaximized: is, isHudAnimating: true, isMapTransitioning: true };
         
+        // When entering maximized mode, default all HUDs to open
+        if (is) {
+            updates.showMiniMap = true;
+            updates.showTelemetryOverlay = true;
+            updates.hudVisibility = {
+                overlap: true,
+                vehicleInfo: true,
+                trackInfo: true,
+                analysisLaps: true,
+                dataCharts: true
+            };
+            // Persist these defaults
+            localStorage.setItem('show_minimap', 'true');
+            localStorage.setItem('hud_visibility', JSON.stringify(updates.hudVisibility));
+        }
+
+        set(updates);
+
         // Wait for container expansion animation (500ms) before finalizing layout
         setTimeout(() => {
-            set({ isHudAnimating: false });
+            set({ isHudAnimating: false, isMapTransitioning: false });
             get().validateHudLayout();
-        }, 550);
-        
+        }, 600);
+
         // Immediate simple clamp to keep things in view
         get().validateHudLayout();
     },
@@ -547,7 +823,83 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         localStorage.setItem('show_minimap', String(show));
         set({ showMiniMap: show });
     },
+    setIsMapTransitioning: (is) => set({ isMapTransitioning: is }),
+    setIsGlobalTransitioning: (is) => set({ isGlobalTransitioning: is }),
+    setActiveChartCategory: (category) => {
+        set({ activeChartCategory: category });
+
+        const getCustomSettings = () => {
+            try { return JSON.parse(localStorage.getItem('custom_chart_settings') || '{}'); }
+            catch { return {}; }
+        };
+        const custom = getCustomSettings();
+        const mergeWithCustom = (configs: ChartConfig[]) => {
+            return configs.map(c => {
+                const key = `${c.id}-${c.wheelIndex ?? 'all'}`;
+                if (custom[key]) return { ...c, ...custom[key] };
+                return c;
+            });
+        };
+
+        const configs = getCategoryTemplateConfigs(category, get());
+        set({ chartConfigs: mergeWithCustom(configs) });
+    },
+    toggleSuspensionViewMode: () => {
+        const currentMode = get().suspensionViewMode;
+        const newMode = currentMode === 'split' ? 'merged' : 'split';
+        localStorage.setItem('suspension_view_mode', newMode);
+        set({ suspensionViewMode: newMode });
+        if (get().activeChartCategory === 'Dynamics') {
+            get().setActiveChartCategory('Dynamics');
+        }
+    },
+    toggleThirdDeflectionViewMode: () => {
+        const currentMode = get().thirdDeflectionViewMode;
+        const newMode = currentMode === 'split' ? 'merged' : 'split';
+        localStorage.setItem('third_deflection_view_mode', newMode);
+        set({ thirdDeflectionViewMode: newMode });
+        if (get().activeChartCategory === 'Dynamics') {
+            get().setActiveChartCategory('Dynamics');
+        }
+    },
+    toggleHandlingViewMode: () => {
+        const currentMode = get().handlingViewMode;
+        const newMode = currentMode === 'split' ? 'merged' : 'split';
+        localStorage.setItem('handling_view_mode', newMode);
+        set({ handlingViewMode: newMode });
+        if (get().activeChartCategory === 'Handling') {
+            get().setActiveChartCategory('Handling');
+        }
+    },
+    toggleTyresPressureViewMode: () => {
+        const currentMode = get().tyresPressureViewMode;
+        const newMode = currentMode === 'split' ? 'merged' : 'split';
+        localStorage.setItem('tyres_pressure_view_mode', newMode);
+        set({ tyresPressureViewMode: newMode });
+        if (get().activeChartCategory === 'Tyres') {
+            get().setActiveChartCategory('Tyres');
+        }
+    },
+    toggleRideHeightViewMode: () => {
+        const currentMode = get().rideHeightViewMode;
+        const newMode = currentMode === 'split' ? 'merged' : 'split';
+        localStorage.setItem('ride_height_view_mode', newMode);
+        set({ rideHeightViewMode: newMode });
+        if (get().activeChartCategory === 'Dynamics') {
+            get().setActiveChartCategory('Dynamics');
+        }
+    },
+    toggleSlipRatioViewMode: () => {
+        const currentMode = get().slipRatioViewMode;
+        const newMode = currentMode === 'split' ? 'merged' : 'split';
+        localStorage.setItem('slip_ratio_view_mode', newMode);
+        set({ slipRatioViewMode: newMode });
+        if (get().activeChartCategory === 'Tyres') {
+            get().setActiveChartCategory('Tyres');
+        }
+    },
     setIsProcessingTrack: (is: boolean) => set({ isProcessingTrack: is }),
+    setIsUserInteractingWithCharts: (isInteracting: boolean) => set({ isUserInteractingWithCharts: isInteracting }),
     setShowReferenceBrowser: (show: boolean) => set({ showReferenceBrowser: show }),
     setShow3DLab: (show) => {
         const { track3DData, selectedLapIdx, selectedStint, fetch3DTrack, laps, telemetryData } = get();
@@ -606,6 +958,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     setSingleLapXAxisMode: (mode) => {
         localStorage.setItem('singleLapXAxisMode', mode);
         set({ singleLapXAxisMode: mode });
+    },
+    setMapMarkerType: (type) => {
+        localStorage.setItem('map_marker_type', type);
+        set({ mapMarkerType: type });
     },
     setDashboardSyncMode: (mode) => {
         localStorage.setItem('dashboard_sync_mode', mode);
@@ -711,17 +1067,27 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             const clampedRefTime = Math.min(targetRefTime, refTime[refLineE]);
             refIdx = findIndexInChannelRange(refTime, clampedRefTime, refLineS, refLineE);
 
-            // DISTANCE SYNC (For Delta Calculation)
-            // We use the clampedMainTime to find the distance
+            // DISTANCE SYNC (For Delta Calculation) - WITH NORMALIZATION
+            // We use Progress Percentage to align laps of different lengths
             const baseM = Math.floor(mainIdx);
             const nextM = Math.min(curLineE, baseM + 1);
             const fracM = mainIdx - baseM;
             const d1 = mainDist[baseM] ?? 0;
             const d2 = mainDist[nextM] ?? d1;
             const currentTotalDist = d1 + (d2 - d1) * fracM;
-            const relDist = currentTotalDist - (mainDist[curLineS] ?? 0);
+            const mainLapStartDist = mainDist[curLineS] ?? 0;
+            const mainLapEndDist = mainDist[curLineE] ?? mainLapStartDist;
+            const mainLapActualLen = mainLapEndDist - mainLapStartDist;
 
-            const targetRefDist = refDist[refLineS] + relDist;
+            const relDist = currentTotalDist - mainLapStartDist;
+            const progress = mainLapActualLen > 0 ? relDist / mainLapActualLen : 0;
+
+            const refLapStartDist = refDist[refLineS] ?? 0;
+            const refLapEndDist = refDist[refLineE] ?? refLapStartDist;
+            const refLapActualLen = refLapEndDist - refLapStartDist;
+
+            // Map progress to reference lap distance
+            const targetRefDist = refLapStartDist + (progress * refLapActualLen);
             deltaIdx = findIndexInChannelRange(refDist, targetRefDist, refLineS, refLineE);
 
             const baseD = Math.floor(deltaIdx);
@@ -747,19 +1113,63 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         });
     },
 
-    updateChartHeight: (id, height) => {
+    updateChartHeight: (id, height, wheelIndex) => {
         const { chartConfigs } = get();
-        const newConfigs = chartConfigs.map(c => c.id === id ? { ...c, height: Math.max(60, height) } : c);
-        localStorage.setItem('chart_configs', JSON.stringify(newConfigs));
+        const h = Math.max(60, height);
+        const newConfigs = chartConfigs.map(c =>
+            (c.id === id && c.wheelIndex === wheelIndex) ? { ...c, height: h } : c
+        );
+
+        // Save to persistent custom settings
+        const custom = JSON.parse(localStorage.getItem('custom_chart_settings') || '{}');
+        const key = `${id}-${wheelIndex ?? 'all'}`;
+        custom[key] = { ...custom[key], height: h };
+        localStorage.setItem('custom_chart_settings', JSON.stringify(custom));
+
         set({ chartConfigs: newConfigs });
     },
 
-    resetChartHeight: (id) => {
+    resetChartHeight: (id, wheelIndex) => {
         const { chartConfigs } = get();
-        const defaultChart = DEFAULT_CHARTS.find(c => c.id === id);
+        let defaultChart = null;
+
+        // 1. Try to find in base configs
+        for (const catConfigs of Object.values(CATEGORY_CHART_CONFIGS)) {
+            const found = catConfigs.find(c => c.id === id && c.wheelIndex === wheelIndex);
+            if (found) { defaultChart = found; break; }
+        }
+
+        // 2. Fallback for dynamically generated merged IDs
+        if (!defaultChart) {
+            const defaults: Record<string, number> = {
+                'SuspPosFront': 160,
+                'SuspPosRear': 160,
+                'ThirdDeflectionMerged': 160,
+                'HandlingMerged': 180,
+                'TyresPressure': 160,
+                'Slip Ratio': 160,
+                'RideHeights': 160
+            };
+            if (defaults[id]) {
+                defaultChart = { height: defaults[id] };
+            }
+        }
+
         if (!defaultChart) return;
-        const newConfigs = chartConfigs.map(c => c.id === id ? { ...c, height: defaultChart.height } : c);
-        localStorage.setItem('chart_configs', JSON.stringify(newConfigs));
+
+        const newConfigs = chartConfigs.map(c =>
+            (c.id === id && c.wheelIndex === wheelIndex) ? { ...c, height: defaultChart.height } : c
+        );
+
+        // Remove from persistent custom settings
+        const custom = JSON.parse(localStorage.getItem('custom_chart_settings') || '{}');
+        const key = `${id}-${wheelIndex ?? 'all'}`;
+        if (custom[key]) {
+            delete custom[key].height;
+            if (Object.keys(custom[key]).length === 0) delete custom[key];
+            localStorage.setItem('custom_chart_settings', JSON.stringify(custom));
+        }
+
         set({ chartConfigs: newConfigs });
     },
 
@@ -768,10 +1178,18 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         set({ chartConfigs: configs });
     },
 
-    updateChartConfig: (id, updates) => {
+    updateChartConfig: (id, updates, wheelIndex) => {
         const { chartConfigs } = get();
-        const newConfigs = chartConfigs.map(c => c.id === id ? { ...c, ...updates } : c);
-        localStorage.setItem('chart_configs', JSON.stringify(newConfigs));
+        const newConfigs = chartConfigs.map(c =>
+            (c.id === id && c.wheelIndex === wheelIndex) ? { ...c, ...updates } : c
+        );
+
+        // Save to persistent custom settings
+        const custom = JSON.parse(localStorage.getItem('custom_chart_settings') || '{}');
+        const key = `${id}-${wheelIndex ?? 'all'}`;
+        custom[key] = { ...custom[key], ...updates };
+        localStorage.setItem('custom_chart_settings', JSON.stringify(custom));
+
         set({ chartConfigs: newConfigs });
     },
 
@@ -799,13 +1217,37 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         set({ chartPresets: [...BUILT_IN_PRESETS, ...updated] });
     },
 
-    resetChartColors: () => {
+    resetChartColors: (category?: string) => {
         const { chartConfigs } = get();
+        const custom = JSON.parse(localStorage.getItem('custom_chart_settings') || '{}');
+
+        // If category is provided, only reset charts in that category
+        const targetIds = category ?
+            (CATEGORY_CHART_CONFIGS[category as keyof typeof CATEGORY_CHART_CONFIGS] || []).map(c => `${c.id}-${c.wheelIndex ?? 'all'}`) :
+            null;
+
+        // 1. Clear color overrides in localStorage
+        Object.keys(custom).forEach(key => {
+            if (custom[key].color && (!targetIds || targetIds.includes(key))) {
+                delete custom[key].color;
+                if (Object.keys(custom[key]).length === 0) delete custom[key];
+            }
+        });
+        localStorage.setItem('custom_chart_settings', JSON.stringify(custom));
+
+        // 2. Revert active configs to their defaults
         const newConfigs = chartConfigs.map(c => {
-            const defaultVer = DEFAULT_CHARTS.find(dc => dc.id === c.id);
+            const key = `${c.id}-${c.wheelIndex ?? 'all'}`;
+            if (targetIds && !targetIds.includes(key)) return c;
+
+            let defaultVer = null;
+            for (const catConfigs of Object.values(CATEGORY_CHART_CONFIGS)) {
+                const found = catConfigs.find(dc => dc.id === c.id && dc.wheelIndex === c.wheelIndex);
+                if (found) { defaultVer = found; break; }
+            }
             return defaultVer ? { ...c, color: defaultVer.color } : c;
         });
-        localStorage.setItem('chart_configs', JSON.stringify(newConfigs));
+
         set({ chartConfigs: newConfigs });
     },
 
@@ -839,6 +1281,9 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             error: null,
             isPlaying: false, // PAUSE ON SESSION SWITCH
             currentSessionId: sessionId,
+        }));
+        localStorage.setItem('had_active_session', 'true');
+        set({
             sessionMetadata: null,
             referenceSessionMetadata: null,
             laps: [],
@@ -851,13 +1296,16 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             playbackElapsed: 0,
             zoomRange: null,
             staticTrackBaseData: null
-        }));
+        });
         try {
             // 1. Get Laps & Metadata
             const data = await apiClient.getLaps(sessionId, activeProfileId);
 
-            // 2. Determine default lap
-            const defaultLap = data.laps.find(l => l.lap === 1) || data.laps.find(l => l.isValid) || data.laps[0];
+            // 2. Determine default lap (Fastest Valid Lap)
+            const validLaps = data.laps.filter(l => l.isValid);
+            const defaultLap = validLaps.length > 0
+                ? [...validLaps].sort((a, b) => a.duration - b.duration)[0]
+                : data.laps[0];
             const defaultLapIdx = defaultLap ? defaultLap.lap : null;
             const defaultStint = defaultLap?.stint ?? 1;
 
@@ -883,14 +1331,9 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             });
 
             // 5. Fetch Reference 3D Track (Fastest Valid Lap)
-            const validLaps = data.laps.filter((l: Lap) => l.isValid);
-            const fastestLap = validLaps.length > 0
-                ? [...validLaps].sort((a, b) => a.duration - b.duration)[0]
-                : data.laps[0];
-
-            if (fastestLap) {
+            if (defaultLap) {
                 try {
-                    const baseData = await (apiClient as any).get3DTrack(sessionId, fastestLap.lap, activeProfileId);
+                    const baseData = await (apiClient as any).get3DTrack(sessionId, defaultLap.lap, activeProfileId);
                     set({ staticTrackBaseData: baseData });
                 } catch (e) {
                     console.error("Failed to fetch static track base:", e);
@@ -932,10 +1375,13 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         try {
             const telData = await apiClient.getTelemetry(currentSessionId, stintId, 10, undefined, activeProfileId);
 
-            // Find best default lap in this new stint
+            // Find best default lap in this new stint (Fastest Valid Lap)
             const { laps, isPlaying: wasPlaying } = get();
             const stintLaps = laps.filter(l => l.stint === stintId);
-            const defaultLap = stintLaps.find(l => l.isValid) || stintLaps[0];
+            const validStintLaps = stintLaps.filter(l => l.isValid);
+            const defaultLap = validStintLaps.length > 0
+                ? [...validStintLaps].sort((a, b) => a.duration - b.duration)[0]
+                : stintLaps[0];
 
             let startIdx = null;
             if (defaultLap && telData && telData['Time']) {
@@ -1181,6 +1627,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             cursorIndex: null,
             zoomRange: null
         });
+        localStorage.removeItem('had_active_session');
     },
 
     uploadSession: async (file: File) => {
@@ -1243,6 +1690,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
                     referenceSessionMetadata: null,
                     referenceTelemetryData: null
                 });
+                localStorage.removeItem('had_active_session');
             }
             set({ isListLoading: false });
         } catch (err) {
@@ -1272,6 +1720,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
     setProfile: async (profileId: string) => {
         set({
+            isGlobalTransitioning: true,
             activeProfileId: profileId,
             currentSessionId: null,
             sessionMetadata: null,
@@ -1283,9 +1732,11 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             telemetryData: null,
             cursorIndex: null,
             zoomRange: null,
+            maximizedSidebarMode: 'data_sources',
             userWheelRotation: localStorage.getItem(`user_wheel_rotation_${profileId}`) ? parseFloat(localStorage.getItem(`user_wheel_rotation_${profileId}`)!) : null
         });
         await get().fetchSessions();
+        setTimeout(() => set({ isGlobalTransitioning: false }), 800);
     },
 
     createProfile: async (name: string) => {
@@ -1420,6 +1871,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         set({ playbackElapsed: targetElapsed });
         get().syncFromElapsed(targetElapsed);
     },
+
+
     setPlaybackTime: (time: number) => {
         set({ playbackElapsed: time });
         get().syncFromElapsed(time);

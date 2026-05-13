@@ -5,6 +5,7 @@ import { handleGlassMouseMove } from '../utils/glassEffect';
 import { Tooltip } from './ui/Tooltip';
 import { getBrandLogoPath, getClassColor } from '../utils/carHelpers';
 import { getCountryFlagPath } from '../utils/trackHelpers';
+import { Settings2 } from 'lucide-react';
 
 interface CarInfoCardProps {
     metadata: SessionMetadata;
@@ -13,6 +14,9 @@ interface CarInfoCardProps {
 
 const CarInfoCard: React.FC<CarInfoCardProps> = ({ metadata, theme = 'current' }) => {
     const isRef = theme === 'reference';
+    const fetchSetup = useTelemetryStore(s => s.fetchSetup);
+    const setShowSetupView = useTelemetryStore(s => s.setShowSetupView);
+    const currentSessionId = useTelemetryStore(s => s.currentSessionId);
     const accentColor = isRef ? 'text-amber-500' : 'text-blue-400';
     const hoverAccentColor = isRef ? 'group-hover:text-amber-400' : 'group-hover:text-blue-400';
     const borderColor = isRef ? 'group-hover:border-amber-500/40' : 'group-hover:border-blue-500/40';
@@ -25,11 +29,24 @@ const CarInfoCard: React.FC<CarInfoCardProps> = ({ metadata, theme = 'current' }
         >
             <div className="glass-content">
                 {/* Dedicated Label Row */}
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
-                    <div className={`w-1.5 h-1.5 rounded-full ${isRef ? 'bg-amber-500' : 'bg-blue-500'} animate-pulse shadow-[0_0_8px_rgba(0,0,0,0.5)]`} />
-                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${accentColor} drop-shadow-sm`}>
-                        {isRef ? 'Reference Car' : 'Current Car'}
-                    </span>
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${isRef ? 'bg-amber-500' : 'bg-blue-500'} animate-pulse shadow-[0_0_8px_rgba(0,0,0,0.5)]`} />
+                        <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${accentColor} drop-shadow-sm`}>
+                            {isRef ? 'Reference Car' : 'Current Car'}
+                        </span>
+                    </div>
+                    {!isRef && currentSessionId && (
+                        <button
+                            onClick={() => {
+                                fetchSetup(currentSessionId);
+                                setShowSetupView(true);
+                            }}
+                            className="px-3 py-1.5 rounded-xl text-[8px] font-black tracking-[0.15em] text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 transition-all border border-white/5 hover:border-blue-500/30 uppercase shadow-lg"
+                        >
+                            Car Setup
+                        </button>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-3 mb-2">

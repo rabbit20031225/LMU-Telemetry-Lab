@@ -7,10 +7,15 @@ export interface Session {
     trackName?: string;
     trackLayout?: string;
     commonTrackName?: string;
+    displayName?: string;
     trackAliases?: string[];
     carModel?: string;
     carClass?: string;
     country?: string;
+    officialTrackLength?: number;
+    driverName?: string;
+    bestLapTime?: number;
+    bestLapValid?: boolean;
 }
 
 export interface SessionMetadata {
@@ -32,6 +37,7 @@ export interface SessionMetadata {
     frequency?: number;
     carModel?: string;
     country?: string;
+    officialTrackLength?: number;
 }
 
 export interface Lap {
@@ -51,13 +57,11 @@ export interface Lap {
 }
 
 export interface TelemetryData {
-    [key: string]: number[];
+    [key: string]: number[] | any; // Support multi-dim arrays like number[][]
 }
 
-
 export interface TelemetryResponse {
-    // Usually mapping of channel name -> array of values
-    [key: string]: number[];
+    [key: string]: number[] | any;
 }
 
 export interface Profile {
@@ -77,6 +81,7 @@ export interface ChartConfig {
     order: number;
     height: number;
     unit?: string;
+    wheelIndex?: number; // 0:FL, 1:FR, 2:RL, 3:RR
 }
 export interface ReferenceLap {
     sessionId: string;
@@ -96,4 +101,36 @@ export interface ReferenceLap {
     stintCount?: number;
     totalLaps?: number;
     fuelUsed?: number;
+}
+
+// ---- Car Setup ----
+export interface SetupLREntry { L: string | null; R: string | null; }
+export interface SetupLR3Entry { L: string | null; '3rd': string | null; R: string | null; }
+
+export interface CarSetupData {
+    powertrain: {
+        engine: Record<string, string | null>;
+        electronics: Record<string, string | null>;
+        differential: Record<string, string | null>;
+        gearing: Record<string, string | null>;
+    };
+    wheelsAndBrakes: {
+        frontWheels: Record<string, SetupLREntry>;
+        rearWheels: Record<string, SetupLREntry>;
+        brakes: Record<string, string | null>;
+    };
+    suspension: {
+        front: Record<string, SetupLR3Entry>;
+        rear: Record<string, SetupLR3Entry>;
+    };
+    dampers: {
+        front: Record<string, SetupLR3Entry>;
+        rear: Record<string, SetupLR3Entry>;
+    };
+    chassisAndAero: {
+        frontChassis: Record<string, string | null>;
+        rearChassis: Record<string, string | null>;
+        weight: Record<string, string | null>;
+        advancedChassis: Record<string, string | null>;
+    };
 }

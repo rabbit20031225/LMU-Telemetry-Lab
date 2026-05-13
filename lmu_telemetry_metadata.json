@@ -1,0 +1,380 @@
+{
+   "Channels": {
+       "Ambient Temperature": {
+           "Frequency": 1,
+           "Name": "Ambient Temperature"
+       },
+       "Brake Pos": {
+           "Frequency": 50,
+           "Name": "Brake Pos"
+       },
+       "Brake Pos Unfiltered": {
+           "Frequency": 50,
+           "Name": "Brake Pos Unfiltered"
+       },
+       "Brake Tickness": {
+           "Frequency": 10,
+           "Name": "Brake Tickness"
+       },
+       "Brakes Force": {
+           "Frequency": 50,
+           "Name": "Brakes Force"
+       },
+       "Brakes Temp": {
+           "Frequency": 50,
+           "Name": "Brakes Temp"
+       },
+       "Clutch Pos": {
+           "Frequency": 50,
+           "Name": "Clutch Pos"
+       },
+       "Clutch Pos Unfiltered": {
+           "Frequency": 50,
+           "Name": "Clutch Pos Unfiltered"
+       },
+       "Clutch RPM": {
+           "Frequency": 100,
+           "Name": "Clutch RPM"
+       },
+       "Drag": {
+           "Frequency": 100,
+           "Name": "Drag"
+       },
+       "Engine Oil Temp": {
+           "Frequency": 7,
+           "Name": "Engine Oil Temp"
+       },
+       "Engine RPM": {
+           "Frequency": 100,
+           "Name": "Engine RPM"
+       },
+       "Engine Water Temp": {
+           "Frequency": 7,
+           "Name": "Engine Water Temp"
+       },
+       "FFB Output": {
+           "Frequency": 100,
+           "Name": "FFB Output"
+       },
+       "Front3rdDeflection": {
+           "Frequency": 100,
+           "Name": "Front3rdDeflection"
+       },
+       "FrontDownForce": {
+           "Frequency": 100,
+           "Name": "FrontDownForce"
+       },
+       "FrontRideHeight": {
+           "Frequency": 100,
+           "Name": "FrontRideHeight"
+       },
+       "FrontWingHeight": {
+           "Frequency": 100,
+           "Name": "FrontWingHeight"
+       },
+       "Fuel Level": {
+           "Frequency": 20,
+           "Name": "Fuel Level"
+       },
+       "G Force Lat": {
+           "Frequency": 10,
+           "Name": "G Force Lat"
+       },
+       "G Force Long": {
+           "Frequency": 10,
+           "Name": "G Force Long"
+       },
+       "G Force Vert": {
+           "Frequency": 10,
+           "Name": "G Force Vert"
+       },
+       "GPS Latitude": {
+           "Frequency": 10,
+           "Name": "GPS Latitude"
+       },
+       "GPS Longitude": {
+           "Frequency": 10,
+           "Name": "GPS Longitude"
+       },
+       "GPS Speed": {
+           "Frequency": 10,
+           "Name": "GPS Speed"
+       },
+       "GPS Time": {
+           "Frequency": 100,
+           "Name": "GPS Time"
+       },
+       "Ground Speed": {
+           "Frequency": 100,
+           "Name": "Ground Speed"
+       },
+       "Lap Dist": {
+           "Frequency": 10,
+           "Name": "Lap Dist"
+       },
+       "Lateral Acceleration": {
+           "Frequency": 100,
+           "Name": "Lateral Acceleration"
+       },
+       "Longitudinal Acceleration": {
+           "Frequency": 100,
+           "Name": "Longitudinal Acceleration"
+       },
+       "OverheatingState": {
+           "Frequency": 2,
+           "Name": "OverheatingState"
+       },
+       "Path Lateral": {
+           "Frequency": 10,
+           "Name": "Path Lateral"
+       },
+       "ReadDownForce": {
+           "Frequency": 100,
+           "Name": "ReadDownForce"
+       },
+       "Rear3rdDeflection": {
+           "Frequency": 100,
+           "Name": "Rear3rdDeflection"
+       },
+       "RearRideHeight": {
+           "Frequency": 100,
+           "Name": "RearRideHeight"
+       },
+       "Regen Rate": {
+           "Frequency": 100,
+           "Name": "Regen Rate"
+       },
+       "RideHeights": {
+           "Frequency": 100,
+           "Name": "RideHeights"
+       },
+       "SoC": {
+           "Frequency": 20,
+           "Name": "SoC"
+       },
+       "Steered Angle": {
+           "Frequency": 100,
+           "Name": "Steered Angle"
+       },
+       "Steering Pos": {
+           "Frequency": 100,
+           "Name": "Steering Pos"
+       },
+       "Steering Pos Unfiltered": {
+           "Frequency": 100,
+           "Name": "Steering Pos Unfiltered"
+       },
+       "Steering Shaft Torque": {
+           "Frequency": 100,
+           "Name": "Steering Shaft Torque"
+       },
+       "Susp Pos": {
+           "Frequency": 100,
+           "Name": "Susp Pos"
+       },
+       "Throttle Pos": {
+           "Frequency": 50,
+           "Name": "Throttle Pos"
+       },
+       "Throttle Pos Unfiltered": {
+           "Frequency": 50,
+           "Name": "Throttle Pos Unfiltered"
+       },
+       "Time Behind Next": {
+           "Frequency": 2,
+           "Name": "Time Behind Next"
+       },
+       "Total Dist": {
+           "Frequency": 10,
+           "Name": "Total Dist"
+       },
+       "Track Edge": {
+           "Frequency": 10,
+           "Name": "Track Edge"
+       },
+       "Track Temperature": {
+           "Frequency": 1,
+           "Name": "Track Temperature"
+       },
+       "Turbo Boost Pressure": {
+           "Frequency": 100,
+           "Name": "Turbo Boost Pressure"
+       },
+       "Tyres Wear": {
+           "Frequency": 10,
+           "Name": "Tyres Wear"
+       },
+       "TyresCarcassTemp": {
+           "Frequency": 5,
+           "Name": "TyresCarcassTemp"
+       },
+       "TyresPressure": {
+           "Frequency": 10,
+           "Name": "TyresPressure"
+       },
+       "TyresRubberTemp": {
+           "Frequency": 10,
+           "Name": "TyresRubberTemp"
+       },
+       "TyresTempCentre": {
+           "Frequency": 100,
+           "Name": "TyresTempCentre"
+       },
+       "TyresTempLeft": {
+           "Frequency": 100,
+           "Name": "TyresTempLeft"
+       },
+       "TyresTempRight": {
+           "Frequency": 100,
+           "Name": "TyresTempRight"
+       },
+       "Virtual Energy": {
+           "Frequency": 20,
+           "Name": "Virtual Energy"
+       },
+       "Wheel Speed": {
+           "Frequency": 100,
+           "Name": "Wheel Speed"
+       },
+       "Wind Heading": {
+           "Frequency": 1,
+           "Name": "Wind Heading"
+       },
+       "Wind Speed": {
+           "Frequency": 1,
+           "Name": "Wind Speed"
+       },
+       "Yaw Rate": {
+           "Frequency": 100,
+           "Name": "Yaw Rate"
+       }
+   },
+   "Events": {
+       "ABS": {
+           "Name": "ABS"
+       },
+       "ABSLevel": {
+           "Name": "ABSLevel"
+       },
+       "AntiStall Activated": {
+           "Name": "AntiStall Activated"
+       },
+       "Best LapTime": {
+           "Name": "Best LapTime"
+       },
+       "Best Sector1": {
+           "Name": "Best Sector1"
+       },
+       "Best Sector2": {
+           "Name": "Best Sector2"
+       },
+       "Brake Bias Rear": {
+           "Name": "Brake Bias Rear"
+       },
+       "Brake Migration": {
+           "Name": "Brake Migration"
+       },
+       "CloudDarkness": {
+           "Name": "CloudDarkness"
+       },
+       "Current LapTime": {
+           "Name": "Current LapTime"
+       },
+       "Current Sector": {
+           "Name": "Current Sector"
+       },
+       "Current Sector1": {
+           "Name": "Current Sector1"
+       },
+       "Current Sector2": {
+           "Name": "Current Sector2"
+       },
+       "Engine Max RPM": {
+           "Name": "Engine Max RPM"
+       },
+       "Finish Status": {
+           "Name": "Finish Status"
+       },
+       "FrontFlapActivated": {
+           "Name": "FrontFlapActivated"
+       },
+       "FuelMixtureMap": {
+           "Name": "FuelMixtureMap"
+       },
+       "Gear": {
+           "Name": "Gear"
+       },
+       "Headlights State": {
+           "Name": "Headlights State"
+       },
+       "In Pits": {
+           "Name": "In Pits"
+       },
+       "Lap": {
+           "Name": "Lap"
+       },
+       "Lap Time": {
+           "Name": "Lap Time"
+       },
+       "Last Sector1": {
+           "Name": "Last Sector1"
+       },
+       "Last Sector2": {
+           "Name": "Last Sector2"
+       },
+       "LastImpactMagnitude": {
+           "Name": "LastImpactMagnitude"
+       },
+       "LaunchControlActive": {
+           "Name": "LaunchControlActive"
+       },
+       "Minimum Path Wetness": {
+           "Name": "Minimum Path Wetness"
+       },
+       "OffpathWetness": {
+           "Name": "OffpathWetness"
+       },
+       "RearFlapActivated": {
+           "Name": "RearFlapActivated"
+       },
+       "RearFlapLegalStatus": {
+           "Name": "RearFlapLegalStatus"
+       },
+       "Sector1 Flag": {
+           "Name": "Sector1 Flag"
+       },
+       "Sector2 Flag": {
+           "Name": "Sector2 Flag"
+       },
+       "Sector3 Flag": {
+           "Name": "Sector3 Flag"
+       },
+       "Speed Limiter": {
+           "Name": "Speed Limiter"
+       },
+       "SurfaceTypes": {
+           "Name": "SurfaceTypes"
+       },
+       "TC": {
+           "Name": "TC"
+       },
+       "TCCut": {
+           "Name": "TCCut"
+       },
+       "TCLevel": {
+           "Name": "TCLevel"
+       },
+       "TCSlipAngle": {
+           "Name": "TCSlipAngle"
+       },
+       "TyresCompound": {
+           "Name": "TyresCompound"
+       },
+       "WheelsDetached": {
+           "Name": "WheelsDetached"
+       },
+       "Yellow Flag State": {
+           "Name": "Yellow Flag State"
+       }
+   }
+}

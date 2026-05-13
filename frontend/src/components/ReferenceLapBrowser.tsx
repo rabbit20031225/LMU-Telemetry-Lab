@@ -160,7 +160,7 @@ export const ReferenceLapBrowser: React.FC<ReferenceLapBrowserProps> = ({ onClos
 
                 <div className="p-6 pb-2 relative z-10">
                     <div className="relative group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={18} />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={18} />
                         <input
                             type="text"
                             placeholder="Find session by name, driver or car..."
@@ -171,8 +171,7 @@ export const ReferenceLapBrowser: React.FC<ReferenceLapBrowserProps> = ({ onClos
                     </div>
                 </div>
 
-                {/* Nested List */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar relative z-10">
+                <div className="flex-1 overflow-y-auto p-6 pt-2 custom-scrollbar relative z-10">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-20 gap-4">
                             <Loader2 className="animate-spin text-blue-400" size={32} />
@@ -223,7 +222,7 @@ export const ReferenceLapBrowser: React.FC<ReferenceLapBrowserProps> = ({ onClos
 
                                     {/* Stints Container */}
                                     <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 overflow-hidden'}`}>
-                                        <div className="min-h-0 flex flex-col gap-1.5 pl-6 mt-1.5 border-l border-white/5 ml-4">
+                                        <div className="min-h-0 flex flex-col gap-1.5 pl-6 mt-1.5 mb-2 border-l border-white/5 ml-4">
                                             {Object.entries(session.stints).sort((a, b) => Number(a[0]) - Number(b[0])).map(([stintNum, laps]) => {
                                                 const stintKey = `${session.sessionId}-${stintNum}`;
                                                 const isStintExpanded = expandedStint === stintKey;
@@ -246,7 +245,7 @@ export const ReferenceLapBrowser: React.FC<ReferenceLapBrowserProps> = ({ onClos
 
                                                         {/* Laps List */}
                                                         <div className={`grid transition-all duration-300 ease-in-out ${isStintExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 overflow-hidden'}`}>
-                                                            <div className="min-h-0 grid grid-cols-2 gap-2 pl-4 mt-2">
+                                                            <div className="min-h-0 grid grid-cols-2 gap-2 pl-4 mt-2 pb-2">
                                                                 {laps.sort((a, b) => a.lap - b.lap).map((lap) => {
                                                                     const isCurrent = lap.sessionId === currentSessionId && lap.lap === selectedLapIdx;
                                                                     const isReference = (referenceLap && lap.sessionId === referenceLap.sessionId && lap.lap === referenceLap.lap) || 
@@ -258,7 +257,6 @@ export const ReferenceLapBrowser: React.FC<ReferenceLapBrowserProps> = ({ onClos
                                                                         : isFastest 
                                                                             ? 'text-purple-400 font-black' 
                                                                             : 'text-gray-100 group-hover:text-white';
-
                                                                     const borderClass = isCurrent 
                                                                         ? 'border-blue-500/50 bg-blue-500/10' 
                                                                         : isReference 
@@ -288,11 +286,6 @@ export const ReferenceLapBrowser: React.FC<ReferenceLapBrowserProps> = ({ onClos
                                                                                 <div className="flex flex-col items-start">
                                                                                     <span className={`text-[13px] font-mono font-black transition-colors ${colorClass}`}>
                                                                                         {formatDuration(lap.duration)}
-                                                                                        {lap.fuelUsed !== undefined && lap.fuelUsed > 0 && (
-                                                                                            <span className="ml-2 text-[10px] text-gray-500 font-bold opacity-70">
-                                                                                                [{lap.fuelUsed.toFixed(1)}L]
-                                                                                            </span>
-                                                                                        )}
                                                                                     </span>
                                                                                     <div className="flex gap-1.5 mt-0.5">
                                                                                         {isCurrent && <span className="text-[7px] text-blue-300 bg-blue-900/40 px-1 py-0.5 rounded-sm font-black uppercase tracking-[0.1em]">Current</span>}
@@ -315,15 +308,11 @@ export const ReferenceLapBrowser: React.FC<ReferenceLapBrowserProps> = ({ onClos
                             );
                         })
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-30">
-                            <Search size={48} className="text-gray-700" />
-                            <p className="text-gray-500 font-black uppercase tracking-[0.3em] text-[10px]">No compatible laps found</p>
+                        <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-40">
+                            <History size={48} className="text-gray-600" />
+                            <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">No compatible laps found</p>
                         </div>
                     )}
-                </div>
-                
-                <div className="p-4 bg-white/5 border-t border-white/5 text-center relative z-10">
-                    <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">Global Telemetry Network &bull; Compatible Filters Applied</p>
                 </div>
             </div>
         </div>

@@ -161,7 +161,8 @@ def extract_lap_telemetry(db_path, t_start, t_end, padding=0.0, session_id=None,
             "lateral": safe_array(df['Path Lateral'].values if 'Path Lateral' in df.columns else None),
             "width": safe_array(df['Track Edge'].values if 'Track Edge' in df.columns else (np.ones(len(df)) * 7.5)),
             "in_pits": safe_array(df['In Pits'].values if 'In Pits' in df.columns else None),
-            "z": safe_array(df['WorldPosZ'].values if 'WorldPosZ' in df.columns else None)
+            "z": safe_array(df['WorldPosZ'].values if 'WorldPosZ' in df.columns else None),
+            "t": safe_array(df['Time'].values if 'Time' in df.columns else None)
         }
         
         return res
@@ -169,10 +170,11 @@ def extract_lap_telemetry(db_path, t_start, t_end, padding=0.0, session_id=None,
         logger.error(f"Error extracting lap telemetry via fusion: {e}")
         return None
 
-def get_3d_track_data(db_path, lap_times, base_times, track_name=None, track_layout=None, session_id=None, stint=None, stint_range=None, is_first=False, is_last=False):
+def get_3d_track_data(db_path, lap_times, base_times, track_name=None, track_layout=None, session_id=None, stint=None, stint_range=None, is_first=False, is_last=False, base_lap_info=None):
     """
     Returns dual-layer 3D data: baseMap (fastest lap) and racingLine (selected lap).
     Includes stint context to handle junction-lap data loss by aligning with 2D stint-based logic.
+    Also extracts Sector boundary coordinates if base_lap_info contains s1 and s2 splits.
     """
     # 1. Fetch data through fusion engine (No padding for 3D mesh to avoid overlaps)
     base_raw = extract_lap_telemetry(db_path, base_times[0], base_times[1], padding=0.0, session_id=session_id, stint_id=stint)
@@ -291,6 +293,59 @@ def get_3d_track_data(db_path, lap_times, base_times, track_name=None, track_lay
     final_base = format_points(bx, by, base_z, base_raw)
     final_racing = format_points(tx, ty, target_z_snapped, target_raw)
 
+    # 7. Extract Sector Boundaries
+    track_sectors = []
+    if base_lap_info and base_lap_info.get('s1') and base_lap_info.get('s2'):
+        try:
+            t_start = float(base_lap_info['startTime'])
+            s1_time = t_start + float(base_lap_info['s1'])
+            s2_time = s1_time + float(base_lap_info['s2'])
+            
+            t_arr = base_raw.get('t', np.array([]))
+            if len(t_arr) > 0:
+                idx1 = np.argmin(np.abs(t_arr - s1_time))
+                idx2 = np.argmin(np.abs(t_arr - s2_time))
+                
+                # We extract the properties directly from the un-downsampled base_raw 
+                # using the closest index, so it is highly accurate.
+                def extract_sector(idx, sec_id):
+                    # Calculate local track direction using a centered window with wrap-around
+                    win = 5
+                    n = len(bx)
+                    
+                    # Use modulo to wrap around indices for closed loops (essential for finish line at idx 0)
+                    i1 = (idx - win + n) % n
+                    i2 = (idx + win) % n
+                    
+                    lx = bx[i2] - bx[i1]
+                    ly = by[i2] - by[i1]
+                    
+                    # Handle non-closed loops: if i2 < i1, the vector might flip. 
+                    # But for Finish Line (idx=0), i2=5, i1=N-5, lx will correctly bridge the gap.
+                    # We just need to make sure we don't normalize a zero vector.
+                    mag = (lx**2 + ly**2)**0.5 or 1.0
+                    
+                    return {
+                        "id": sec_id,
+                        "x": float(bx[idx]),
+                        "y": float(by[idx]),
+                        "dx": float(lx / mag),
+                        "dy": float(ly / mag),
+                        "z": float(base_z[idx] - z_base_abs),
+                        "dist": float(base_raw['d'][idx] if 'd' in base_raw else 0),
+                        "lat": float(base_raw['lat'][idx] if 'lat' in base_raw else 0),
+                        "lon": float(base_raw['lon'][idx] if 'lon' in base_raw else 0),
+                        "lateral": float(base_raw['lateral'][idx] if 'lateral' in base_raw else 0),
+                        "width": float(base_raw['width'][idx] if 'width' in base_raw else 7.5)
+                    }
+                
+                track_sectors.append(extract_sector(0, 0)) # Finish Line
+                track_sectors.append(extract_sector(idx1, 1))
+                track_sectors.append(extract_sector(idx2, 2))
+                logger.info(f"3D Sectors extracted: S1 at dist {track_sectors[0]['dist']:.1f}, S2 at dist {track_sectors[1]['dist']:.1f}")
+        except Exception as e:
+            logger.error(f"Error extracting sector boundaries: {e}")
+
     # DIAGNOSTIC LOGGING
     logger.info("!!! EXECUTING 3D TRACK GENERATION WITH REFACTORED COMPUTE_Z !!!")
     if final_base:
@@ -301,6 +356,7 @@ def get_3d_track_data(db_path, lap_times, base_times, track_name=None, track_lay
     return sanitize_float({
         "baseMap": final_base,
         "racingLine": final_racing,
+        "trackSectors": track_sectors,
         "center": {"lat": float(c_lat), "lon": float(c_lon), "lonScale": float(lon_scale)},
         "zBase": z_base_abs,
         "selectedLapInfo": {"lap": stint_range[0] if stint_range else lap_times[1]}

@@ -139,6 +139,35 @@ export const apiClient = {
         });
     },
 
+    async getSetup(sessionId: string, profileId: string = 'guest'): Promise<{ setup: import('../types').CarSetupData }> {
+        return this._fetchJson(`/sessions/${encodeURIComponent(sessionId)}/setup?profile_id=${profileId}`);
+    },
+
+    async exportLap(sessionId: string, lapNumber: number, profileId: string = 'guest'): Promise<void> {
+        const url = `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/export/lap/${lapNumber}?profile_id=${profileId}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to export lap');
+        
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        
+        // Extract filename from header if possible, else fallback
+        const contentDisposition = res.headers.get('Content-Disposition');
+        let filename = `lap_${lapNumber}.duckdb`;
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="(.+)"/);
+            if (match) filename = match[1];
+        }
+        
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+    },
+
     async get3DTrack(sessionId: string, lap: number, profile_id: string = "guest", stint?: number | null): Promise<any> {
         let url = `/sessions/${encodeURIComponent(sessionId)}/3d-track?lap=${lap}&profile_id=${profile_id}`;
         if (stint !== undefined && stint !== null) {

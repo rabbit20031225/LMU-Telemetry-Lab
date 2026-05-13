@@ -266,6 +266,55 @@ class TelemetryService:
             common_track_name = matched_key if matched_key else raw_track
             track_country = track_data.get("country", "") if matched_key else ""
             track_aliases = track_data.get("aliases", []) if matched_key else []
+            official_track_length = None
+            if matched_key:
+                layouts_dict = track_data.get("layouts", {})
+                
+                # Fuzzy Layout Matching
+                layout_data = layouts_dict.get(raw_layout)
+                if not layout_data:
+                    # Try to find if any registry layout key is part of the raw_layout string (or vice versa)
+                    for k, v in layouts_dict.items():
+                        if k.lower() in raw_layout.lower() or raw_layout.lower() in k.lower():
+                            layout_data = v
+                            break
+                            
+                # Fallback to Default if still not found or if layout name equals track name
+                if not layout_data or raw_layout == raw_track:
+                    layout_data = layouts_dict.get("Default")
+                
+                if layout_data and "ref_points" in layout_data:
+                    official_track_length = float(layout_data["ref_points"][-1]["dist"])
+
+            # --- Smart Fallback: Distance-based Fingerprinting ---
+            if matched_key and layouts_dict:
+                # 1. Get actual median distance for this session
+                actual_median_dist = 0
+                try:
+                    # Sample median distance from valid laps
+                    dist_rows = con.execute('SELECT value FROM "Lap Dist" ORDER BY rowid DESC LIMIT 100').fetchall()
+                    if dist_rows:
+                        # This is a rough estimate for metadata purposes
+                        actual_median_dist = float(np.median([r[0] for r in dist_rows]))
+                        # If it looks like a lap distance (e.g. > 1km), use it for fingerprinting
+                        if actual_median_dist > 500:
+                            # Verify if currently matched length makes sense
+                            if official_track_length:
+                                ratio = actual_median_dist / official_track_length
+                                if ratio < 0.8 or ratio > 1.2:
+                                    logger.info(f"Metadata Layout mismatch (Ratio: {ratio:.2f}). Finding closest match...")
+                                    best_len = official_track_length
+                                    min_diff = abs(actual_median_dist - official_track_length)
+                                    for k, v in layouts_dict.items():
+                                        if "ref_points" in v:
+                                            l_dist = float(v["ref_points"][-1]["dist"])
+                                            diff = abs(actual_median_dist - l_dist)
+                                            if diff < min_diff:
+                                                min_diff = diff
+                                                best_len = l_dist
+                                    official_track_length = best_len
+                except:
+                    pass
 
             # --- Calculate Sector Lines (Lat/Lon) based on Fastest Valid Lap ---
             sector_lines = []
@@ -319,6 +368,7 @@ class TelemetryService:
                 "trackAliases": track_aliases,
                 "country": track_country,
                 "trackLayout": raw_layout,
+                "officialTrackLength": official_track_length,
                 "carClass": raw_class,
                 "modelName": real_car_name,
                 "rawCarName": raw_car,
@@ -513,22 +563,75 @@ class TelemetryService:
                     raw_segments.append(np.array([]))
                     segment_indices.append((idx_start, idx_start))
 
-            # F. Determine Reference Track Length (Dynamic)
-            valid_lengths = []
-            for i, seg in enumerate(raw_segments):
-                if len(seg) == 0: continue
-                # Skip L0 (Out Lap) and Last Lap (if incomplete)
-                # Heuristic: Valid full lap is usually ~6000m for Sebring.
-                # Let's collect all reasonable lengths > 4000m
-                if seg[-1] > 4000:
-                    valid_lengths.append(seg[-1])
+            # F. Determine Reference Track Length (Official or Dynamic)
+            # Calculate actual median distance from segments for fingerprinting
+            valid_lengths = [seg[-1] for seg in raw_segments if len(seg) > 0 and seg[-1] > 500]
+            median_lap_dist = np.median(valid_lengths) if valid_lengths else 0
             
-            if valid_lengths:
-                track_length_ref = np.median(valid_lengths)
-                logger.info(f"Dynamic Reference Length (Median): {track_length_ref:.2f}m")
-            else:
-                track_length_ref = 6019.0 # Fallback
-                logger.warning("No valid full laps found for Ref Length. Using fallback 6019m.")
+            track_length_ref = 6019.0 # Default Fallback
+            
+            # Try to get official length from registry
+            try:
+                from ..utils.track_db import find_track_in_registry
+                matched_key, track_data = find_track_in_registry(track_name)
+                if matched_key:
+                    layouts_dict = track_data.get("layouts", {})
+                    
+                    # Fuzzy Layout Matching
+                    layout_data = layouts_dict.get(track_layout)
+                    if not layout_data:
+                        # Try to find if any registry layout key is part of the track_layout string (or vice versa)
+                        for k, v in layouts_dict.items():
+                            if k.lower() in track_layout.lower() or track_layout.lower() in k.lower():
+                                layout_data = v
+                                break
+
+                    # Fallback to Default if still not found or if layout name equals track name
+                    if not layout_data or track_layout == track_name:
+                        layout_data = layouts_dict.get("Default")
+                        
+                    # Secondary Check: Distance-based Fingerprinting
+                    # If the matched length is significantly different from actual data, 
+                    # find the layout that is physically closest to the median distance.
+                    if layout_data and "ref_points" in layout_data:
+                        candidate_len = float(layout_data["ref_points"][-1]["dist"])
+                        ratio = median_lap_dist / candidate_len if candidate_len > 0 else 0
+                        
+                        if ratio < 0.8 or ratio > 1.2:
+                            logger.info(f"Layout mismatch detected (Ratio: {ratio:.2f}). Searching for closest physical match...")
+                            best_layout = layout_data
+                            min_diff = abs(median_lap_dist - candidate_len)
+                            
+                            for k, v in layouts_dict.items():
+                                if "ref_points" in v:
+                                    official_len = float(v["ref_points"][-1]["dist"])
+                                    diff = abs(median_lap_dist - official_len)
+                                    if diff < min_diff:
+                                        min_diff = diff
+                                        best_layout = v
+                            
+                            layout_data = best_layout
+                            logger.info(f"Smart Fallback: Selected layout based on closest distance.")
+
+                    if layout_data and "ref_points" in layout_data:
+                        track_length_ref = float(layout_data["ref_points"][-1]["dist"])
+                        logger.info(f"Using Official Track Length from Registry: {track_length_ref:.2f}m")
+                    else:
+                        # Fallback to median logic if layout not found
+                        valid_lengths = [seg[-1] for seg in raw_segments if len(seg) > 0 and seg[-1] > 2000]
+                        if valid_lengths:
+                            track_length_ref = np.median(valid_lengths)
+                            logger.info(f"Official Layout length not found. Using Median Length: {track_length_ref:.2f}m")
+                else:
+                    # Fallback to median logic if track not found
+                    valid_lengths = [seg[-1] for seg in raw_segments if len(seg) > 0 and seg[-1] > 2000]
+                    if valid_lengths:
+                        track_length_ref = np.median(valid_lengths)
+                        logger.info(f"Track not in registry. Using Median Length: {track_length_ref:.2f}m")
+            except Exception as e:
+                logger.warning(f"Error determining track length ref: {e}")
+                valid_lengths = [seg[-1] for seg in raw_segments if len(seg) > 0 and seg[-1] > 2000]
+                if valid_lengths: track_length_ref = np.median(valid_lengths)
 
             # G. Normalize
             for i, segment in enumerate(raw_segments):
@@ -605,17 +708,18 @@ class TelemetryService:
             # 7. Other Tables
             skip_tables = [
                 'GPS Time', 'metadata', 'channelsList', 'eventsList', 'Session Info',
-                'Lap', 'Lap Time', 'GPS Speed', 'Gear',
+                'Lap', 'Lap Time', 'GPS Speed', 'Gear', 'Lap Dist',
                 'AntiStall Activated', 'Best LapTime', 'Best Sector1', 'Best Sector2', 
                 'CloudDarkness', 'Engine Max RPM', 'Headlights State',
                 'Brakes Air Temp', 'Clutch RPM', 'FFB Output', 'Steering Pos Unfiltered', 
                 'Steering Shaft Torque', 'SurfaceTypes', 'Throttle Pos Unfiltered', 
                 'Time Behind Next', 'Wind Heading', 'Wind Speed',
-                'Brake Pos Unfiltered', 'Clutch Pos Unfiltered', 'Front3rdDeflection',
-                'RearFlapActivated', 'Rear3rdDeflection', 'Regen Rate', 
+                'Brake Pos Unfiltered', 'Clutch Pos Unfiltered', 
                 'RearFlapLegalStatus'
             ]
             
+            sparse_channels = ['TyresCompound', 'WheelsDetached', 'TC', 'ABS', 'TCCut', 'TCLevel', 'ABSLevel', 'TCSlipAngle', 'Wheel ABS', 'Wheel TC', 'WheelABS', 'WheelTC']
+            no_ffill_channels = []
             tables = [t[0] for t in con.execute("SHOW TABLES").fetchall()]
             for table in tables:
                 if table in skip_tables: continue
@@ -640,9 +744,9 @@ class TelemetryService:
                 if has_ts:
                     # Events
                     df['ts_rounded'] = df['ts'].round(3)
-                    # --- Carry-over for Sparse Channels (e.g. TyresCompound) ---
+                    # --- Carry-over for Sparse Channels (e.g. TyresCompound, TC, ABS) ---
                     # We look back for the last state before the requested window
-                    if table in ['TyresCompound', 'WheelsDetached'] and trim_start_time is not None:
+                    if table in sparse_channels and trim_start_time is not None:
                         try:
                             # Use exact start_time for DB lookup
                             last_state_df = con.execute(f'SELECT * FROM "{table}" WHERE ts <= ? ORDER BY ts DESC LIMIT 1', [trim_start_time]).df()
@@ -670,9 +774,10 @@ class TelemetryService:
                     
                     event_times = valid['ts_rounded'].values
                     idxs = np.searchsorted(master_time, event_times)
-                    valid_mask = (idxs < len(master_time)) & (np.abs(master_time[np.clip(idxs, 0, len(master_time)-1)] - event_times) < 1e-4) # Relaxed to 1e-4
-                    final_idxs = idxs[valid_mask]
-                    
+                    # Assign asynchronous events to the nearest valid frame instead of dropping them
+                    valid_mask = event_times >= master_time[0]
+                    final_idxs = np.clip(idxs[valid_mask], 0, len(master_time)-1)
+
                     if table == 'TyresCompound':
                         logger.info(f"[{table}] master_time[0]={master_time[0]}, event_times={event_times[:3]}")
                         logger.info(f"[{table}] idxs={idxs[:3]}, mask={valid_mask[:3]}")
@@ -683,11 +788,21 @@ class TelemetryService:
                             target_name = table
                             # Create N x 4 array
                             vals = valid[wheel_cols].values # (M, 4)
-                            full = np.full((len(master_time), 4), np.nan)
-                            full[final_idxs] = vals[valid_mask]
+                            # Default to 0.0 for trigger channels to ensure clean pulse/baseline
+                            fill_val = 0.0 if table in no_ffill_channels else np.nan
+                            full = np.full((len(master_time), 4), fill_val)
+                            
+                            if table in no_ffill_channels:
+                                for idx, row_vals in zip(final_idxs, vals[valid_mask]):
+                                    for w in range(4):
+                                        fv = float(row_vals[w])
+                                        if fv > full[idx, w]:
+                                            full[idx, w] = fv
+                            else:
+                                full[final_idxs] = vals[valid_mask]
                             
                             # --- Forward Filling for Sparse Channels ---
-                            if table in ['TyresCompound', 'WheelsDetached']:
+                            if table in sparse_channels and table not in no_ffill_channels:
                                 # Convert to DataFrame for easy ffill (axis=0)
                                 df_ffill = pd.DataFrame(full).ffill()
                                 # Special case: default WheelsDetached to 0.0
@@ -698,17 +813,45 @@ class TelemetryService:
                             fused_data[target_name] = full.tolist()
                         else:
                             if target_name in fused_data: target_name = f"{table}_{col}"
-                            full = np.full(len(master_time), np.nan)
-                            full[final_idxs] = valid[col].values[valid_mask]
+                            # Default to 0.0 for trigger channels
+                            fill_val = 0.0 if table in no_ffill_channels else np.nan
+                            full = np.full(len(master_time), fill_val)
+                            
+                            if table in no_ffill_channels:
+                                # For trigger pulses, if multiple events fall into the same bin, take the MAX
+                                # to ensure we don't miss a 1.0/True pulse followed by a 0.0/False in the same step
+                                for idx, val in zip(final_idxs, valid[col].values[valid_mask]):
+                                    current = full[idx]
+                                    # Convert potential boolean to float for comparison
+                                    float_val = float(val)
+                                    if float_val > current:
+                                        full[idx] = float_val
+                            else:
+                                pulse_channels = ['TC', 'ABS', 'TCCut']
+                                for idx, val in zip(final_idxs, valid[col].values[valid_mask]):
+                                    float_val = float(val)
+                                    if table in pulse_channels:
+                                        if float_val == 1.0:
+                                            full[idx] = 1.0
+                                        elif float_val == 0.0:
+                                            if full[idx] == 1.0 and idx + 1 < len(full):
+                                                full[idx + 1] = 0.0
+                                            else:
+                                                full[idx] = 0.0
+                                        else:
+                                            full[idx] = float_val
+                                    else:
+                                        full[idx] = float_val
                             
                             # --- Forward Filling for Sparse Channels ---
-                            if table in ['TyresCompound', 'WheelsDetached']:
+                            if table in sparse_channels and table not in no_ffill_channels:
                                 series_ffill = pd.Series(full).ffill()
                                 if table == 'WheelsDetached':
                                     series_ffill = series_ffill.fillna(0.0)
                                 full = series_ffill.values
-                                
+
                             fused_data[target_name] = full.tolist() if isinstance(full, np.ndarray) and full.ndim > 1 else full
+                
                 else:
                     # Continuous
                     current_indices = np.linspace(0, len(gps_times)-1, len(df))
@@ -728,9 +871,16 @@ class TelemetryService:
                             if target_name in fused_data: target_name = f"{table}_{col}"
                             
                             vals = df[col].values
-                            if np.issubdtype(vals.dtype, np.number):
-                                interp_vals = np.interp(master_time, source_time, vals)
+                            if np.issubdtype(vals.dtype, np.number) or np.issubdtype(vals.dtype, np.bool_):
+                                # Convert bool to float for interpolation/ffill
+                                float_vals = vals.astype(float)
+                                interp_vals = np.interp(master_time, source_time, float_vals)
                                 fused_data[target_name] = interp_vals
+
+                # Special Post-Mapping: If we find setting-like names, preserve them but allow override
+                if table == 'ABS' and target_name == 'ABS':
+                    # If this looks like a level (values > 1 common), we'll let Wheel ABS override it later
+                    pass
 
             # 8. Post-Process Steering Angle
             if 'Steering Pos' in fused_data:
@@ -758,6 +908,63 @@ class TelemetryService:
                 # FALLBACK: Ensure the key ALWAYS exists to avoid N/A in frontend
                 if 'WorldPosZ' not in fused_data:
                     fused_data['WorldPosZ'] = np.zeros(len(master_time))
+
+            # 10. Virtual Channels (Slip Ratio, Tyre Temp I/C/O)
+            # Ground Speed in m/s for Slip calculations
+            gs_ms = speed_master
+            
+            # 1. Slip Ratio Calculation
+            if 'Wheel Speed' in fused_data:
+                ts_vals = np.array(fused_data['Wheel Speed']) # This is (N, 4)
+                if ts_vals.ndim == 2 and ts_vals.shape[1] == 4:
+                    slips = np.zeros_like(ts_vals)
+                    for i in range(4):
+                        # Slip Ratio = (WheelSpeed - GroundSpeed) / GroundSpeed
+                        # Use a small epsilon to avoid division by zero
+                        slips[:, i] = (ts_vals[:, i] - gs_ms) / np.maximum(gs_ms, 0.5)
+                    fused_data['Slip Ratio'] = slips.tolist()
+            
+            # 2. Tyre Temp Inside/Center/Outside Mapping
+            # FL(0), FR(1), RL(2), RR(3)
+            # FL/RL: Inside=Right, Outside=Left
+            # FR/RR: Inside=Left, Outside=Right
+            if all(k in fused_data for k in ['TyresTempLeft', 'TyresTempCentre', 'TyresTempRight']):
+                t_left = np.array(fused_data['TyresTempLeft'])
+                t_mid = np.array(fused_data['TyresTempCentre'])
+                t_right = np.array(fused_data['TyresTempRight'])
+                
+                if t_left.ndim == 2 and t_left.shape[1] == 4:
+                    t_inside = np.zeros_like(t_left)
+                    t_outside = np.zeros_like(t_left)
+                    
+                    # Mapping logic based on wheel position
+                    # Left Wheels (FL=0, RL=2)
+                    for i in [0, 2]:
+                        t_inside[:, i] = t_right[:, i]
+                        t_outside[:, i] = t_left[:, i]
+                    # Right Wheels (FR=1, RR=3)
+                    for i in [1, 3]:
+                        t_inside[:, i] = t_left[:, i]
+                        t_outside[:, i] = t_right[:, i]
+                    
+                    fused_data['TyresTempInside'] = t_inside.tolist()
+                    fused_data['TyresTempOutside'] = t_outside.tolist()
+                    fused_data['TyresTempCentre'] = t_mid.tolist()
+
+            # 3. ABS / TC Activation Logic
+            # If Wheel ABS (multi-wheel) exists, it represents the actual intervention.
+            # We map the max value across wheels to 'ABS' for the unified Electronics HUD.
+            if ('Wheel ABS' in fused_data or 'WheelABS' in fused_data):
+                wa_key = 'Wheel ABS' if 'Wheel ABS' in fused_data else 'WheelABS'
+                wa = np.array(fused_data[wa_key])
+                if wa.ndim == 2 and wa.shape[1] == 4:
+                    fused_data['ABS'] = np.max(wa, axis=1).tolist()
+            
+            if ('Wheel TC' in fused_data or 'WheelTC' in fused_data):
+                wt_key = 'Wheel TC' if 'Wheel TC' in fused_data else 'WheelTC'
+                wt = np.array(fused_data[wt_key])
+                if wt.ndim == 2 and wt.shape[1] == 4:
+                    fused_data['TC'] = np.max(wt, axis=1).tolist()
 
             # Finalize
             df_final = pd.DataFrame(fused_data)
@@ -836,3 +1043,175 @@ class TelemetryService:
                 logger.warning(f"Failed to scan {f} for compatible laps: {e}")
         
         return sorted(compatible_laps, key=lambda x: (x['date'], x['lap']), reverse=True)
+
+    @staticmethod
+    def export_lap(db_path: str, lap_number: int, output_path: str):
+        """
+        Slices the original DuckDB file to create a new standalone .duckdb file
+        containing only the specified lap.
+        
+        Strategy: Time-Shift
+        - All timestamps (ts columns) are shifted by -start_time so the lap starts at ~0.
+        - GPS Time (continuous) is also shifted.
+        - The Lap table is rewritten as a single record at ts=0, value=0.
+        - This ensures fuse_session_data correctly interprets the file as a fresh
+          single-lap session with no offset issues.
+        """
+        if not os.path.exists(db_path):
+            raise FileNotFoundError(f"Source database not found: {db_path}")
+
+        # 1. Get Lap Boundaries from the existing pipeline
+        laps_res = TelemetryService.get_laps_header(db_path)
+        laps = laps_res.get("laps", [])
+        target_lap = next((l for l in laps if l.get("lap") == lap_number), None)
+        if not target_lap:
+            raise ValueError(f"Lap {lap_number} not found in session")
+
+        start_time = target_lap["startTime"]
+        end_time   = target_lap["endTime"]
+        lap_duration = target_lap["duration"]
+
+        import duckdb as _ddb
+        import pandas as pd
+
+        con = None
+        try:
+            con = _ddb.connect(db_path, read_only=True)
+
+            if os.path.exists(output_path):
+                os.remove(output_path)
+
+            # 2. Determine GPS Time row range
+            tables = [t[0] for t in con.execute("SHOW TABLES").fetchall()]
+            max_rows = con.execute('SELECT COUNT(*) FROM "GPS Time"').fetchone()[0]
+            row_range = con.execute(f"""
+                SELECT min(rowid), max(rowid)
+                FROM "GPS Time"
+                WHERE value >= {start_time} AND value <= {end_time}
+            """).fetchone()
+            min_row_100 = row_range[0] if row_range and row_range[0] is not None else 0
+            max_row_100 = row_range[1] if row_range and row_range[1] is not None else max_rows - 1
+
+            COPY_WHOLE = {"metadata", "channelsList"}
+
+            # Nothing skipped - keep all tables for future channel additions
+            SKIP_ENTIRELY: set = set()
+
+            # --- Phase 1: Read all data into memory from source ---
+            tables_data = {}  # table_name -> DataFrame
+
+            for table in tables:
+                if table in SKIP_ENTIRELY:
+                    continue
+
+                cols = [c[0] for c in con.execute(f'DESCRIBE "{table}"').fetchall()]
+                has_ts    = "ts"    in cols
+                has_value = "value" in cols
+
+                if table in COPY_WHOLE:
+                    tables_data[table] = con.execute(f'SELECT * FROM "{table}"').df()
+
+                elif table == "Lap":
+                    tables_data[table] = pd.DataFrame({'ts': [0.0], 'value': [0]}).astype({'ts': 'float64', 'value': 'uint16'})
+
+                elif table == "Lap Time":
+                    # Force duration to match target_lap for consistency
+                    tables_data[table] = pd.DataFrame({
+                        'ts': [float(lap_duration)], 
+                        'value': [float(lap_duration)]
+                    }).astype({'ts': 'float64', 'value': 'float64'})
+
+                elif table in ["Last Sector1", "Best Sector1"] and target_lap.get("s1"):
+                    s1_val = float(target_lap["s1"])
+                    tables_data[table] = pd.DataFrame({'ts': [s1_val], 'value': [s1_val]}).astype({'ts': 'float64', 'value': 'float64'})
+
+                elif table in ["Last Sector2", "Best Sector2"] and target_lap.get("s1") and target_lap.get("s2"):
+                    s2_val = float(target_lap["s1"]) + float(target_lap["s2"])
+                    tables_data[table] = pd.DataFrame({'ts': [s2_val], 'value': [s2_val]}).astype({'ts': 'float64', 'value': 'float64'})
+
+                elif table == "Best LapTime":
+                    tables_data[table] = pd.DataFrame({
+                        'ts': [float(lap_duration)], 
+                        'value': [float(lap_duration)]
+                    }).astype({'ts': 'float64', 'value': 'float64'})
+
+                elif has_ts:
+                    value_cols = [c for c in cols if c != 'ts']
+                    col_list = ", ".join(f'"{c}"' for c in value_cols)
+                    sparse_channels = ['TyresCompound', 'WheelsDetached', 'TC', 'ABS', 'TCCut', 'TCLevel', 'ABSLevel', 'TCSlipAngle', 'Wheel ABS', 'Wheel TC', 'WheelABS', 'WheelTC']
+
+                    if table in sparse_channels:
+                        # Carry-over state for sparse events:
+                        last_state_df = con.execute(f"""
+                            SELECT 0.0 AS ts, {col_list}
+                            FROM "{table}"
+                            WHERE ts <= {start_time}
+                            ORDER BY ts DESC
+                            LIMIT 1
+                        """).df()
+                        
+                        lap_events_df = con.execute(f"""
+                            SELECT (ts - {start_time}) AS ts, {col_list}
+                            FROM "{table}"
+                            WHERE ts > {start_time} AND ts <= {end_time} + 1.0
+                        """).df()
+                        
+                        df = pd.concat([last_state_df, lap_events_df], ignore_index=True)
+                    else:
+                        # Generic capture with 1s buffer at the end to catch late events
+                        df = con.execute(f"""
+                            SELECT (ts - {start_time}) AS ts, {col_list}
+                            FROM "{table}"
+                            WHERE ts >= {start_time} AND ts <= {end_time} + 1.0
+                        """).df()
+                        
+                    tables_data[table] = df
+
+                else:
+                    count = con.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+                    if count > 0 and max_rows > 0:
+                        ratio   = count / max_rows
+                        min_row = int(min_row_100 * ratio)
+                        max_row = int(max_row_100 * ratio)
+
+                        if table == "GPS Time":
+                            df = con.execute(f"""
+                                SELECT CAST(value - {start_time} AS FLOAT) AS value
+                                FROM "{table}"
+                                WHERE rowid >= {min_row} AND rowid <= {max_row}
+                            """).df()
+                        elif table == "Lap Dist":
+                            offset_row = con.execute(f'SELECT value FROM "{table}" WHERE rowid >= {min_row} ORDER BY rowid LIMIT 1').fetchone()
+                            lap_dist_offset = offset_row[0] if offset_row else 0.0
+                            df = con.execute(f"""
+                                SELECT CAST(value - {lap_dist_offset} AS FLOAT) AS value
+                                FROM "{table}"
+                                WHERE rowid >= {min_row} AND rowid <= {max_row}
+                            """).df()
+                        else:
+                            df = con.execute(f"""
+                                SELECT * FROM "{table}"
+                                WHERE rowid >= {min_row} AND rowid <= {max_row}
+                            """).df()
+                        tables_data[table] = df
+                    else:
+                        tables_data[table] = con.execute(f'SELECT * FROM "{table}"').df()
+
+        finally:
+            if con:
+                con.close()
+
+        # --- Phase 2: Write all data to a fresh output file ---
+        # Use 16KB blocks (vs default 256KB) - reduces overhead ~40% for single-lap files
+        out_con = _ddb.connect(output_path, config={'default_block_size': 16384})
+        try:
+            for table, df in tables_data.items():
+                out_con.execute(f'CREATE TABLE "{table}" AS SELECT * FROM df')
+
+            # Stamp export metadata
+            out_con.execute(f"INSERT INTO metadata (key, value) VALUES ('ExportedLap', '{lap_number}')")
+            out_con.execute(f"INSERT INTO metadata (key, value) VALUES ('ExportedFrom', '{os.path.basename(db_path)}')")
+            out_con.execute("CHECKPOINT")
+        finally:
+            out_con.close()
+

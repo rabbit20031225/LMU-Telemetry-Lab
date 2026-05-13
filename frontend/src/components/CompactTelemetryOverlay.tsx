@@ -201,7 +201,7 @@ export const CompactTelemetryOverlay = React.memo(({
                 MozOsxFontSmoothing: 'grayscale',
                 willChange: 'transform, left, top',
             }}
-            className={`pointer-events-auto flex items-center border ${editHudMode ? 'hud-edit-glow' : 'border-transparent'} rounded-2xl p-2 px-3 gap-3 overflow-hidden glass-container-static group/teleOverlay ${isDragging || isResizing ? 'transition-none' : 'transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]'} select-none min-w-[280px] h-14`}
+            className={`pointer-events-auto flex items-center border ${editHudMode ? 'hud-edit-glow' : 'border-transparent'} rounded-xl p-2 px-3 gap-3 overflow-hidden glass-container-static group/teleOverlay ${isDragging || isResizing ? 'transition-none' : 'transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]'} select-none min-w-[280px] h-14`}
         >
             {/* Sidebar label indicator */}
             <div className={`absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center ${isRef ? 'bg-amber-500/20' : 'bg-blue-500/20'} border-r border-white/5`}>
@@ -291,7 +291,7 @@ export const CompactTelemetryOverlay = React.memo(({
             )}
 
             {/* Hint Overlay - Toggle text based on edit mode */}
-            <div className={`absolute inset-0 flex items-center justify-center ${editHudMode ? 'bg-blue-600/20' : 'bg-black/40'} opacity-0 group-hover/teleOverlay:opacity-100 transition-opacity duration-300 pointer-events-none backdrop-blur-[1px]`}>
+            <div className={`absolute inset-0 flex items-center justify-center ${editHudMode ? 'bg-blue-600/20' : 'bg-black/20'} opacity-0 group-hover/teleOverlay:opacity-100 transition-opacity duration-300 pointer-events-none backdrop-blur-[1px] rounded-xl`}>
                 <span className={`text-[9px] font-black uppercase tracking-[0.2em] drop-shadow-lg scale-90 group-hover/teleOverlay:scale-100 transition-transform duration-300 ${editHudMode ? 'text-blue-200' : 'text-white/70'}`}>
                     {editHudMode ? 'Double Click to Lock' : 'Double Click to Edit'}
                 </span>

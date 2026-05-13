@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Lap } from '../types';
 import { ChevronDown } from 'lucide-react';
+import { useTelemetryStore } from '../store/telemetryStore';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 
 interface LapSelectProps {
@@ -93,11 +94,14 @@ export const LapSelect: React.FC<LapSelectProps> = ({
         const isFastest = lap.isValid && lap.duration === minDuration;
         const cleanTimeStr = formatTime(lap.duration);
         let timeStr = cleanTimeStr;
-        if (lap.inPit) timeStr += " (IN PITS)";
-        else if (lap.isOutLap) timeStr += " (OUT LAP)";
+        if (laps.length > 1) {
+            if (lap.inPit) timeStr += " (IN PITS)";
+            else if (lap.isOutLap) timeStr += " (OUT LAP)";
+        }
 
         return { isFastest, timeStr, cleanTimeStr, isInvalid: !lap.isValid, fuelUsed: lap.fuelUsed };
     };
+
 
     const selectedLap = laps.find(l => l.lap === value);
     let displayContent = <span className="text-gray-400 truncate">{placeholder || "Select Lap"}</span>;
@@ -168,28 +172,29 @@ export const LapSelect: React.FC<LapSelectProps> = ({
                                 {laps.map(l => {
                                     const { isFastest, timeStr, isInvalid, fuelUsed } = getLapDisplay(l);
                                     return (
-                                        <button
-                                            key={l.lap}
-                                            className={`w-full text-left px-3 py-2 text-[13px] glass-container border rounded-xl transition-all group/lapitem
-                                                ${value === l.lap ? 'bg-blue-600/20 border-blue-400/50 text-blue-400' : 'border-white/5 text-gray-300 hover:border-white/20 hover:bg-white/5'}
-                                            `}
-                                            onClick={() => { onChange(l.lap); setIsOpen(false); }}
-                                            onMouseMove={handleGlassMouseMove}
-                                        >
-                                            <div className="glass-content flex items-center justify-between w-full">
-                                                <span className="font-mono pr-2 min-w-max">Lap {l.lap}</span>
-                                                <span className="flex flex-1 items-center justify-end gap-2">
-                                                    <span className={`${isInvalid ? 'text-red-500 font-bold' : (isFastest ? 'text-purple-400 font-bold' : (value === l.lap ? 'text-blue-400' : 'text-gray-400'))} font-mono text-[11px] whitespace-nowrap text-right group-hover/lapitem:scale-105 transition-transform`}>
-                                                        {timeStr}
+                                        <div key={l.lap} className="relative group/laprow">
+                                            <button
+                                                className={`w-full text-left px-3 py-2 text-[13px] glass-container border rounded-xl transition-all group/lapitem
+                                                    ${value === l.lap ? 'bg-blue-600/20 border-blue-400/50 text-blue-400' : 'border-white/5 text-gray-300 hover:border-white/20 hover:bg-white/5'}
+                                                `}
+                                                onClick={() => { onChange(l.lap); setIsOpen(false); }}
+                                                onMouseMove={handleGlassMouseMove}
+                                            >
+                                                <div className="glass-content flex items-center justify-between w-full">
+                                                    <span className="font-mono pr-2 min-w-max">Lap {l.lap}</span>
+                                                    <span className="flex flex-1 items-center justify-end gap-2">
+                                                        <span className={`${isInvalid ? 'text-red-500 font-bold' : (isFastest ? 'text-purple-400 font-bold' : (value === l.lap ? 'text-blue-400' : 'text-gray-400'))} font-mono text-[11px] whitespace-nowrap text-right group-hover/lapitem:scale-105 transition-transform`}>
+                                                            {timeStr}
+                                                        </span>
+                                                        {fuelUsed !== undefined && fuelUsed > 0.05 ? (
+                                                            <span className="text-gray-500 font-mono text-[10px] flex items-center justify-end gap-1 w-12"><img src="/fuel.png" className="w-2.5 h-2.5 opacity-60" />{fuelUsed.toFixed(1)} L</span>
+                                                        ) : (
+                                                            <span className="w-12"></span>
+                                                        )}
                                                     </span>
-                                                    {fuelUsed !== undefined && fuelUsed > 0.05 ? (
-                                                        <span className="text-gray-500 font-mono text-[10px] flex items-center justify-end gap-1 w-12"><img src="/fuel.png" className="w-2.5 h-2.5 opacity-60" />{fuelUsed.toFixed(1)} L</span>
-                                                    ) : (
-                                                        <span className="w-12"></span>
-                                                    )}
-                                                </span>
-                                            </div>
-                                        </button>
+                                                </div>
+                                            </button>
+                                        </div>
                                     );
                                 })}
                             </div>

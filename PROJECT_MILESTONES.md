@@ -1,3 +1,64 @@
+### 🚀 Project Impact
+*   v1.4.0 marks a significant leap towards a professional data analysis platform. The new export capability simplifies data sharing, while the navigation and stability improvements set a new standard for telemetry UX.
+
+---
+
+## 🟢 [2026-05-13] Telemetry v1.4.0 - 專業數據匯出與深度分析系統
+
+### 🌟 核心突破
+*   **單圈數據匯出系統 (Lap Export System)**: 實作了單圈提取功能，使用者可將特定單圈數據匯出為獨立的 `.duckdb` 檔案，極大提升了數據分享與社群交流的便利性。
+*   **專業遙測圖表擴展 (Advanced Telemetry Charts)**: 新增大量專業數據頻道，包含深度的輪胎資訊、車輛動態（Dynamics）與各項車輛系統數據，提供更精準的賽車工程分析。
+*   **車輛設定檢視器 (Car Setup View)**: 新增 Setup 頁面，支援查看並比對遊戲中的車輛設定參數，幫助使用者分析設定變動對遙測數據的影響。
+*   **檔案管理員優化 (FileManager Optimization)**：重構檔案清單邏輯，新增多種分類與過濾方式，讓使用者在面對大量遙測資料時能更快速地定位目標檔案。
+*   **UI/UX 穩定性打磨**: 包含「懸浮膠囊」導航介面、**圖表 Sector 分界線**、換檔數據平滑化、以及地圖切換視覺穩定性校正。
+
+### 🚀 專案影響
+*   v1.4.0 標誌著工具從「數據播放器」正式轉型為「專業分析平台」。透過單圈匯出與車輛設定比對，使用者現在擁有了更完整的賽車工程工作流。
+
+🟢 [2026-05-13] Telemetry v1.4.0 - Data Export & Deep Analytics Suite
+
+### 🌟 Key Breakthroughs
+*   **Lap Export System**: Enabled individual lap extraction into independent `.duckdb` files, simplifying data sharing and community collaboration.
+*   **Professional Telemetry Expansion**: Introduced extensive new data channels for tire telemetry, vehicle dynamics, and powertrain systems for high-fidelity engineering analysis.
+*   **Car Setup Viewer**: A new interface to view and compare in-game car setups, allowing users to correlate mechanical changes with telemetry performance.
+*   **FileManager Optimization**: Enhanced file listing with new categorization and filtering methods for faster access to large telemetry databases.
+*   **UI/UX Refinements**: Integrated "Floating Capsule" navigation, **Chart Sector Boundaries**, gear shift data smoothing, and visual stability for map transitions.
+
+### 🚀 Project Impact
+*   v1.4.0 transforms the tool from a "data player" into a "professional analytics platform," providing a comprehensive engineering workflow with lap exporting and setup comparison.
+
+---
+
+## 🟢 [2026-04-29] Landing Page - 官方形象首頁與自動化發佈系統
+
+### 🌟 核心突破
+*   **品牌視覺建立 (Brand Identity)**: 實作了高品質、科技感的官方 Landing Page。採用深色科技風、玻璃擬態與動態光暈背景，建立專業品牌形象。
+*   **互動式功能展示 (Interactive Showcase)**:
+    *   **2D/3D 賽道切換**: 實作動態 2D 與 3D 賽道路線切換展示，具備平滑動畫效果。
+    *   **Z 字型功能介紹**: 針對參考圈對比、跨賽程分析、工作區管理與硬體同步等核心功能進行深度展示。
+    *   **動態滾動特效**: 引入雙向滾動淡入淡出動畫，提升瀏覽時的沉浸感。
+*   **多國語言支援 (i18n)**: 完整支援繁體中文、英文、西班牙文與義大利文，並實作自定義下拉式選單。
+*   **GitHub CI/CD 全自動化部署**: 建立 GitHub Actions 流程，實現 Push 即發佈至 GitHub Pages。修復了根目錄 `.gitignore` 導致 `index.html` 被過濾的關鍵佈署問題。
+
+### 🚀 專案影響
+*   此里程碑標誌著 LMU Telemetry Lab 正式從純開發階段轉向對外發佈階段。有了專業的 Landing Page 與自動化部署流程，使用者能更輕鬆地獲取軟體更新與了解核心優勢。
+
+🟢 [2026-04-29] Landing Page - Official Homepage & Automated Deployment
+
+### 🌟 Key Breakthroughs
+*   **Brand Identity**: Implemented a high-quality, tech-inspired official landing page featuring dark mode aesthetics, glassmorphism, and dynamic glow backgrounds.
+*   **Interactive Showcase**:
+    *   **2D/3D Track Toggle**: Smooth animated switching between 2D and 3D track visualizations.
+    *   **Z-Pattern Features**: In-depth showcase for reference lap comparison, multi-session analysis, workspace management, and hardware sync.
+    *   **Dynamic Scroll Effects**: Bidirectional fade-in/out animations for an immersive browsing experience.
+*   **Internationalization (i18n)**: Full support for Traditional Chinese, English, Spanish, and Italian with a custom dropdown switcher.
+*   **GitHub CI/CD Automation**: Established a GitHub Actions workflow for instant deployment to GitHub Pages. Resolved a critical deployment bug where `index.html` was ignored by the root `.gitignore`.
+
+### 🚀 Project Impact
+*   This milestone marks the official transition of LMU Telemetry Lab from development to a public-facing phase. The professional landing page and automated deployment pipeline ensure a seamless experience for users discovering the software.
+
+---
+
 ## 🟢 [2026-04-25] Telemetry v1.3.2 - UX 優化與系統整合
 
 ### 🌟 核心突破

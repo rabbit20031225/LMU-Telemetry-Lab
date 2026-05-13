@@ -112,9 +112,7 @@ export const UpdateNotifier = () => {
   };
 
   const handleUpdate = () => {
-    if (latestRelease?.html_url) {
-      window.open(latestRelease.html_url, '_blank');
-    }
+    window.open('https://rabbit20031225.github.io/LMU-Telemetry-Lab/', '_blank');
     setShowPopup(false);
   };
 

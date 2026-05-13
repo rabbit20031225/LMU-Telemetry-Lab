@@ -1,6 +1,6 @@
 {
     "name": "lmu-telemetry-lab",
-    "version": "1.3.2",
+    "version": "1.4.0",
     "main": "main.js",
     "scripts": {
         "start": "electron .",

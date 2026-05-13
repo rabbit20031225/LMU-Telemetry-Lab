@@ -54,6 +54,7 @@ def find_track_in_registry(search_name: str):
 
 TRACK_REGISTRY = {
     "Bahrain International Circuit": {
+        "display_name": "Bahrain",
         "aliases": ["Sakhir"],
         "country": "Bahrain",
         "layouts": {
@@ -128,6 +129,7 @@ TRACK_REGISTRY = {
         }
     },
     "Circuit de La Sarthe": {
+        "display_name": "Le Mans",
         "aliases": ["Le Mans", "Circuit de la Sarthe", "Sarthe", "Le Mans"],
         "country": "France",
         "layouts": {
@@ -186,12 +188,13 @@ TRACK_REGISTRY = {
                     { "dist": 12500, "alt": 54.0, "corner": "Corvette Corner" },
                     { "dist": 13000, "alt": 53.5, "corner": "Maison Blanche" },
                     { "dist": 13350, "alt": 51.5, "corner": "Ford Chicanes" },
-                    { "dist": 13528, "alt": 51.0, "corner": "Start/Finish Line" }
+                    { "dist": 13554, "alt": 51.0, "corner": "Start/Finish Line" }
                 ]
             }
         }
     },
     "Paul Ricard": {
+        "display_name": "Paul Ricard",
         "aliases": ["Le Castellet", "Paul Ricard - ELMS"],
         "country": "France",
         "layouts": {
@@ -264,6 +267,7 @@ TRACK_REGISTRY = {
         }
     },
     "Circuit of the Americas": {
+        "display_name": "COTA",
         "aliases": ["COTA", "Austin"],
         "country": "United States",
         "layouts": {
@@ -282,7 +286,7 @@ TRACK_REGISTRY = {
                     { "dist": 4600, "alt": 130.0, "corner": "T16-T18 Carousel" },
                     { "dist": 5100, "alt": 131.5, "corner": "T19" },
                     { "dist": 5400, "alt": 131.0, "corner": "T20 Entry" },
-                    { "dist": 5514, "alt": 131.0, "corner": "Lap End" }
+                    { "dist": 5513, "alt": 131.0, "corner": "Lap End" }
                 ]
             },
             "National Circuit": {
@@ -298,12 +302,13 @@ TRACK_REGISTRY = {
                     { "dist": 2200, "alt": 129.5, "corner": "Re-joining Stadium Section" },
                     { "dist": 2700, "alt": 130.5, "corner": "T16-T18 Carousel" },
                     { "dist": 3300, "alt": 131.5, "corner": "T20 Apex" },
-                    { "dist": 3701, "alt": 131.0, "corner": "Lap End" }
+                    { "dist": 3702, "alt": 131.0, "corner": "Lap End" }
                 ]
             }
         }
     },
     "Fuji Speedway": {
+        "display_name": "Fuji",
         "aliases": ["Fuji"],
         "country": "Japan",
         "layouts": {
@@ -334,12 +339,13 @@ TRACK_REGISTRY = {
                     { "dist": 3400, "alt": 604.0, "corner": "Link Section Crest (最高點)" },
                     { "dist": 3800, "alt": 601.5, "corner": "Sweep into Final Straight" },
                     { "dist": 4200, "alt": 593.0, "corner": "Final Turn Exit" },
-                    { "dist": 4520, "alt": 582.0, "corner": "Start/Finish Line" }
+                    { "dist": 4526, "alt": 582.0, "corner": "Start/Finish Line" }
                 ]
             }
         }
     },
     "Autodromo Internazionale Enzo e Dino Ferrari": {
+        "display_name": "Imola",
         "aliases": ["Imola"],
         "country": "Italy",
         "layouts": {
@@ -366,6 +372,7 @@ TRACK_REGISTRY = {
         }
     },
     "Autodromo Jose Carlos Pace": {
+        "display_name": "Interlagos",
         "aliases": ["Jose Carlos Pace", "Sao Paulo", "Autódromo José Carlos Pace", "Interlagos"],
         "country": "Brazil",
         "layouts": {
@@ -390,6 +397,7 @@ TRACK_REGISTRY = {
         }
     },
     "Lusail International Circuit": {
+        "display_name": "Lusail",
         "aliases": ["Qatar"],
         "country": "Qatar",
         "layouts": {
@@ -407,7 +415,7 @@ TRACK_REGISTRY = {
                     { "dist": 4100, "alt": 11.2, "corner": "T14" },
                     { "dist": 4700, "alt": 10.5, "corner": "T16 Apex" },
                     { "dist": 5100, "alt": 10.8, "corner": "T16 Exit" },
-                    { "dist": 5380, "alt": 11.0, "corner": "Start/Finish" }
+                    { "dist": 5400, "alt": 11.0, "corner": "Start/Finish" }
                 ]
             },
             "Short Circuit": {
@@ -422,12 +430,13 @@ TRACK_REGISTRY = {
                     { "dist": 2150, "alt": 10.8, "corner": "Re-joining T15 Entry" },
                     { "dist": 2500, "alt": 10.5, "corner": "T16 Apex (全場最低點)" },
                     { "dist": 3100, "alt": 10.8, "corner": "T16 Exit / Main Straight" },
-                    { "dist": 3822, "alt": 11.0, "corner": "Start/Finish Line" }
+                    { "dist": 3701, "alt": 11.0, "corner": "Start/Finish Line" }
                 ]
             }
         }
     },
     "Autodromo Nazionale Monza": {
+        "display_name": "Monza",
         "aliases": ["Monza"],
         "country": "Italy",
         "layouts": {
@@ -468,12 +477,13 @@ TRACK_REGISTRY = {
                     { "dist": 4600, "alt": 185.1, "corner": "Back Straight" },
                     { "dist": 5100, "alt": 184.3, "corner": "Parabolica Entry" },
                     { "dist": 5400, "alt": 183.5, "corner": "Parabolica Apex" },
-                    { "dist": 5770, "alt": 183.0, "corner": "Start/Finish Line" }
+                    { "dist": 5750, "alt": 183.0, "corner": "Start/Finish Line" }
                 ]
             }
         }
     },
     "Algarve International Circuit": {
+        "display_name": "Portimao",
         "aliases": ["Portimao", "Algarve"],
         "country": "Portugal",
         "layouts": {
@@ -500,6 +510,7 @@ TRACK_REGISTRY = {
         }
     },
     "Sebring International Raceway": {
+        "display_name": "Sebring",
         "aliases": ["Sebring"],
         "country": "United States",
         "layouts": {
@@ -531,12 +542,13 @@ TRACK_REGISTRY = {
                     { "dist": 2350, "alt": 17.8, "corner": "T15" },
                     { "dist": 2750, "alt": 16.6, "corner": "T17 Sunset Bend (Lowest Point)" },
                     { "dist": 3050, "alt": 17.6, "corner": "T17 Exit" },
-                    { "dist": 3218, "alt": 18.0, "corner": "Start/Finish Line" }
+                    { "dist": 3219, "alt": 18.0, "corner": "Start/Finish Line" }
                 ]
             }
         }
     },
     "Silverstone": {
+        "display_name": "Silverstone",
         "aliases": ["Silverstone Circuit"],
         "country": "United Kingdom",
         "layouts": {
@@ -589,6 +601,7 @@ TRACK_REGISTRY = {
         }
     },
     "Circuit de Spa-Francorchamps": {
+        "display_name": "Spa",
         "aliases": ["Spa", "Spa-Francorchamps"],
         "country": "Belgium",
         "layouts": {
@@ -645,6 +658,7 @@ TRACK_REGISTRY = {
         }
     },
     "Circuit de Barcelona": {
+        "display_name": "Barcelona",
         "aliases": ["Circuit de Barcelona", "Catalunya", "Circuit de Barcelona-Catalunya"],
         "country": "Spain",
         "layouts": {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { User, Plus, Trash2, X, RefreshCw, Edit2, Check } from 'lucide-react';
 import { useTelemetryStore } from '../store/telemetryStore';
 import { handleGlassMouseMove } from '../utils/glassEffect';
@@ -77,13 +78,30 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ onClose }) => {
 
 
     return (
-        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-6 bg-black/60 backdrop-blur-xl animate-in fade-in duration-500 overflow-hidden">
+        <div 
+            className="absolute inset-0 flex items-center justify-center p-6 overflow-hidden"
+            onClick={(e) => e.target === e.currentTarget && onClose?.()}
+        >
             {/* Background Ambient Glows */}
-            <div className="absolute top-1/4 left-1/4 w-[40rem] h-[40rem] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
-            <div className="absolute bottom-1/4 right-1/4 w-[40rem] h-[40rem] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse delay-700" />
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute top-1/4 left-1/4 w-[40rem] h-[40rem] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" 
+            />
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute bottom-1/4 right-1/4 w-[40rem] h-[40rem] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse delay-700" 
+            />
 
             {/* Main Profile Selection UI */}
-            <div
+            <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 1.1, opacity: 0, y: -20 }}
+                transition={{ type: "spring", damping: 20, stiffness: 200 }}
                 className={`relative w-full max-w-md glass-container rounded-[2.5rem] p-8 shadow-[0_50px_100px_rgba(0,0,0,0.6)] group border border-white/5 transition-all duration-500 ${confirmDelete ? 'scale-95 blur-md opacity-50 pointer-events-none' : 'scale-100 blur-0 opacity-100'}`}
                 onMouseMove={(e) => handleGlassMouseMove(e)}
             >
@@ -298,7 +316,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ onClose }) => {
 
                 {/* Glass Polish Layers */}
                 <div className="absolute inset-0 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-transparent pointer-events-none opacity-50" />
-            </div>
+            </motion.div>
 
             {/* Deletion Confirmation Modal (Screen Centered Overlay) */}
             {confirmDelete && (
@@ -334,5 +352,3 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ onClose }) => {
         </div>
     );
 };
-
-
