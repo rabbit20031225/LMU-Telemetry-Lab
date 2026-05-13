@@ -858,7 +858,26 @@ function App() {
             transition: isResizingSidebar ? 'none' : 'width 0.5s ease, opacity 0.5s ease'
           }}
         >
-          {!showFileManager ? (
+          {(showFileManager || !currentSessionId) ? (
+            <div className="flex-1 overflow-hidden flex flex-col" style={{ transform: 'translateZ(0)', isolation: 'isolate' }}>
+              <div className="flex-1 overflow-y-scroll">
+                <FileManager onClose={() => setShowFileManager(false)} />
+              </div>
+                {currentSessionId && (
+                  <div className="mt-auto p-4 border-t border-white/5 bg-transparent">
+                    <button
+                      onClick={() => setShowFileManager(false)}
+                      className="w-full py-3 px-4 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-2xl border border-blue-500/30 shadow-[0_0_20px_rgba(37,99,235,0.2)] flex items-center justify-center font-black text-[10px] uppercase tracking-[0.2em] transition-all ring-1 ring-inset ring-blue-400/20 glass-container group"
+                      onMouseMove={handleGlassMouseMove}
+                    >
+                      <div className="glass-content flex items-center justify-center w-full">
+                        Return to Active Session
+                      </div>
+                    </button>
+                  </div>
+                )}
+            </div>
+          ) : (
             <>
               {/* Scrollable Main Sidebar Content */}
               <div className="flex-1 overflow-y-scroll custom-scrollbar flex flex-col min-h-0 pb-2 pl-4 pr-[10px]">
@@ -870,7 +889,7 @@ function App() {
                   />
                 )}
                 {/* Lap Controls (Middle of Sidebar) */}
-                {laps.length > 0 ? (
+                {laps.length > 0 && (
                   <div className="mb-3 p-4 glass-container glass-expand-pixel rounded-2xl border border-white/25 flex flex-col gap-3 hover:shadow-[0_0_30px_rgba(255,255,255,0.05)] transition-all duration-300 group/analysis" onMouseMove={handleGlassMouseMove}>
                     <div className="glass-content size-full flex flex-col gap-3">
                       <div className="flex items-center justify-between">
@@ -894,15 +913,6 @@ function App() {
                       <AnalysisLapsWidget />
                     </div>
                   </div>
-                ) : !currentSessionId && (
-                  <div className="flex-1 flex flex-col items-center justify-center opacity-30 group-hover/sidebar:opacity-50 transition-opacity duration-700 select-none">
-                    <div className="p-6 rounded-full bg-white/5 border border-white/10 mb-4">
-                      <Database size={48} className="text-gray-500" />
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 text-center px-8 leading-relaxed">
-                      No active session.<br/>Click below to select data.
-                    </span>
-                  </div>
                 )}
               </div>
 
@@ -919,25 +929,6 @@ function App() {
                 </button>
               </div>
             </>
-          ) : (
-            <div className="flex-1 overflow-hidden flex flex-col" style={{ transform: 'translateZ(0)', isolation: 'isolate' }}>
-              <div className="flex-1 overflow-y-scroll">
-                <FileManager onClose={() => setShowFileManager(false)} />
-              </div>
-                {currentSessionId && (
-                  <div className="mt-auto p-4 border-t border-white/5 bg-transparent">
-                    <button
-                      onClick={() => setShowFileManager(false)}
-                      className="w-full py-3 px-4 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-2xl border border-blue-500/30 shadow-[0_0_20px_rgba(37,99,235,0.2)] flex items-center justify-center font-black text-[10px] uppercase tracking-[0.2em] transition-all ring-1 ring-inset ring-blue-400/20 glass-container group"
-                      onMouseMove={handleGlassMouseMove}
-                    >
-                      <div className="glass-content flex items-center justify-center w-full">
-                        Return to Active Session
-                      </div>
-                    </button>
-                  </div>
-                )}
-            </div>
           )}
         </div>
       )}
