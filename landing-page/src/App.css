@@ -403,46 +403,55 @@
   object-fit: cover;
 }
 
-/* New for v1.4.0 - Session Grid & Settings Split */
-.session-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  width: 100%;
-}
-
-.session-quad {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-  width: 100%;
-}
-
-.quad-img {
-  aspect-ratio: 16 / 9;
+.showcase-visual.split-row .showcase-img.half {
+  flex: 1;
+  width: calc(50% - 0.75rem);
   object-fit: cover;
 }
 
-.hardware-visual {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.settings-split {
-  display: flex;
-  flex-direction: row;
-  gap: 1rem;
+/* Card Stack for Session Selection */
+.card-stack-container {
+  position: relative;
   width: 100%;
+  height: 320px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  margin-top: 1rem;
 }
 
-.settings-split .showcase-img {
-  flex: 1;
+.session-card {
+  position: absolute;
+  width: 90%;
+  max-width: 540px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  transition: transform 0.3s ease;
 }
 
-.wheel-main {
-  margin-bottom: 0.5rem;
+.session-card.top:hover {
+  transform: translateY(-5px);
 }
+
+.click-hint {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: rgba(102, 252, 241, 0.9);
+  color: #0b0c10;
+  padding: 0.5rem 0.8rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  pointer-events: none;
+  box-shadow: 0 4px 15px rgba(102, 252, 241, 0.4);
+}
+
 
 /* Track Toggle Styles */
 .track-toggle {
@@ -513,12 +522,8 @@
     margin: 0 auto 0.5rem;
   }
 
-  .session-quad {
-    grid-template-columns: 1fr;
-  }
-
-  .settings-split {
-    flex-direction: column;
+  .card-stack-container {
+    height: 240px;
   }
 
   .showcase-img.small {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Globe, ChevronDown, Layers, Crosshair, FolderKanban, Gamepad2, BarChart2, Settings2 } from 'lucide-react';
+import { Download, Globe, ChevronDown, Layers, Crosshair, FolderKanban, Gamepad2, BarChart2, Settings2, MousePointer2 } from 'lucide-react';
 import './App.css';
 
 import logo from './assets/logo.png';
@@ -8,12 +8,9 @@ import heroScreenshot from './assets/data_charts.png';
 import track2dImg from './assets/2d_racing_line.png';
 import track3dImg from './assets/3d_racing_line.png';
 import compareImg from './assets/reference_comparison.png';
-import workspaceImg from './assets/setup_multiple_workspace_to_manage_your_data.png';
 import wheelImg from './assets/choose_or_upload_your_own_wheel.png';
 import multiSessionImg from './assets/compares_between_different_session.png';
 import carSetupImg from './assets/car_setup_comparison.png';
-import customSettings1 from './assets/custom_settings_1.png';
-import customSettings2 from './assets/custom_settings_2.png';
 import session1 from './assets/select_session_1.png';
 import session2 from './assets/select_session_2.png';
 import session3 from './assets/select_session_3.png';
@@ -39,11 +36,12 @@ const translations = {
     featureSetupTitle: 'Detailed Setup Comparison',
     featureSetupDesc: 'Compare specific car setup parameters between different laps. Identify how changes in suspension, aerodynamics, or tire pressures affect your track performance.',
     featureWorkspaceTitle: 'Advanced Data Organization',
-    featureWorkspaceDesc: 'Set up multiple workspaces to manage telemetry data effortlessly. Select specific sessions to keep your analysis focused and structured.',
+    featureWorkspaceDesc: 'Easily organize vast amounts of telemetry data. Support for multiple workspaces and precise session selection to keep your analysis structured.',
     featureHardwareTitle: 'True-to-Life Hardware Sync',
     featureHardwareDesc: 'Choose or upload your exact steering wheel model. Sync your real-world hardware settings with the app for a 1:1 simulation experience.',
     footer: '© 2026 LMU Telemetry Lab. Built with passion for sim racing.',
-    langName: 'English'
+    langName: 'English',
+    clickToSwitch: 'Click to switch cards'
   },
   'zh-TW': {
     loading: 'v...讀取中',
@@ -63,12 +61,13 @@ const translations = {
     featureMultiSessionDesc: '跨越不同賽程進行遙測數據比對。輕鬆追蹤你的長期進步幅度，並在各種賽道條件下找出最完美的車輛調校。',
     featureSetupTitle: '深度車輛調校比對',
     featureSetupDesc: '精確比對不同單圈間的車輛調校參數。分析懸吊、空力或胎壓的微調如何影響你的賽道表現，找出最完美的設定。',
-    featureWorkspaceTitle: '進階工作區管理',
-    featureWorkspaceDesc: '輕鬆整理龐大的遙測數據。支援多工作區建立與單一賽程篩選，讓你的數據分析保持井然有序。',
+    featureWorkspaceTitle: '進階數據組織',
+    featureWorkspaceDesc: '輕鬆整理龐大的遙測數據。支援多工作區與精確的賽程選擇系統，讓你的數據分析始終保持井然有序。',
     featureHardwareTitle: '真實硬體外觀同步',
     featureHardwareDesc: '選擇或上傳你專屬的方向盤模型。將真實世界的硬體設定與應用程式完美同步，享受 1:1 的沉浸分析體驗。',
     footer: '© 2026 LMU Telemetry Lab. Built with passion for sim racing.',
-    langName: '繁體中文'
+    langName: '繁體中文',
+    clickToSwitch: '點擊切換圖片'
   },
   es: {
     loading: 'v... cargando',
@@ -89,11 +88,12 @@ const translations = {
     featureSetupTitle: 'Comparación de Configuración',
     featureSetupDesc: 'Compara parámetros específicos de configuración del coche entre vueltas. Identifica cómo los cambios afectan tu rendimiento.',
     featureWorkspaceTitle: 'Organización Avanzada',
-    featureWorkspaceDesc: 'Configura múltiples espacios de trabajo para gestionar datos de telemetría sin esfuerzo. Selecciona sesiones específicas para mantener tu análisis estructurado.',
+    featureWorkspaceDesc: 'Configura múltiples espacios de trabajo para gestionar datos de telemetría sin esfuerzo. Selecciona sesiones específicas.',
     featureHardwareTitle: 'Sincronización de Hardware',
     featureHardwareDesc: 'Elige o sube tu propio modelo de volante. Sincroniza tus ajustes reales con la aplicación para una experiencia de simulación 1:1.',
     footer: '© 2026 LMU Telemetry Lab. Creado con pasión por el sim racing.',
-    langName: 'Español'
+    langName: 'Español',
+    clickToSwitch: 'Haz clic para cambiar'
   },
   it: {
     loading: 'v... caricamento',
@@ -114,11 +114,12 @@ const translations = {
     featureSetupTitle: 'Confronto Assetto',
     featureSetupDesc: 'Confronta i parametri specifici dell\'assetto dell\'auto tra i vari giri. Identifica come le modifiche influenzano le prestazioni.',
     featureWorkspaceTitle: 'Organizzazione Avanzata',
-    featureWorkspaceDesc: 'Imposta più aree di lavoro per gestire i dati telemetrici senza sforzo. Seleziona sessioni specifiche per mantenere la tua analisi strutturata.',
+    featureWorkspaceDesc: 'Imposta più aree di lavoro per gestire i dati telemetrici senza sforzo. Seleziona sessioni specifiche.',
     featureHardwareTitle: 'Sincronizzazione Hardware',
     featureHardwareDesc: 'Scegli o carica il tuo modello di volante. Sincronizza le tue impostazioni reali con l\'app per un\'esperienza di simulazione 1:1.',
     footer: '© 2026 LMU Telemetry Lab. Creato con passione per il sim racing.',
-    langName: 'Italiano'
+    langName: 'Italiano',
+    clickToSwitch: 'Clicca per cambiare'
   }
 };
 
@@ -130,9 +131,11 @@ export const App: React.FC = () => {
   const [version, setVersion] = useState<string>(translations['en'].loading);
   const [downloadUrl, setDownloadUrl] = useState<string>('https://github.com/rabbit20031225/LMU-Telemetry-Lab/releases/latest');
   const [trackMode, setTrackMode] = useState<'2d' | '3d'>('3d');
+  const [sessionIdx, setSessionIdx] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const t = translations[lang];
+  const sessionImages = [session1, session2, session3, session4];
 
   useEffect(() => {
     fetch('https://api.github.com/repos/rabbit20031225/LMU-Telemetry-Lab/releases/latest')
@@ -154,6 +157,10 @@ export const App: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const nextSession = () => {
+    setSessionIdx((prev) => (prev + 1) % sessionImages.length);
+  };
 
   return (
     <div className="landing-container">
@@ -380,7 +387,7 @@ export const App: React.FC = () => {
             </div>
           </motion.div>
 
-          {/* Feature 4: Workspace */}
+          {/* Feature 4: Workspace (Card Stack) */}
           <motion.div 
             className="showcase-row"
             initial={{ opacity: 0, y: 40 }}
@@ -394,16 +401,39 @@ export const App: React.FC = () => {
                <p>{t.featureWorkspaceDesc}</p>
             </div>
             <div className="showcase-visual">
-               <div className="session-grid">
-                  <div className="workspace-main">
-                    <img src={workspaceImg} className="showcase-img" alt="Workspace Setup" />
-                  </div>
-                  <div className="session-quad">
-                    <img src={session1} className="showcase-img quad-img" alt="Session 1" />
-                    <img src={session2} className="showcase-img quad-img" alt="Session 2" />
-                    <img src={session3} className="showcase-img quad-img" alt="Session 3" />
-                    <img src={session4} className="showcase-img quad-img" alt="Session 4" />
-                  </div>
+               <div className="card-stack-container" onClick={nextSession}>
+                 <AnimatePresence mode="popLayout">
+                    {sessionImages.map((img, i) => {
+                      const isTop = i === sessionIdx;
+                      const offset = (i - sessionIdx + sessionImages.length) % sessionImages.length;
+                      if (offset > 2) return null; // Show only top 3 cards for depth
+
+                      return (
+                        <motion.div
+                          key={i}
+                          className={`session-card ${isTop ? 'top' : ''}`}
+                          initial={{ opacity: 0, scale: 0.8, x: 50 }}
+                          animate={{ 
+                            opacity: 1 - offset * 0.3, 
+                            scale: 1 - offset * 0.05,
+                            x: offset * 20,
+                            y: offset * -15,
+                            zIndex: 10 - offset
+                          }}
+                          exit={{ opacity: 0, scale: 0.8, x: -100 }}
+                          transition={{ duration: 0.4 }}
+                        >
+                          <img src={img} className="showcase-img" alt={`Session ${i + 1}`} />
+                          {isTop && (
+                            <div className="click-hint">
+                              <MousePointer2 size={16} />
+                              <span>{t.clickToSwitch}</span>
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                 </AnimatePresence>
                </div>
             </div>
           </motion.div>
@@ -421,12 +451,8 @@ export const App: React.FC = () => {
                <h3>{t.featureHardwareTitle}</h3>
                <p>{t.featureHardwareDesc}</p>
             </div>
-            <div className="showcase-visual hardware-visual">
-               <img src={wheelImg} className="showcase-img small wheel-main" alt="Hardware Wheel Sync" />
-               <div className="settings-split">
-                  <img src={customSettings1} className="showcase-img" alt="Settings 1" />
-                  <img src={customSettings2} className="showcase-img" alt="Settings 2" />
-               </div>
+            <div className="showcase-visual">
+               <img src={wheelImg} className="showcase-img small" alt="Hardware Wheel Sync" />
             </div>
           </motion.div>
 
