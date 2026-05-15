@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Globe, ChevronDown, Layers, Crosshair, FolderKanban, Gamepad2, BarChart2, Settings2, MousePointer2 } from 'lucide-react';
+import { Download, Globe, ChevronDown, Layers, Crosshair, FolderKanban, Gamepad2, BarChart2, Settings2, MousePointer2, Monitor } from 'lucide-react';
 import './App.css';
 
 import logo from './assets/logo.png';
@@ -11,6 +11,8 @@ import compareImg from './assets/reference_comparison.png';
 import wheelImg from './assets/choose_or_upload_your_own_wheel.png';
 import multiSessionImg from './assets/compares_between_different_session.png';
 import carSetupImg from './assets/car_setup_comparison.png';
+import customSettings1 from './assets/custom_settings_1.png';
+import customSettings2 from './assets/custom_settings_2.png';
 import session1 from './assets/select_session_1.png';
 import session2 from './assets/select_session_2.png';
 import session3 from './assets/select_session_3.png';
@@ -37,6 +39,8 @@ const translations = {
     featureSetupDesc: 'Compare specific car setup parameters between different laps. Identify how changes in suspension, aerodynamics, or tire pressures affect your track performance.',
     featureWorkspaceTitle: 'Advanced Data Organization',
     featureWorkspaceDesc: 'Easily organize vast amounts of telemetry data. Support for multiple workspaces and precise session selection to keep your analysis structured.',
+    featureCustomTitle: 'Custom Display Settings',
+    featureCustomDesc: 'Tailor your dashboard to perfection. Adjust HUD elements, map colors, and data overlays to suit your personal analysis workflow.',
     featureHardwareTitle: 'True-to-Life Hardware Sync',
     featureHardwareDesc: 'Choose or upload your exact steering wheel model. Sync your real-world hardware settings with the app for a 1:1 simulation experience.',
     footer: '© 2026 LMU Telemetry Lab. Built with passion for sim racing.',
@@ -63,6 +67,8 @@ const translations = {
     featureSetupDesc: '精確比對不同單圈間的車輛調校參數。分析懸吊、空力或胎壓的微調如何影響你的賽道表現，找出最完美的設定。',
     featureWorkspaceTitle: '進階數據組織',
     featureWorkspaceDesc: '輕鬆整理龐大的遙測數據。支援多工作區與精確的賽程選擇系統，讓你的數據分析始終保持井然有序。',
+    featureCustomTitle: '自定義顯示設定',
+    featureCustomDesc: '隨心所欲調整你的儀表板。從 HUD 元素到賽道顏色與數據圖層，都能根據你的分析習慣進行深度客製化。',
     featureHardwareTitle: '真實硬體外觀同步',
     featureHardwareDesc: '選擇或上傳你專屬的方向盤模型。將真實世界的硬體設定與應用程式完美同步，享受 1:1 的沉浸分析體驗。',
     footer: '© 2026 LMU Telemetry Lab. Built with passion for sim racing.',
@@ -86,11 +92,13 @@ const translations = {
     featureMultiSessionTitle: 'Análisis Multisesión',
     featureMultiSessionDesc: 'Compara datos de telemetría de diferentes sesiones. Sigue tu progresión a lo largo del tiempo e identifica la configuración óptima.',
     featureSetupTitle: 'Comparación de Configuración',
-    featureSetupDesc: 'Compara parámetros específicos de configuración del coche entre vueltas. Identifica cómo los cambios afectan tu rendimiento.',
+    featureSetupDesc: 'Compara parámetros específicos de configuración del coche entre vueltas.',
     featureWorkspaceTitle: 'Organización Avanzada',
-    featureWorkspaceDesc: 'Configura múltiples espacios de trabajo para gestionar datos de telemetría sin esfuerzo. Selecciona sesiones específicas.',
+    featureWorkspaceDesc: 'Configura múltiples espacios de trabajo para gestionar datos de telemetría sin esfuerzo.',
+    featureCustomTitle: 'Ajustes de Pantalla',
+    featureCustomDesc: 'Personaliza tu panel de control a la perfección. Ajusta elementos del HUD y colores.',
     featureHardwareTitle: 'Sincronización de Hardware',
-    featureHardwareDesc: 'Elige o sube tu propio modelo de volante. Sincroniza tus ajustes reales con la aplicación para una experiencia de simulación 1:1.',
+    featureHardwareDesc: 'Elige o sube tu propio modelo de volante. Sincroniza tus ajustes reales.',
     footer: '© 2026 LMU Telemetry Lab. Creado con pasión por el sim racing.',
     langName: 'Español',
     clickToSwitch: 'Haz clic para cambiar'
@@ -112,11 +120,13 @@ const translations = {
     featureMultiSessionTitle: 'Analisi Multi-Sessione',
     featureMultiSessionDesc: 'Confronta i dati telemetrici di diverse sessioni. Tieni traccia dei tuoi progressi nel tempo e identifica l\'assetto ottimale.',
     featureSetupTitle: 'Confronto Assetto',
-    featureSetupDesc: 'Confronta i parametri specifici dell\'assetto dell\'auto tra i vari giri. Identifica come le modifiche influenzano le prestazioni.',
+    featureSetupDesc: 'Confronta i parametri specifici dell\'assetto dell\'auto tra i vari giri.',
     featureWorkspaceTitle: 'Organizzazione Avanzata',
-    featureWorkspaceDesc: 'Imposta più aree di lavoro per gestire i dati telemetrici senza sforzo. Seleziona sessioni specifiche.',
+    featureWorkspaceDesc: 'Imposta più aree di lavoro per gestire i dati telemetrici senza sforzo.',
+    featureCustomTitle: 'Impostazioni Display',
+    featureCustomDesc: 'Personalizza il tuo dashboard. Regola elementi HUD e colori della mappa.',
     featureHardwareTitle: 'Sincronizzazione Hardware',
-    featureHardwareDesc: 'Scegli o carica il tuo modello di volante. Sincronizza le tue impostazioni reali con l\'app per un\'esperienza di simulazione 1:1.',
+    featureHardwareDesc: 'Scegli o carica il tuo modello di volante. Sincronizza le tue impostazioni reali.',
     footer: '© 2026 LMU Telemetry Lab. Creato con passione per il sim racing.',
     langName: 'Italiano',
     clickToSwitch: 'Clicca per cambiare'
@@ -406,21 +416,27 @@ export const App: React.FC = () => {
                     {sessionImages.map((img, i) => {
                       const isTop = i === sessionIdx;
                       const offset = (i - sessionIdx + sessionImages.length) % sessionImages.length;
-                      if (offset > 2) return null; // Show only top 3 cards for depth
+                      if (offset > 3) return null;
+
+                      // Staggering effect: rotate and shift
+                      const rotate = offset * 5;
+                      const x = offset * 25;
+                      const y = offset * 15;
 
                       return (
                         <motion.div
                           key={i}
                           className={`session-card ${isTop ? 'top' : ''}`}
-                          initial={{ opacity: 0, scale: 0.8, x: 50 }}
+                          initial={{ opacity: 0, scale: 0.8, x: 100 }}
                           animate={{ 
-                            opacity: 1 - offset * 0.3, 
+                            opacity: 1 - offset * 0.2, 
                             scale: 1 - offset * 0.05,
-                            x: offset * 20,
-                            y: offset * 12,
+                            x: x,
+                            y: y,
+                            rotate: rotate,
                             zIndex: 10 - offset
                           }}
-                          exit={{ opacity: 0, scale: 0.8, x: -100 }}
+                          exit={{ opacity: 0, scale: 0.8, x: -100, rotate: -20 }}
                           transition={{ duration: 0.4 }}
                         >
                           <img src={img} className="showcase-img" alt={`Session ${i + 1}`} />
@@ -438,9 +454,28 @@ export const App: React.FC = () => {
             </div>
           </motion.div>
 
-          {/* Feature 5: Hardware */}
+          {/* Feature 4.5: Custom Settings [NEW] */}
           <motion.div 
             className="showcase-row reverse"
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ margin: "-50px" }}
+            transition={{ duration: 0.7 }}
+          >
+            <div className="showcase-text">
+               <div className="showcase-text-icon"><Monitor size={24} /></div>
+               <h3>{t.featureCustomTitle}</h3>
+               <p>{t.featureCustomDesc}</p>
+            </div>
+            <div className="showcase-visual split-row">
+               <img src={customSettings1} className="showcase-img half" alt="Custom Settings 1" />
+               <img src={customSettings2} className="showcase-img half" alt="Custom Settings 2" />
+            </div>
+          </motion.div>
+
+          {/* Feature 5: Hardware */}
+          <motion.div 
+            className="showcase-row"
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ margin: "-50px" }}

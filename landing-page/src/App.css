@@ -407,23 +407,32 @@
 .card-stack-container {
   position: relative;
   width: 100%;
-  height: 400px;
+  height: 650px;
   display: flex;
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  margin: 3rem 0;
+  margin: 6rem 0;
 }
 
 .session-card {
   position: absolute;
-  width: 90%;
-  max-width: 480px;
+  width: 85%;
+  max-width: 420px;
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  transition: transform 0.3s ease;
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5);
+  background: #121820;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transform-origin: center center;
 }
+
+.session-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 
 .session-card.top:hover {
   transform: translateY(-5px);
@@ -517,7 +526,8 @@
   }
 
   .card-stack-container {
-    height: 240px;
+    height: 450px;
+    margin: 4rem 0;
   }
 
   .showcase-img.small {
