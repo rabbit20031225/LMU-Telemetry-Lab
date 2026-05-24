@@ -3,10 +3,12 @@
   <h1>LMU Telemetry Lab</h1>
   <p>A professional race telemetry analysis tool for <strong>Le Mans Ultimate</strong></p>
   <p>
-    <img src="https://img.shields.io/badge/version-1.4.0-blue" />
+    <img src="https://img.shields.io/badge/version-1.4.2-blue" />
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey" />
     <img src="https://img.shields.io/badge/license-MIT-green" />
     <img src="https://img.shields.io/badge/data-LMU_v1.3.1.2-orange" />
+    <a href="https://rabbit20031225.github.io/LMU-Telemetry-Lab/"><img src="https://img.shields.io/badge/Website-Landing%20Page-blue?logo=googlechrome&logoColor=white" /></a>
+    <a href="https://discord.gg/zNPehXA3jK"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" /></a>
     <a href="https://ko-fi.com/hungyc"><img src="https://img.shields.io/badge/Ko--fi-Support%20Me-ff5e5b?logo=kofi&logoColor=white" /></a>
   </p>
 </div>
