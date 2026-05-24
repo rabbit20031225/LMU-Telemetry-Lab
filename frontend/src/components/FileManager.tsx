@@ -195,7 +195,12 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
                 // Need to get the fresh sessions from store since we just updated them
                 setTimeout(() => {
                     const freshSessions = useTelemetryStore.getState().sessions;
-                    autoExpandNewestSession(freshSessions);
+                    if (result.id) {
+                        setNewlyUploadedId(result.id);
+                        expandAndScrollToSession(result.id, freshSessions);
+                    } else {
+                        autoExpandNewestSession(freshSessions);
+                    }
                 }, 100);
                 return;
             }
@@ -206,12 +211,17 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            await uploadSession(e.target.files[0]);
+            const id = await uploadSession(e.target.files[0]);
             if (fileInputRef.current) fileInputRef.current.value = "";
             // Auto expand after upload
             setTimeout(() => {
                 const freshSessions = useTelemetryStore.getState().sessions;
-                autoExpandNewestSession(freshSessions);
+                if (id) {
+                    setNewlyUploadedId(id);
+                    expandAndScrollToSession(id, freshSessions);
+                } else {
+                    autoExpandNewestSession(freshSessions);
+                }
             }, 100);
         }
     };
@@ -225,11 +235,16 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             const file = e.dataTransfer.files[0];
             if (file.name.endsWith(".duckdb")) {
-                await uploadSession(file);
+                const id = await uploadSession(file);
                 // Auto expand after upload
                 setTimeout(() => {
                     const freshSessions = useTelemetryStore.getState().sessions;
-                    autoExpandNewestSession(freshSessions);
+                    if (id) {
+                        setNewlyUploadedId(id);
+                        expandAndScrollToSession(id, freshSessions);
+                    } else {
+                        autoExpandNewestSession(freshSessions);
+                    }
                 }, 100);
             }
         }

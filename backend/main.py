@@ -46,6 +46,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 # Ensure persistent data directory exists BEFORE mounting
@@ -96,7 +97,7 @@ else:
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "antigravity-backend", "version": "1.4.0"}
+    return {"status": "ok", "service": "antigravity-backend", "version": "1.4.2"}
 
 if __name__ == "__main__":
     import uvicorn

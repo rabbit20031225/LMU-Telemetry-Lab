@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTelemetryStore } from '../store/telemetryStore';
-import { ArrowLeft, Loader2, Settings2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Settings2, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { CarSetupData } from '../types';
 import { getClassColor } from '../utils/carHelpers';
 import { handleGlassMouseMove } from '../utils/glassEffect';
+import { apiClient } from '../api/client';
 
 type TabId = 'powertrain' | 'wheelsAndBrakes' | 'suspension' | 'dampers' | 'chassisAndAero';
 
@@ -215,6 +216,7 @@ export const CarSetupView: React.FC = () => {
     const sessionMetadata = useTelemetryStore(s => s.sessionMetadata);
     const referenceLap = useTelemetryStore(s => s.referenceLap);
     const referenceSessionMetadata = useTelemetryStore(s => s.referenceSessionMetadata);
+    const currentSessionId = useTelemetryStore(s => s.currentSessionId);
     const fetchReferenceSetup = useTelemetryStore(s => s.fetchReferenceSetup);
     const clearReferenceSetup = useTelemetryStore(s => s.clearReferenceSetup);
 
@@ -230,6 +232,21 @@ export const CarSetupView: React.FC = () => {
     const carModel = sessionMetadata?.modelName;
     const refCarModel = referenceSessionMetadata?.modelName || referenceLap?.carModel;
     const hasReference = referenceCarSetupData !== null;
+
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleExport = async () => {
+        if (!currentSessionId) return;
+        try {
+            setIsExporting(true);
+            await apiClient.exportSessionSetup(currentSessionId);
+        } catch (error) {
+            console.error('Failed to export setup:', error);
+            // Optionally could add a toast here
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-black/60 backdrop-blur-3xl text-white select-none overflow-hidden border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)]">
@@ -283,19 +300,39 @@ export const CarSetupView: React.FC = () => {
                     </div>
                 )}
 
-                {/* Legend */}
-                {hasReference && (
-                    <div className="ml-auto flex items-center gap-6 px-6 py-2 bg-black/30 rounded-xl border border-white/5">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Current</span>
+                <div className="ml-auto flex items-center gap-4">
+                    {/* Export Button */}
+                    {currentSessionId && (
+                        <button
+                            onClick={handleExport}
+                            disabled={isExporting}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 rounded-xl border border-blue-500/20 hover:border-blue-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                        >
+                            {isExporting ? (
+                                <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                                <Download size={14} className="group-hover:-translate-y-0.5 transition-transform" />
+                            )}
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                                {isExporting ? 'Exporting...' : 'Export .svm'}
+                            </span>
+                        </button>
+                    )}
+
+                    {/* Legend */}
+                    {hasReference && (
+                        <div className="flex items-center gap-6 px-6 py-2 bg-black/30 rounded-xl border border-white/5">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Current</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-500/80">Reference</span>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500/80">Reference</span>
-                        </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             {/* Tab navigation */}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { X, Gauge, Thermometer, Eye, EyeOff, Layout, GripVertical, RotateCcw, Move3d, Save, Compass, Activity, Settings as SettingsIcon } from 'lucide-react';
+import { X, Gauge, Thermometer, Eye, EyeOff, Layout, GripVertical, RotateCcw, Move3d, Save, Compass, Activity, Settings as SettingsIcon, ArrowUpDown } from 'lucide-react';
 import { useTelemetryStore, CATEGORY_CHART_CONFIGS, getCategoryTemplateConfigs } from '../store/telemetryStore';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 import { Tooltip } from './ui/Tooltip';
@@ -42,6 +42,47 @@ const CarMarkerIcon = ({ size = 16, className = "" }: { size?: number, className
     </svg>
 );
 
+const SuspensionIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={className}
+    >
+        {/* Top eyelet ring */}
+        <circle cx="17.5" cy="6.5" r="2.5" />
+        
+        {/* Damper main shaft */}
+        <line x1="15.7" y1="8.3" x2="6.7" y2="17.3" strokeWidth="2.5" />
+        
+        {/* Coil springs (perpendicular segments along the shaft) */}
+        <line x1="16" y1="11.5" x2="12.5" y2="8" strokeWidth="2.5" />
+        <line x1="14" y1="13.5" x2="10.5" y2="10" strokeWidth="2.5" />
+        <line x1="12" y1="15.5" x2="8.5" y2="12" strokeWidth="2.5" />
+        <line x1="10" y1="17.5" x2="6.5" y2="14" strokeWidth="2.5" />
+        
+        {/* Bottom eyelet ring */}
+        <circle cx="5.5" cy="18.5" r="1.5" />
+    </svg>
+);
+
+const DiscordIcon = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+    <svg
+        viewBox="0 0 127.14 96.36"
+        width={size}
+        height={size}
+        className={className}
+        fill="currentColor"
+    >
+        <path d="M107.7,8.07A105.15,105.15,0,0,0,77.26,0a77.19,77.19,0,0,0-3.3,6.83A96.67,96.67,0,0,0,53.22,6.83,77.19,77.19,0,0,0,49.88,0,105.15,105.15,0,0,0,19.44,8.07C3.66,31.58-1.86,54.65,1,77.53A105.73,105.73,0,0,0,32,96.36a77.7,77.7,0,0,0,6.63-10.85,68.43,68.43,0,0,1-10.5-5A50.32,50.32,0,0,0,30.33,78,75.48,75.48,0,0,0,96.8,78a50.32,50.32,0,0,0,2.15,2.5,68.43,68.43,0,0,1-10.5,5,77.7,77.7,0,0,0,6.63,10.85,105.73,105.73,0,0,0,31-18.83C129.87,48.12,123.6,25.26,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53S36.18,40.36,42.45,40.36,53.83,46,53.83,53,48.72,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.24,60,73.24,53S78.41,40.36,84.69,40.36,96.07,46,96.07,53,91,65.69,84.69,65.69Z" />
+    </svg>
+);
+
 export const SettingsOverlay: React.FC = () => {
     const showSettings = useTelemetryStore(state => state.showSettings);
     const setShowSettings = useTelemetryStore(state => state.setShowSettings);
@@ -49,6 +90,10 @@ export const SettingsOverlay: React.FC = () => {
     const setSpeedUnit = useTelemetryStore(state => state.setSpeedUnit);
     const tempUnit = useTelemetryStore(state => state.tempUnit);
     const setTempUnit = useTelemetryStore(state => state.setTempUnit);
+    const invertSuspensionTravel = useTelemetryStore(state => state.invertSuspensionTravel);
+    const setInvertSuspensionTravel = useTelemetryStore(state => state.setInvertSuspensionTravel);
+    const suspensionTravelMode = useTelemetryStore(state => state.suspensionTravelMode);
+    const setSuspensionTravelMode = useTelemetryStore(state => state.setSuspensionTravelMode);
     const chartConfigs = useTelemetryStore(state => state.chartConfigs);
     const setChartConfigs = useTelemetryStore(state => state.setChartConfigs);
     const updateChartConfig = useTelemetryStore(state => state.updateChartConfig);
@@ -467,6 +512,124 @@ export const SettingsOverlay: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Suspension Travel Mode Setting */}
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2 px-2 text-gray-400">
+                            <SuspensionIcon size={18} className="text-blue-400" />
+                            <span className="text-xs font-black uppercase tracking-widest">Suspension Travel Mode</span>
+                        </div>
+
+                        <div
+                            className="glass-container bg-black/30 rounded-[2rem] border border-white/5 shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)] p-5"
+                            onMouseMove={(e) => handleGlassMouseMove(e, 0.1)}
+                            style={{ '--glass-hover-scale': '1.015', '--glass-content-scale': '1.01' } as any}
+                        >
+                            <div className="glass-content flex items-center justify-between gap-6">
+                                {/* Left Side: Detailed Explanations */}
+                                <div className="flex flex-col gap-1.5 flex-1">
+                                    <div className="flex flex-wrap items-center gap-y-1 gap-x-2">
+                                        <span className="text-xs font-black text-white uppercase tracking-wider whitespace-nowrap">
+                                            Travel Calculation
+                                        </span>
+                                        <span className="text-[9px] font-black bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded-md border border-blue-500/20 uppercase tracking-wider whitespace-nowrap">
+                                            Baseline Correction
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 font-medium leading-relaxed">
+                                        Choose how suspension travel values are computed and represented.
+                                        <br />
+                                        <strong className="text-gray-300">Raw (Absolute):</strong> Shows raw positive travel from rest. Features a horizontal glowing line at the baseline.
+                                        <br />
+                                        <strong className="text-gray-300">Relative (Corrected):</strong> Subtracts session baseline. Standard or Inverted compression polarity can be configured below.
+                                    </p>
+                                </div>
+
+                                {/* Right Side: Sliding Switch */}
+                                <div className="glass-container-flat bg-black/50 p-1.5 rounded-2xl flex border border-white/5 relative w-[180px] h-[48px] shrink-0 items-center">
+                                    {/* Sliding Indicator */}
+                                    <div
+                                        className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-blue-500/20 backdrop-blur-md rounded-xl border border-blue-500/30 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                                        style={{ left: suspensionTravelMode === 'raw' ? '6px' : 'calc(50%)' }}
+                                    />
+                                    <button
+                                        onClick={() => setSuspensionTravelMode('raw')}
+                                        className={`relative z-10 flex-1 h-full text-[11px] font-black uppercase tracking-wider transition-all rounded-xl ${suspensionTravelMode === 'raw' ? 'text-blue-400 font-extrabold' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        Raw
+                                    </button>
+                                    <button
+                                        onClick={() => setSuspensionTravelMode('relative')}
+                                        className={`relative z-10 flex-1 h-full text-[11px] font-black uppercase tracking-wider transition-all rounded-xl ${suspensionTravelMode === 'relative' ? 'text-blue-400 font-extrabold' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        Relative
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Suspension Travel Polarity Setting */}
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2 px-2 text-gray-400">
+                            <SuspensionIcon size={18} className="text-blue-400" />
+                            <span className="text-xs font-black uppercase tracking-widest">Suspension Travel Polarity</span>
+                        </div>
+
+                        <div
+                            className={`glass-container bg-black/30 rounded-[2rem] border border-white/5 shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)] p-5 transition-all duration-300 ${suspensionTravelMode === 'raw' ? 'opacity-40 pointer-events-none filter blur-[0.5px]' : ''}`}
+                            onMouseMove={(e) => handleGlassMouseMove(e, 0.1)}
+                            style={{ '--glass-hover-scale': '1.015', '--glass-content-scale': '1.01' } as any}
+                        >
+                            <div className="glass-content flex items-center justify-between gap-6">
+                                {/* Left Side: Detailed Explanations */}
+                                <div className="flex flex-col gap-1.5 flex-1">
+                                    <div className="flex flex-wrap items-center gap-y-1 gap-x-2">
+                                        <span className="text-xs font-black text-white uppercase tracking-wider whitespace-nowrap">
+                                            Suspension Sign Convention
+                                        </span>
+                                        {suspensionTravelMode === 'raw' ? (
+                                            <span className="text-[8px] font-black bg-red-500/20 text-red-400/90 px-1.5 py-0.5 rounded-md border border-red-500/30 uppercase tracking-wider animate-pulse whitespace-nowrap">
+                                                Requires Relative Mode
+                                            </span>
+                                        ) : (
+                                            <span className="text-[9px] font-black bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded-md border border-blue-500/20 uppercase tracking-wider whitespace-nowrap">
+                                                Telemetry Alignment
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 font-medium leading-relaxed">
+                                        Configure the sign convention for suspension travel data in telemetry charts.
+                                        <br />
+                                        <strong className="text-gray-300">Standard:</strong> Suspension compression is "+", extension is "-".
+                                        <br />
+                                        <strong className="text-gray-300">Inverted:</strong> Suspension compression is "-", extension is "+".
+                                    </p>
+                                </div>
+
+                                {/* Right Side: Sliding Switch */}
+                                <div className="glass-container-flat bg-black/50 p-1.5 rounded-2xl flex border border-white/5 relative w-[180px] h-[48px] shrink-0 items-center">
+                                    {/* Sliding Indicator */}
+                                    <div
+                                        className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-blue-500/20 backdrop-blur-md rounded-xl border border-blue-500/30 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                                        style={{ left: !invertSuspensionTravel ? '6px' : 'calc(50%)' }}
+                                    />
+                                    <button
+                                        onClick={() => setInvertSuspensionTravel(false)}
+                                        className={`relative z-10 flex-1 h-full text-[11px] font-black uppercase tracking-wider transition-all rounded-xl ${!invertSuspensionTravel ? 'text-blue-400 font-extrabold' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        Standard
+                                    </button>
+                                    <button
+                                        onClick={() => setInvertSuspensionTravel(true)}
+                                        className={`relative z-10 flex-1 h-full text-[11px] font-black uppercase tracking-wider transition-all rounded-xl ${invertSuspensionTravel ? 'text-blue-400 font-extrabold' : 'text-gray-500 hover:text-gray-300'}`}
+                                    >
+                                        Inverted
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Chart Layout Section */}
                     <div className="flex flex-col gap-4">
                         <div className="flex items-center justify-between px-2">
@@ -650,7 +813,19 @@ export const SettingsOverlay: React.FC = () => {
                     {/* Footer */}
                     <div className="mt-4 pb-12 flex flex-col items-center gap-3">
                         <div className="h-px w-24 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                        <span className="text-[9px] text-gray-600 font-black uppercase tracking-[0.3em]">DuckDB Investigation Tool v{packageJson.version}</span>
+                        
+                        <a
+                            href="https://discord.gg/zNPehXA3jK"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group/discord flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-[#5865F2]/20 border border-white/5 hover:border-[#5865F2]/40 rounded-full transition-all duration-300 shadow-md hover:shadow-[0_0_15px_rgba(88,101,242,0.25)] hover:scale-[1.03] active:scale-95 cursor-pointer"
+                            onMouseMove={handleGlassMouseMove}
+                        >
+                            <DiscordIcon size={14} className="text-gray-400 group-hover/discord:text-[#5865F2] transition-colors" />
+                            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 group-hover/discord:text-white transition-colors">Join Discord Community</span>
+                        </a>
+
+                        <span className="text-[9px] text-gray-600 font-black uppercase tracking-[0.3em] mt-1">DuckDB Investigation Tool v{packageJson.version}</span>
                     </div>
                 </div>
             </motion.div>

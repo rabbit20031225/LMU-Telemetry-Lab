@@ -36,6 +36,8 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     const setCursorIndex = useTelemetryStore(state => state.setCursorIndex);
     const setZoomRange = useTelemetryStore(state => state.setZoomRange);
     const speedUnit = useTelemetryStore(state => state.speedUnit);
+    const invertSuspensionTravel = useTelemetryStore(state => state.invertSuspensionTravel);
+    const suspensionTravelMode = useTelemetryStore(state => state.suspensionTravelMode);
     const userWheelRotation = useTelemetryStore(state => state.userWheelRotation);
     const sessionMetadata = useTelemetryStore(state => state.sessionMetadata);
     const referenceSessionMetadata = useTelemetryStore(state => state.referenceSessionMetadata);
@@ -279,14 +281,50 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             const raw = src[chan];
             if (!Array.isArray(raw)) return null;
 
+            const mode = useTelemetryStore.getState().suspensionTravelMode;
+            const rawBaselines = src.suspension_baselines || [0, 0, 0, 0];
+            const wBase = wIdx !== undefined ? rawBaselines[wIdx] : 0;
+
             // Handle 4-wheel array data
             if (Array.isArray(raw[0]) && wIdx !== undefined) {
                 const out = new Float64Array(raw.length);
-                for (let i = 0; i < raw.length; i++) out[i] = raw[i][wIdx] ?? Number.NaN;
+                for (let i = 0; i < raw.length; i++) {
+                    let val = raw[i][wIdx] ?? Number.NaN;
+                    if (chan === 'Susp Pos' && !Number.isNaN(val)) {
+                        if (mode === 'raw') {
+                            val = Math.abs(val);
+                        } else {
+                            let diff = val - wBase;
+                            if (!invertSuspensionTravel) {
+                                diff = -diff;
+                            }
+                            val = diff;
+                        }
+                    }
+                    out[i] = val;
+                }
                 return out;
             }
             // Handle standard single-value data
-            return new Float64Array(raw);
+            const out = new Float64Array(raw);
+            if (chan === 'Susp Pos') {
+                for (let i = 0; i < out.length; i++) {
+                    let val = out[i];
+                    if (!Number.isNaN(val)) {
+                        if (mode === 'raw') {
+                            val = Math.abs(val);
+                        } else {
+                            let diff = val - wBase;
+                            if (!invertSuspensionTravel) {
+                                diff = -diff;
+                            }
+                            val = diff;
+                        }
+                        out[i] = val;
+                    }
+                }
+            }
+            return out;
         };
 
         if (!timeArray || !distArray || !lapArray) return;
@@ -1022,7 +1060,8 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             });
 
             // Symmetric Scale for Yaw, Steering, G-Forces, HandlingMerged, Time Delta
-            if (channel === 'Yaw Rate' || channel === 'Steering Angle' || channel === 'HandlingMerged' || channel === 'G Force Lat' || channel === 'G Force Long' || channel === 'Time Delta') {
+            if (channel === 'Yaw Rate' || channel === 'Steering Angle' || channel === 'HandlingMerged' || channel === 'G Force Lat' || channel === 'G Force Long' || channel === 'Time Delta' ||
+                ((channel === 'Susp Pos' || channel === 'SuspPosFront' || channel === 'SuspPosRear') && suspensionTravelMode === 'relative')) {
                 const absMax = Math.max(Math.abs(minV), Math.abs(maxV));
                 // Add 10% padding
                 const paddedMax = absMax * 1.1 || (channel === 'Time Delta' ? 1 : 10);
@@ -1039,7 +1078,8 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
         if (minY === Infinity) { minY = 0; maxY = 100; }
         else {
-            if (minY !== maxY && ! (channel === 'Yaw Rate' || channel === 'Steering Angle' || channel === 'HandlingMerged' || channel === 'G Force Lat' || channel === 'G Force Long' || channel === 'Time Delta')) {
+            if (minY !== maxY && ! (channel === 'Yaw Rate' || channel === 'Steering Angle' || channel === 'HandlingMerged' || channel === 'G Force Lat' || channel === 'G Force Long' || channel === 'Time Delta' ||
+                ((channel === 'Susp Pos' || channel === 'SuspPosFront' || channel === 'SuspPosRear') && suspensionTravelMode === 'relative'))) {
                 const range = maxY - minY;
                 const pad = Math.max(0.1, range * 0.15); // 15% padding
                 minY -= pad;
@@ -1091,7 +1131,8 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 draw: [
                     (u: uPlot) => {
                         const isElectronics = (activeChartCategory === 'Systems' && (channel === 'TC' || channel === 'ABS'));
-                        if (channel === 'Yaw Rate' || channel === 'Steering Angle' || channel === 'HandlingMerged' || channel === 'G Force Lat' || channel === 'G Force Long' || channel === 'Time Delta' || isElectronics) {
+                        const isSuspRelative = (channel === 'Susp Pos' || channel === 'SuspPosFront' || channel === 'SuspPosRear') && suspensionTravelMode === 'relative';
+                        if (channel === 'Yaw Rate' || channel === 'Steering Angle' || channel === 'HandlingMerged' || channel === 'G Force Lat' || channel === 'G Force Long' || channel === 'Time Delta' || isElectronics || isSuspRelative) {
                             const { ctx, bbox } = u;
                             const zeroY = u.valToPos(0, 'y', true);
                             if (zeroY >= bbox.top && zeroY <= bbox.top + bbox.height) {
@@ -1105,6 +1146,51 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                                 ctx.stroke();
                                 ctx.restore();
                             }
+                        }
+                        
+                        if (suspensionTravelMode === 'raw' && !hasReferenceData && (channel === 'Susp Pos' || channel === 'SuspPosFront' || channel === 'SuspPosRear')) {
+                            const { ctx, bbox } = u;
+                            const wheelIndices = channel === 'SuspPosFront' ? [0, 1] :
+                                                 channel === 'SuspPosRear' ? [2, 3] :
+                                                 [wheelIndex !== undefined ? wheelIndex : 0];
+                            
+                            wheelIndices.forEach((wIdx) => {
+                                const info = getBundledInfo(channel === 'Susp Pos' ? 0 : (channel === 'SuspPosFront' ? wIdx : wIdx - 2));
+                                
+                                // Current Session Baseline
+                                if (telemetryData?.suspension_baselines) {
+                                    const baseVal = Math.abs((telemetryData.suspension_baselines[wIdx] || 0) * 1000);
+                                    const yPos = u.valToPos(baseVal, 'y', true);
+                                    if (yPos >= bbox.top && yPos <= bbox.top + bbox.height) {
+                                        ctx.save();
+                                        ctx.strokeStyle = getRGBA(info.stroke, 0.6);
+                                        ctx.lineWidth = 1.5;
+                                        ctx.setLineDash([6, 4]);
+                                        ctx.beginPath();
+                                        ctx.moveTo(bbox.left, yPos);
+                                        ctx.lineTo(bbox.left + bbox.width, yPos);
+                                        ctx.stroke();
+                                        ctx.restore();
+                                    }
+                                }
+
+                                // Reference Session Baseline
+                                if (hasReferenceData && refSource?.suspension_baselines) {
+                                    const baseVal = Math.abs((refSource.suspension_baselines[wIdx] || 0) * 1000);
+                                    const yPos = u.valToPos(baseVal, 'y', true);
+                                    if (yPos >= bbox.top && yPos <= bbox.top + bbox.height) {
+                                        ctx.save();
+                                        ctx.strokeStyle = 'rgba(218, 165, 32, 0.4)';
+                                        ctx.lineWidth = 1.5;
+                                        ctx.setLineDash([4, 4]);
+                                        ctx.beginPath();
+                                        ctx.moveTo(bbox.left, yPos);
+                                        ctx.lineTo(bbox.left + bbox.width, yPos);
+                                        ctx.stroke();
+                                        ctx.restore();
+                                    }
+                                }
+                            });
                         }
                     }
                 ]
@@ -1188,7 +1274,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 uplotRef.current = null; 
             }
         };
-    }, [telemetryData, referenceTelemetryData, referenceLap, selectedLapIdx, referenceLapIdx, laps, channel, showLapTime, color, syncKey, setCursorIndex, setZoomRange, speedUnit, userWheelRotation, sessionMetadata, referenceSessionMetadata, dashboardSyncMode, singleLapXAxisMode]);
+    }, [telemetryData, referenceTelemetryData, referenceLap, selectedLapIdx, referenceLapIdx, laps, channel, showLapTime, color, syncKey, setCursorIndex, setZoomRange, speedUnit, invertSuspensionTravel, userWheelRotation, sessionMetadata, referenceSessionMetadata, dashboardSyncMode, singleLapXAxisMode, suspensionTravelMode]);
 
     useEffect(() => {
         if (!chartRef.current) return;
@@ -1423,11 +1509,24 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                                 <div className="flex items-center gap-2 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 ml-1">
                                     {(channel === 'RideHeights' || channel === 'SuspPosFront' || channel === 'SuspPosRear' || channel === 'ThirdDeflectionMerged' || channel === 'HandlingMerged' ? [0, 1] : [0, 1, 2, 3]).map((idx) => {
                                         const info = getBundledInfo(idx);
-                                        // Simple safeguard: we know these charts have at least idx+1 series
+                                        // For SuspPosFront: idx 0→wIdx 0(FL), idx 1→wIdx 1(FR)
+                                        // For SuspPosRear:  idx 0→wIdx 2(RL), idx 1→wIdx 3(RR)
+                                        const isSuspBundled = channel === 'SuspPosFront' || channel === 'SuspPosRear';
+                                        const wIdx = channel === 'SuspPosFront' ? idx : channel === 'SuspPosRear' ? idx + 2 : -1;
+                                        const showBase = isSuspBundled && suspensionTravelMode === 'raw' && !hasReferenceData && wIdx >= 0;
+                                        const baseLabel = showBase && telemetryData?.suspension_baselines
+                                            ? Math.abs((telemetryData.suspension_baselines[wIdx] || 0) * 1000).toFixed(0)
+                                            : null;
                                         return (
-                                            <div key={idx} className="flex items-center gap-1.5">
+                                            <div key={idx} className="flex items-center gap-1">
                                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: info.stroke }} />
                                                 <span className="text-[8px] font-black text-gray-200 uppercase tracking-wider">{info.label}</span>
+                                                {baseLabel && (
+                                                    <span
+                                                        className="text-[9px] font-mono font-bold px-0.5 rounded"
+                                                        style={{ color: info.stroke, opacity: 0.9 }}
+                                                    >({baseLabel}mm)</span>
+                                                )}
                                             </div>
                                         );
                                     })}

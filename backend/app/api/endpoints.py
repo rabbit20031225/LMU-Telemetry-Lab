@@ -20,7 +20,7 @@ import sys
 
 @router.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "antigravity-backend", "version": "1.1.0"}
+    return {"status": "ok", "service": "antigravity-backend", "version": "1.4.2"}
 
 @router.get("/sessions/{session_id}/3d-track")
 async def get_3d_track(
@@ -538,6 +538,61 @@ def delete_session(session_id: str, profile_id: Optional[str] = Query("guest")):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from fastapi.responses import PlainTextResponse
+from ..services.setup_exporter import generate_svm_from_duckdb
+
+@router.get("/sessions/{session_id}/setup/export")
+async def export_session_setup(session_id: str, profile_id: Optional[str] = Query("guest")):
+    """Export car setup data to .svm format."""
+    from ..services.car_lookup import get_car_info
+
+    data_dir, _ = get_contextual_dirs(profile_id)
+    db_path = os.path.join(data_dir, session_id)
+    if not os.path.exists(db_path):
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+
+    try:
+        svm_content = generate_svm_from_duckdb(db_path)
+
+        # Build filename with same logic as lap export
+        filename = f"{os.path.splitext(session_id)[0]}_setup.svm"  # safe fallback
+        try:
+            with duckdb.connect(db_path, read_only=True) as con:
+                meta_rows = con.execute(
+                    "SELECT key, value FROM metadata WHERE key IN "
+                    "('TrackName', 'CarName', 'CarClass', 'RecordingTime')"
+                ).fetchall()
+            meta = {k: v for k, v in meta_rows}
+
+            raw_track = meta.get("TrackName", "Track")
+            matched_key, track_data = find_track_in_registry(raw_track)
+            if track_data and "display_name" in track_data:
+                track_name = track_data["display_name"]
+            else:
+                track_name = matched_key if matched_key else raw_track
+            track_name = track_name.replace(" ", "-")
+
+            raw_car = meta.get("CarName", "")
+            raw_class = meta.get("CarClass", "")
+            car_model, _ = get_car_info(raw_car, raw_class)
+            car_model = car_model.replace(" ", "-")
+
+            recording_time = meta.get("RecordingTime", os.path.splitext(session_id)[0])
+
+            filename = f"{track_name}_{car_model}_{recording_time}_setup.svm"
+        except Exception as name_err:
+            logger.warning(f"SVM filename generation failed, falling back: {name_err}")
+
+        return PlainTextResponse(
+            content=svm_content,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error exporting setup for {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to export setup: {str(e)}")
+
 @router.get("/sessions/{session_id}/setup")
 async def get_session_setup(session_id: str, profile_id: Optional[str] = Query("guest")):
     """Get structured car setup data from a session's DuckDB metadata."""
@@ -755,7 +810,7 @@ async def get_telemetry(
 
         stint_suffix = f"_stint{stint_id}" if stint_id is not None else ""
         lap_suffix = f"_lap{lap_id}" if lap_id is not None else ""
-        parquet_path = os.path.join(cache_dir, f"{session_id}_{freq}Hz{stint_suffix}{lap_suffix}_elev_v11.parquet")
+        parquet_path = os.path.join(cache_dir, f"{session_id}_{freq}Hz{stint_suffix}{lap_suffix}_elev_v12.parquet")
         
         if os.path.exists(parquet_path):
              import pandas as pd
@@ -796,15 +851,87 @@ async def get_telemetry(
                  trim_end_time=trim_end
              )
         
+        import numpy as np
         df = df.replace({np.nan: None})
         
+        # Calculate suspension baselines if Susp Pos exists
+        baselines = [0.0, 0.0, 0.0, 0.0]
+        if 'Susp Pos' in df.columns:
+            try:
+                raw_col = df['Susp Pos'].tolist()
+                # Log first sample to see what type/value we're dealing with
+                first_sample = raw_col[0] if raw_col else None
+                logger.info(f"[Baseline] Susp Pos sample type={type(first_sample).__name__}, value={first_sample}")
+
+                # Build 2D array - handle list, ndarray, tuple, or scalar
+                def to_row(x):
+                    if x is None:
+                        return [np.nan, np.nan, np.nan, np.nan]
+                    try:
+                        arr = np.asarray(x, dtype=np.float64).flatten()
+                        if len(arr) == 4:
+                            return arr.tolist()
+                    except Exception:
+                        pass
+                    return [np.nan, np.nan, np.nan, np.nan]
+
+                susp_vals = np.array([to_row(x) for x in raw_col], dtype=np.float64)
+                logger.info(f"[Baseline] susp_vals shape={susp_vals.shape}, sample row={susp_vals[0] if len(susp_vals) else 'empty'}")
+
+                if susp_vals.ndim == 2 and susp_vals.shape[1] == 4:
+                    speed = None
+                    if 'Ground Speed' in df.columns:
+                        speed = np.array([s if s is not None else np.nan for s in df['Ground Speed'].tolist()], dtype=np.float64)
+                    elif 'GPS Speed' in df.columns:
+                        speed = np.array([s if s is not None else np.nan for s in df['GPS Speed'].tolist()], dtype=np.float64)
+
+                    g_lat = np.array([g if g is not None else np.nan for g in df['G Force Lat'].tolist()], dtype=np.float64) if 'G Force Lat' in df.columns else np.zeros(len(df))
+                    g_long = np.array([g if g is not None else np.nan for g in df['G Force Long'].tolist()], dtype=np.float64) if 'G Force Long' in df.columns else np.zeros(len(df))
+                    logger.info(f"[Baseline] G Force Lat found={('G Force Lat' in df.columns)}, speed found={speed is not None}, speed_max={np.nanmax(speed) if speed is not None else 'N/A'}")
+
+                    # Straight line and low speed mask
+                    # g_lat < 0.3G to ensure we're on a straight, g_long < 0.5G to allow gentle pit braking
+                    lat_ok = np.abs(np.nan_to_num(g_lat, nan=999.0)) < 0.3
+                    long_ok = np.abs(np.nan_to_num(g_long, nan=999.0)) < 0.5
+                    mask = lat_ok & long_ok
+
+                    if speed is not None:
+                        max_sp = np.nanmax(speed) if len(speed) > 0 else 0
+                        # Detect unit: m/s if max < 80, km/h otherwise
+                        # Use 15 m/s (~54 km/h) for m/s, 50 km/h for km/h
+                        speed_limit = 15.0 if max_sp < 80 else 50.0
+                        speed_ok = np.nan_to_num(speed, nan=999.0) < speed_limit
+                        mask &= speed_ok
+
+                    valid_points = susp_vals[mask]
+                    if len(valid_points) > 0:
+                        valid_points = valid_points[~np.isnan(valid_points).any(axis=1)]
+
+                    logger.info(f"[Baseline] mask_count={mask.sum()}, valid_points_after_nan_filter={len(valid_points)}")
+
+                    if len(valid_points) >= 10:
+                        baselines = np.nanmean(valid_points, axis=0).tolist()
+                    else:
+                        baselines = np.nanmedian(susp_vals, axis=0).tolist()
+
+                    # Keep raw sign (negative for LMU Susp Pos) – frontend uses Math.abs for Raw mode
+                    # and -(val - baseline) for Relative/Standard, (val - baseline) for Inverted
+                    baselines = [0.0 if np.isnan(x) or np.isinf(x) else float(x) for x in baselines]
+                    logger.info(f"[Baseline] Final baselines (m, raw sign): {baselines}")
+            except Exception as ex:
+                logger.error(f"Failed to calculate suspension baselines: {ex}", exc_info=True)
+
         # Build JSON response manually for speed
         logger.info(f"Serializing {len(df)} rows...")
         from fastapi import Response
+        import json
         json_parts = ['{']
         for i, col in enumerate(df.columns):
             if i > 0: json_parts.append(',')
             json_parts.append(f'"{col}":{df[col].to_json(orient="values")}')
+        
+        # Append suspension baselines list
+        json_parts.append(f', "suspension_baselines": {json.dumps(baselines)}')
         json_parts.append('}')
         
         logger.info(f"API: Telemetry delivery complete")
@@ -833,7 +960,10 @@ async def export_session_lap(session_id: str, lap_number: int, profile_id: Optio
         
         import duckdb
         with duckdb.connect(db_path, read_only=True) as con:
-            meta = con.execute("SELECT key, value FROM metadata").fetchall()
+            meta = con.execute(
+                "SELECT key, value FROM metadata WHERE key IN "
+                "('TrackName', 'CarName', 'CarClass', 'DriverName', 'RecordingTime')"
+            ).fetchall()
             meta_dict = {k: v for k, v in meta}
             raw_track = meta_dict.get('TrackName', 'Track')
             # Use short name from registry if possible for cleaner filenames
@@ -848,6 +978,7 @@ async def export_session_lap(session_id: str, lap_number: int, profile_id: Optio
             driver_name = meta_dict.get('DriverName', 'Driver').replace(" ", "-")
             car_model, _ = get_car_info(raw_car, raw_class)
             car_model = car_model.replace(" ", "-")
+            recording_time = meta_dict.get('RecordingTime') or datetime.now().strftime("%Y-%m-%dT%H_%M_%SZ")
 
         # 2. Get Lap Time for naming
         laps_res = TelemetryService.get_laps_header(db_path)
@@ -860,10 +991,8 @@ async def export_session_lap(session_id: str, lap_number: int, profile_id: Optio
             ms = int((t * 1000) % 1000)
             lap_time_str = f"{m}m{s:02d}s{ms:03d}"
 
-        # 3. Generate Filename (Compatible with LMU format: Track_Type_Timestamp)
-        # We pack extra info into the "Track" part using dashes
-        timestamp = datetime.now().strftime("%Y-%m-%dT%H_%M_%SZ")
-        export_filename = f"{track_name}-{car_model}-L{lap_number}-{lap_time_str}_{timestamp}.duckdb"
+        # 3. Generate Filename — use original session's RecordingTime as timestamp
+        export_filename = f"{track_name}-{car_model}-L{lap_number}-{lap_time_str}_{recording_time}.duckdb"
         
         # Ensure cache dir exists
         if not os.path.exists(cache_dir):

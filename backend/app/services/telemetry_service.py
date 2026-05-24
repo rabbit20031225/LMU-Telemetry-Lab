@@ -921,7 +921,10 @@ class TelemetryService:
                     for i in range(4):
                         # Slip Ratio = (WheelSpeed - GroundSpeed) / GroundSpeed
                         # Use a small epsilon to avoid division by zero
-                        slips[:, i] = (ts_vals[:, i] - gs_ms) / np.maximum(gs_ms, 0.5)
+                        val = (ts_vals[:, i] - gs_ms) / np.maximum(gs_ms, 0.5)
+                        if i in [0, 2]: # Left wheels FL and RL
+                            val = -val
+                        slips[:, i] = val
                     fused_data['Slip Ratio'] = slips.tolist()
             
             # 2. Tyre Temp Inside/Center/Outside Mapping
@@ -965,6 +968,12 @@ class TelemetryService:
                 wt = np.array(fused_data[wt_key])
                 if wt.ndim == 2 and wt.shape[1] == 4:
                     fused_data['TC'] = np.max(wt, axis=1).tolist()
+
+            # 4. Suspension Travel Sign Correction (Opposite sign)
+            if 'Susp Pos' in fused_data:
+                susp_vals = np.array(fused_data['Susp Pos']) # This is (N, 4)
+                if susp_vals.ndim == 2 and susp_vals.shape[1] == 4:
+                    fused_data['Susp Pos'] = (-susp_vals).tolist()
 
             # Finalize
             df_final = pd.DataFrame(fused_data)

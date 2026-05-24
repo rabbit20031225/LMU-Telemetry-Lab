@@ -98,6 +98,10 @@ export interface TelemetryState {
     // Settings
     speedUnit: 'kmh' | 'mph';
     tempUnit: 'c' | 'f';
+    invertSuspensionTravel: boolean;
+    setInvertSuspensionTravel: (val: boolean) => void;
+    suspensionTravelMode: 'raw' | 'relative';
+    setSuspensionTravelMode: (mode: 'raw' | 'relative') => void;
     suspensionViewMode: 'split' | 'merged';
     toggleSuspensionViewMode: () => void;
     thirdDeflectionViewMode: 'split' | 'merged';
@@ -230,7 +234,7 @@ export interface TelemetryState {
     clearSession: () => void;
 
     // File Management
-    uploadSession: (file: File) => Promise<void>;
+    uploadSession: (file: File) => Promise<string | null>;
     renameSession: (sessionId: string, newName: string) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
     togglePlayback: () => void;
@@ -250,6 +254,7 @@ export interface TelemetryState {
     syncFromElapsed: (elapsed: number) => void; // NEW: Decoupled time synchronization
     setDashboardSyncMode: (mode: 'distance' | 'time') => void;
     exportLap: (lapNumber: number) => Promise<void>;
+    exportLapWithSetup: (lapNumber: number) => Promise<void>;
 }
 
 const DEFAULT_CHARTS: ChartConfig[] = [
@@ -527,6 +532,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     // Settings Defaults
     speedUnit: (localStorage.getItem('speed_unit') as 'kmh' | 'mph') || 'kmh',
     tempUnit: (localStorage.getItem('temp_unit') as 'c' | 'f') || 'c',
+    invertSuspensionTravel: localStorage.getItem('invert_suspension_travel') === 'true',
+    suspensionTravelMode: (localStorage.getItem('suspension_travel_mode') as 'raw' | 'relative') || 'raw',
     showSettings: false,
     chartConfigs: DEFAULT_CHARTS,
     chartPresets: [
@@ -586,6 +593,14 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         localStorage.setItem('temp_unit', unit);
         set({ tempUnit: unit });
     },
+    setInvertSuspensionTravel: (val) => {
+        localStorage.setItem('invert_suspension_travel', val ? 'true' : 'false');
+        set({ invertSuspensionTravel: val });
+    },
+    setSuspensionTravelMode: (mode) => {
+        localStorage.setItem('suspension_travel_mode', mode);
+        set({ suspensionTravelMode: mode });
+    },
     setShowSettings: (show) => set({ showSettings: show }),
     setCameraMode: (mode) => set({ cameraMode: mode }),
     setFollowZoom: (zoom) => set({ followZoom: zoom }),
@@ -621,6 +636,21 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         } catch (e) {
             console.error('Failed to export lap:', e);
             set({ error: 'Failed to export lap file' });
+        } finally {
+            set({ isListLoading: false });
+        }
+    },
+    exportLapWithSetup: async (lapNumber) => {
+        const sessionId = get().currentSessionId;
+        if (!sessionId) return;
+        set({ isListLoading: true });
+        try {
+            const profileId = get().activeProfileId || 'guest';
+            await apiClient.exportLap(sessionId, lapNumber, profileId);
+            await apiClient.exportSessionSetup(sessionId, profileId);
+        } catch (e) {
+            console.error('Failed to export lap + setup:', e);
+            set({ error: 'Failed to export lap + setup files' });
         } finally {
             set({ isListLoading: false });
         }
@@ -894,8 +924,9 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const newMode = currentMode === 'split' ? 'merged' : 'split';
         localStorage.setItem('slip_ratio_view_mode', newMode);
         set({ slipRatioViewMode: newMode });
-        if (get().activeChartCategory === 'Tyres') {
-            get().setActiveChartCategory('Tyres');
+        const category = get().activeChartCategory;
+        if (category === 'Tyres' || category === 'Handling') {
+            get().setActiveChartCategory(category);
         }
     },
     setIsProcessingTrack: (is: boolean) => set({ isProcessingTrack: is }),
@@ -1632,15 +1663,17 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
     uploadSession: async (file: File) => {
         const { activeProfileId } = get();
-        if (!activeProfileId) return;
+        if (!activeProfileId) return null;
 
         set({ isListLoading: true, error: null });
         try {
-            await apiClient.uploadSession(file, activeProfileId);
+            const result = await apiClient.uploadSession(file, activeProfileId);
             await get().fetchSessions(); // Refresh list
             set({ isListLoading: false });
+            return result.id;
         } catch (err) {
             set({ error: (err as Error).message, isListLoading: false });
+            return null;
         }
     },
 

@@ -8,7 +8,7 @@ lmu_version:1.3.1.2
 | **Bahrain International Circuit** | Default(5.412km, 15 turns), Endurance Circuit(6.299km, 24 turns), Outer Circuit(3.543km, 11 turns), Paddock Circuit(3.705km, 10 turns) | Sakhir | Bahrain | Bahrain |
 | **Circuit de La Sarthe** | Default(13.626km, 38 turns), Mulsanne Circuit(13.554km, 38 turns) | Le Mans, Circuit de la Sarthe, Sarthe, Le Mans | France | Le Mans |
 | **Paul Ricard** | Default(5.842km, 15 turns), Layout 1A(5.752km, 13 turns), Layout 1A-V2(5.842km, 15 turns), Layout 1A-V2-Short(5.227km, 14 turns), Layout 3A(3.793km, 8 turns) | Le Castellet, Paul Ricard - ELMS | France | Paul Ricard |
-| **Circuit of the Americas** | Default(5.513km, 20 turns), National Circuit(3.702km, 17 turns) | COTA, Austin | United States | Circuit of the Americas |
+| **Circuit of the Americas** | Default(5.513km, 20 turns), National Circuit(3.702km, 17 turns) | COTA, Austin | United States | COTA |
 | **Fuji Speedway** | Default(4.563km, 16 turns), Classic Circuit(4.526km, 14 turns) | Fuji | Japan | Fuji |
 | **Autodromo Internazionale Enzo e Dino Ferrari** | Default(4.909km, 20 turns) | Imola | Italy | Imola |
 | **Autodromo Jose Carlos Pace** | Default(4.309km, 15 turns) | Jose Carlos Pace, Sao Paulo, Autódromo José Carlos Pace, Interlagos | Brazil | Interlagos |

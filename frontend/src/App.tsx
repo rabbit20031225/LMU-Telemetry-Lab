@@ -7,6 +7,7 @@ import { TelemetryChart } from './components/TelemetryChart';
 import { TrackMap } from './components/TrackMap';
 import { getBrandLogoPath, getClassColor } from './utils/carHelpers';
 import { ReferenceLapBrowser } from './components/ReferenceLapBrowser';
+import packageJson from '../package.json';
 import { AnalysisLapsWidget } from './components/AnalysisLapsWidget';
 import { Search } from 'lucide-react';
 import { TrackMap3D } from './components/TrackMap3D';
@@ -30,6 +31,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  PackageCheck,
   Loader2
 } from 'lucide-react';
 import {
@@ -336,6 +338,7 @@ function App() {
   const showSetupView = useTelemetryStore(state => state.showSetupView);
   const fetchSetup = useTelemetryStore(state => state.fetchSetup);
   const exportLap = useTelemetryStore(state => state.exportLap);
+  const exportLapWithSetup = useTelemetryStore(state => state.exportLapWithSetup);
   const isListLoading = useTelemetryStore(state => state.isListLoading);
 
   const handleReload = () => {
@@ -895,18 +898,32 @@ function App() {
                       <div className="flex items-center justify-between">
                         <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] px-1 group-hover/analysis:text-white transition-colors">Analysis Laps</h3>
                         {selectedLapIdx !== null && (
-                          <Tooltip text="EXPORT CURRENT LAP AS .DUCKDB" position="bottom">
-                            <button
-                              onClick={() => { if (!isListLoading) exportLap(selectedLapIdx!); }}
-                              disabled={isListLoading}
-                              className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-white/10 border border-transparent hover:border-white/15 transition-all active:scale-90 glass-container"
-                              onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
-                            >
-                              <div className="glass-content">
-                                {isListLoading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                              </div>
-                            </button>
-                          </Tooltip>
+                          <div className="flex items-center gap-1">
+                            <Tooltip text="EXPORT LAP + SETUP (.DUCKDB + .SVM)" position="bottom">
+                              <button
+                                onClick={() => { if (!isListLoading) exportLapWithSetup(selectedLapIdx!); }}
+                                disabled={isListLoading}
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-purple-400 hover:bg-white/10 border border-transparent hover:border-white/15 transition-all active:scale-90 glass-container"
+                                onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
+                              >
+                                <div className="glass-content">
+                                  {isListLoading ? <Loader2 size={13} className="animate-spin" /> : <PackageCheck size={13} />}
+                                </div>
+                              </button>
+                            </Tooltip>
+                            <Tooltip text="EXPORT CURRENT LAP AS .DUCKDB" position="bottom">
+                              <button
+                                onClick={() => { if (!isListLoading) exportLap(selectedLapIdx!); }}
+                                disabled={isListLoading}
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-white/10 border border-transparent hover:border-white/15 transition-all active:scale-90 glass-container"
+                                onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
+                              >
+                                <div className="glass-content">
+                                  {isListLoading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                                </div>
+                              </button>
+                            </Tooltip>
+                          </div>
                         )}
                       </div>
                       
@@ -971,6 +988,7 @@ function App() {
             <div
               className="flex items-center gap-3 px-3 py-1.5 rounded-xl transition-all duration-300 hover:bg-white/5 glass-container group/logo cursor-pointer"
               onMouseMove={handleGlassMouseMove}
+              style={{ '--glass-hover-scale': '1', '--glass-content-scale': '1' } as any}
             >
               <div className="glass-content flex items-center gap-3">
                 <img
@@ -979,7 +997,7 @@ function App() {
                   className="h-8 object-contain select-none group-hover/logo:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] transition-all"
                 />
                 <span className="text-gray-500 font-bold text-sm select-none">|</span>
-                <span className="text-gray-400 font-bold text-sm uppercase tracking-widest select-none group-hover/logo:text-white transition-colors">Telemetry View</span>
+                <span className="text-gray-400 font-black text-xs uppercase tracking-[0.15em] select-none group-hover/logo:text-white transition-colors">v{packageJson.version}</span>
               </div>
             </div>
 

@@ -1,5 +1,147 @@
 # PROJECT WALKTHROUGH HISTORY
 
+## 2026-05-23 | 輪胎配方映射修復、Discord 社群整合與 Navbar 介面細節打磨 (v1.4.2 Phase 5)
+
+本次更新解決了設定檔匯出時輪胎配方的映射偏移問題，在設定選單中整合了 Discord 社群邀請連結，並對頂部 Navbar 的 Logo 與版本號展示進行了精細的交互打磨，同時在 Landing Page 導入了 LMU 遙測設定與資料庫產生的視覺化引導。
+
+### 1. 輪胎配方映射校正與 `.svm` 導出對齊 (Tyre Compound Mapping & `.svm` Export Correction)
+- **配方偏移修正**：修復了匯出 `.svm` 檔案時 `compoundsetting` 發生偏移的 Bug（如原本 telemetry 的 compoundsetting = 0 匯出後錯誤變成 1），將其精確對齊至遊戲內 UI Setup 的配方屬性。
+- **映射對照表整理**：將所有 `.svm` 匯出映射關係完整整理並儲存為獨立文字檔 [svm_mappings_list.txt](file:///c:/Users/rabbit/Desktop/antigravity%20project/DuckDB_investigation/svm_mappings_list.txt)，方便後續查閱與維護。
+
+### 2. Discord 官方社群深度整合 (Discord Community Settings Integration)
+- **毛玻璃社群晶片 (Glassmorphism Discord Chip)**：於設定選單（`SettingsOverlay`）底部 Footer 設計並加入了一個極具質感的藥丸型 Discord 按鈕。
+  - **精緻微互動**：搭載專屬的高解析度 SVG Discord 向量圖示，在滑鼠懸停時會平滑轉化為 Discord 經典品牌色氣泡發光，並支援 3D 光影滑鼠跟隨（`handleGlassMouseMove`）與細微的觸覺回饋縮放動畫 (`hover:scale-[1.03] active:scale-95`)。
+- **Landing Page 與入口整合**：在 Landing Page 頂部與 GitHub 專案導引中深度整合 Discord 入口連結，強化社群連結度。
+
+### 3. Navbar 導覽列 UI/UX 打磨 (Top Navbar Logo & Version Label Refinements)
+- **動態版本號展示**：將 Navbar 最上方 Logo 旁的 `Telemetry View` 靜態標題替換為從 `package.json` 動態讀取的當前系統版本號 `v{packageJson.version}`。字型採用高規格的 `font-black text-xs tracking-[0.15em]` 寬間距設計，並保持極佳的懸停高亮質感。
+- **精準去除 Logo 放大抖動**：為防止 Logo 懸停放大時對頂部 Navbar 其他排版產生微小的擠壓與抖動，透過 inline style 局部注入覆寫：
+  `style={{ '--glass-hover-scale': '1', '--glass-content-scale': '1' }}`
+  藉此**精準移除了 Logo 本身的 hover 物理放大動畫**，但完整保留了 spotlight 光圈跟隨與毛玻璃背景渲染效果，大幅提升導覽列的視覺穩定度，且不影響系統中其他 `glass-container` 元素的正常放大交互。
+
+### 4. Landing Page LMU 遙測教學引導 (Landing Page LMU Telemetry Guide)
+- **遊戲設定指南**：於 Landing Page 新增了互動區塊，圖文並茂地向玩家展示如何在 Le Mans Ultimate 遊戲中設定按鍵，以及如何啟用並產出 `.duckdb` 遙測資料庫檔案，並附帶高品質的教學截圖與操作引導。
+
+🟢 2026-05-23 | Tyre Compound Correction, Discord Integration & Navbar UX Polish (v1.4.2 Phase 5)
+
+This update corrects the tyre compound mapping offset in `.svm` exports, integrates a premium Discord community invite into the Settings footer, polishes navbar brand typography and scaling dynamics, and introduces a visual LMU telemetry setup guide to the Landing Page.
+
+### Key Changes
+- **Tyre Compound Mapping Alignment**:
+  - **Compound Offset Fix**: Resolved a bug where `.svm` export shifted `compoundsetting` values (e.g., exporting `0` as `1`). Re-aligned the export algorithm to map directly to the in-game UI Setup compound attributes.
+  - **Export Mapping Schema**: Compiled the full `.svm` mapping dictionary into a clean reference file: [svm_mappings_list.txt](file:///c:/Users/rabbit/Desktop/antigravity%20project/DuckDB_investigation/svm_mappings_list.txt).
+- **Discord Community Integration**:
+  - **Premium Footer Button**: Added a responsive, pill-shaped Discord invite button in the `SettingsOverlay` footer.
+  - **Dynamic Interactions**: Features an inline high-fidelity Discord SVG vector icon, sleek glassmorphic glow transitions (`hover:bg-[#5865F2]/20 hover:border-[#5865F2]/40`), 3D parallax lighting (`handleGlassMouseMove`), and micro-scale animations (`hover:scale-[1.03] active:scale-95`).
+- **Navbar UI/UX Polish**:
+  - **Dynamic Versioning**: Replaced the static `Telemetry View` header label with a dynamic version badge `v{version}` sourced from `package.json`, styled with custom uppercase tracking (`tracking-[0.15em] font-black text-xs`).
+  - **Stabilized Brand Container**: Eliminated hover layout shifts by hard-capping the logo's hover scale properties inline (`style={{ '--glass-hover-scale': '1', '--glass-content-scale': '1' }}`). This retains the rich spotlight glass glow effects while ensuring absolute layout stability across the top bar, without modifying global `.glass-container` classes.
+- **Visual LMU Telemetry Guide**:
+  - **Player Setup Onboarding**: Expanded the landing page to feature a graphical step-by-step setup section detailing LMU in-game keybindings, telemetry recording activations, and `.duckdb` file generation processes.
+
+---
+
+## 2026-05-20 | 遙測數據極性校正與操控圖表拆分修復 (v1.4.2 Phase 4)
+
+本次更新解決了輪胎滑移率、避震行程數據的符號極性物理性偏誤，並新增了極性自訂切換設定；同時徹底修復了操控（Handling）分區中滑移率無法正常拆分檢視的 Bug。
+
+### 1. 避震行程極性、基準線校正與物理校正 (Suspension Travel Polarity, Baseline Calibration & Sign Correction)
+- **左側滑移率符號校正**：修正了左側輪胎（FL, RL）滑移率正負號相反的物理偏差，使其與右側輪胎在物理定義上保持一致與合理。
+- **後端動態基準線計算**：於後端實作動態避震基準線計算邏輯，智慧過濾車速（車速 < 50 km/h 或 < 15 m/s）與 G 力（橫向 G 力 < 0.3G 且縱向 G 力 < 0.5G），精確算出車輛靜止或平穩滑行時的避震基準值。
+- **避震行程顯示模式 (Raw vs. Relative Mode)**：
+    - **原始絕對值模式 (Raw Mode)**：顯示 `Math.abs(val)`。圖表渲染水平基準虛線以代表靜止基準，並在圖例標記旁顯示大字號的 `(XXmm)` 基準值標籤（字型放大至 `text-[9px] font-mono font-bold opacity-90`）。為求簡潔，當參考單圈（Reference Lap）啟用時，水平基準虛線將自動隱藏以保持圖表清爽。
+    - **相對校正模式 (Relative Mode)**：標準模式下計算公式為 `-(val - base)`，反轉模式下為 `val - base`。Y 軸將以 `y=0` 為中心進行對稱縮放，並自動渲染一條灰色的零位虛線 (zero line)，更直觀呈現相對於靜態高度的即時縮放行程。
+- **自訂極性定義切換 (Suspension Travel Polarity Switch)**：
+    - **標準模式 (Standard)**：避震壓縮（Compression）為正 `"+"`，伸長（Extension）為負 `"-"`（符合 MoTeC 等專業賽車遙測分析軟體定義）。
+    - **反轉模式 (Inverted)**：避震壓縮為負 `"-"`，伸長為正 `"+"`（保留 LMU 原始遙測數據極性）。
+    - **設定持久化**：設定狀態會自動儲存於本地 `localStorage` (`invert_suspension_travel`)，並即時反應在所有的避震行程圖表上。
+- **設定介面精修與佈局對齊 (Settings UI & Layout Alignment)**：
+    - **圖示一致性**：將「Suspension Travel Mode」前面的圖示替換為與「Suspension Travel Polarity」相同的避震器圖示 (`SuspensionIcon`)，增強視覺一致性。
+    - **藍框緊貼防擠壓佈局**：針對「Baseline Correction」與「Telemetry Alignment」的說明標籤，採用 `flex flex-wrap gap-y-1 gap-x-2` 搭配個別標籤 `whitespace-nowrap` 的響應式設計，讓外層藍色邊框完美貼合文字、大幅減少留白，同時避免在小螢幕上將右側的滑動切換鍵（Toggle Switch）擠出容器。
+
+### 2. 操控分區滑移率拆分修復 (Handling Slip Ratio Split Fix)
+- **即時重整補全**：修復了在「Handling」頁面下點擊滑移率拆分/合併按鈕無反應的 Bug。問題原因在於原本 `toggleSlipRatioViewMode` 僅在處於 `Tyres` 分類時才觸發圖表配置重載。現已調整為只要在 `Tyres` 或 `Handling` 頁面下切換，皆會即時呼叫 `setActiveChartCategory` 更新當前活動圖表。
+
+🟢 2026-05-20 | Telemetry Polarity Calibration & Handling Chart Split Fix (v1.4.2 Phase 4)
+
+This update corrects physical sign inconsistencies in tyre slip ratios and suspension travel data, introduces a user-configurable suspension polarity switch, and resolves a bug preventing the slip ratio chart from splitting in the Handling category.
+
+### Key Changes
+- **Physical Sign & Calibration Corrections**:
+    - **Slip Ratio Sign Correction**: Resolved the flipped polarity issue of left-side tyres (FL, RL) slip ratio relative to right-side tyres, restoring logical and physical coherence.
+    - **Backend Dynamic Baseline Calculation**: Implemented backend logic to calculate dynamic suspension baselines by filtering telemetry data for speed (< 50 km/h or < 15 m/s) and lateral/longitudinal G-forces (< 0.3G and < 0.5G), capturing accurate resting/gliding values.
+    - **Suspension Travel Raw vs. Relative Modes**:
+        - **Raw (Absolute) Mode**: Renders `Math.abs(val)` along with a horizontal glowing baseline dashed line and bold, high-contrast legend badges (e.g., `(74mm)`) next to wheel labels (scaled up to `text-[9px] font-mono font-bold opacity-90`). The baseline dashed line automatically hides when a reference lap is active to minimize visual noise.
+        - **Relative (Corrected) Mode**: Computes relative compression/extension (`-(val - base)` in Standard, `val - base` in Inverted), featuring a symmetric Y-axis centered around `y=0` with a gray dashed zero line for intuitive dynamics analysis.
+    - **Suspension Travel Polarity Switch**:
+        - **Standard**: Suspension compression maps to positive `"+"`, extension to negative `"-"` (matching professional MoTeC standards).
+        - **Inverted**: Suspension compression maps to negative `"-"`, extension to positive `"+"` (retains raw LMU telemetry polarity).
+        - **Persistence**: Persists the preference via `localStorage` and updates all suspension charts instantly.
+    - **Settings UI & Layout Refinement**:
+        - **Unified Iconography**: Replaced the icon of the Suspension Travel Mode with `SuspensionIcon` to achieve consistent visual styling with the Polarity section.
+        - **Snug Border Fit & Responsive Layout**: Wrapped the description tags ("Baseline Correction" and "Telemetry Alignment") in a responsive `flex flex-wrap gap-y-1 gap-x-2` container and styled individual labels with `whitespace-nowrap`. This eliminates excessive spacing inside the blue border outlines while preventing the right-side sliding switch from being pushed off the screen on narrower viewport sizes.
+- **Handling Slip Ratio Split Fix**:
+    - **Reactive Refresh Patch**: Resolved the unresponsive Split/Merged toggle on the Slip Ratio chart when viewed in the `Handling` category. Updated `toggleSlipRatioViewMode` in `telemetryStore.ts` to actively reload active chart configurations for both `Tyres` and `Handling` tabs, ensuring instant UI updates.
+
+---
+
+## 2026-05-19 | Car Setup `.svm` 匯出功能 (v1.4.2 Phase 3)
+
+本次更新加入了眾所期盼的「一鍵匯出」功能，讓玩家能直接從遙測紀錄中，將車輛設定檔匯出為 Le Mans Ultimate 遊戲能直接讀取的 `.svm` 檔案格式！
+
+### 1. 遙測設定檔映射系統 (Setup Data Mapping)
+- **無縫格式轉換**：在後端建立了一個龐大的映射字典（`setup_exporter.py`），完美將 DuckDB 中的 JSON 遙測屬性（如 `WM_CAMBER-W_FL`）轉換為 `.svm` 遊戲檔的標準 INI 格式（如 `[FRONTLEFT]` 區塊下的 `CamberSetting`）。
+- **雙值匯出支援**：同時抓取設定的「整數索引值 (Index)」與「字串顯示值 (String Value)」，生成出完美符合遊戲規範的 `設定名稱=數值//顯示文字` 格式。
+
+### 2. 下載整合 (Export Integration)
+- **專屬 API Endpoint**：後端新增 `/sessions/{session_id}/setup/export` 路由，動態讀取資料並將純文字轉換成可供下載的附件。
+- **介面實作**：在前端的 `CarSetupView` 頂部導覽列加入了帶有載入動畫的 **Export .svm** 按鈕，點擊後會自動觸發瀏覽器下載流程。
+
+🟢 2026-05-19 | Car Setup `.svm` Export Feature (v1.4.2 Phase 3)
+
+Introduced the highly anticipated one-click export feature, allowing users to extract car setups directly from telemetry records into a game-ready `.svm` file format for Le Mans Ultimate.
+
+### Key Changes
+- **Comprehensive Data Mapping**: Built a robust mapping dictionary in the backend (`setup_exporter.py`) that perfectly translates DuckDB JSON properties (e.g., `WM_CAMBER-W_FL`) into the `.svm` INI structure (e.g., `CamberSetting` under `[FRONTLEFT]`).
+- **Dual-Value Export**: Extracts both the integer index and the display string to generate perfectly formatted values (`Setting=Index//String`) expected by the game engine.
+- **Seamless UI Integration**: Added a dedicated API endpoint and integrated an animated **Export .svm** button in the top navigation bar of the `CarSetupView`, triggering an instant browser file download.
+
+---
+## 🚧 [IN PROGRESS] 2026-05-19 | 智慧車輛識別邏輯重構 (v1.4.2 Phase 2)
+
+本次更新針對自定義塗裝（Custom Livery）的車型映射邏輯進行了修正。目前仍在觀察是否有其他非標準命名會受到影響，需等待進一步反饋。
+
+### 1. 移除破壞性正則分詞 (Regex Splitting Fix)
+- **問題根源**：舊版為了處理如 `911GT3R` 這種字串相連的情況，導入了強制分離數字與字母的正則表達式，導致如 Peugeot `9X8`（被切為 `9 x 8`）、Ferrari `499P`（被切為 `499 p`）等原型車關鍵字遭到破壞，進而錯誤映射到包含相同數字的其他車款（例如被誤認為 Toyota GR010 #8）。
+- **修復方案**：移除了強制分離數字的邏輯，確保原始關鍵字（Token）的完整性。
+- **別名展開**：針對 `911GT3R`、`9x8`、`499p` 等常見黏合字串，擴展了 `MODEL_ALIASES` 字典，透過別名系統確保這些關鍵字能被正確展開並精準映射。
+
+🟡 [IN PROGRESS] 2026-05-19 | Smart Vehicle Recognition Refactoring (v1.4.2 Phase 2)
+
+Refactored the car model mapping logic for custom liveries. This phase is marked as incomplete pending further feedback on other potentially affected custom names.
+
+### Key Changes
+- **Destructive Regex Removal**: Removed the regex that forcefully separated numbers and letters. The previous logic catastrophically split critical identifiers like Peugeot `9X8` (into `9 x 8`), causing them to misidentify as other cars sharing those numbers (e.g., Toyota #8).
+- **Alias Expansion**: Expanded the `MODEL_ALIASES` dictionary to gracefully handle merged strings like `911gt3r`, `9x8`, and `499p`, preserving token integrity without resorting to destructive regex splits.
+
+---
+## 2026-05-19 | 檔案管理員自動展開修復 (v1.4.2 Phase 1)
+
+本次更新解決了檔案管理員（FileManager）在已有開啟檔案的情況下，上傳新檔案時會自動展開錯誤資料夾的 Bug。
+
+### 1. 修正自動展開邏輯 (Auto-Expand Logic Fix)
+- **精確 ID 定位**：原本依賴「建立時間 (created)」排序來猜測最新檔案的方法，改為由後端上傳 API 直接回傳新檔案的精確 ID (`filename`)。
+- **無縫整合**：在拖曳上傳與按鈕上傳完成後，系統會直接使用該 ID 指示 FileManager 展開對應的資料夾並平滑捲動，徹底根治了展開錯位的問題。
+
+🟢 2026-05-19 | File Manager Auto-Expand Fix (v1.4.2 Phase 1)
+
+Resolved a bug where uploading a new telemetry file while another session was open caused the File Manager to automatically expand the wrong folder.
+
+### Key Changes
+- **Precise ID Targeting**: Replaced the unreliable "created time" sorting with exact session IDs returned directly from the backend upload APIs.
+- **Seamless Integration**: The File Manager now uses the explicit ID to instantly expand and scroll to the newly uploaded file, ensuring a flawless user experience.
+
+---
 ## 2026-05-11 | 介面動態穩定性與 UI 佈局精修 (v1.4.0 Phase 13)
 
 本次更新聚焦於極致的視覺穩定性與檔案管理介面的細節精修，解決了地圖切換時的閃爍問題，並強化了數據顯示的邏輯正確性。

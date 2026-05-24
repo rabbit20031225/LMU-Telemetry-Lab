@@ -112,7 +112,7 @@ export const apiClient = {
         return JSON.parse(text);
     },
 
-    async uploadSession(file: File, profileId: string = 'guest'): Promise<void> {
+    async uploadSession(file: File, profileId: string = 'guest'): Promise<{ id: string }> {
         const formData = new FormData();
         formData.append('file', file);
         const res = await fetch(`${API_BASE}/sessions/upload?profile_id=${profileId}`, {
@@ -123,6 +123,7 @@ export const apiClient = {
             const err = await res.json();
             throw new Error(err.detail || 'Failed to upload session');
         }
+        return res.json();
     },
 
     async renameSession(sessionId: string, newName: string, profileId: string = 'guest'): Promise<void> {
@@ -137,6 +138,35 @@ export const apiClient = {
         await this._fetchJson(`/sessions/${encodeURIComponent(sessionId)}?profile_id=${profileId}`, {
             method: 'DELETE',
         });
+    },
+
+    async exportSessionSetup(sessionId: string, profileId: string = 'guest'): Promise<void> {
+        const res = await fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}/setup/export?profile_id=${profileId}`);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Failed to export setup' }));
+            throw new Error(err.detail || 'Failed to export setup');
+        }
+        
+        // Get the filename from the Content-Disposition header if available
+        let filename = `${sessionId.split('.')[0]}_setup.svm`;
+        const disposition = res.headers.get('Content-Disposition');
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) {
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+        
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
     },
 
     async getSetup(sessionId: string, profileId: string = 'guest'): Promise<{ setup: import('../types').CarSetupData }> {

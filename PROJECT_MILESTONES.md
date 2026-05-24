@@ -1,3 +1,39 @@
+## 🟢 [2026-05-23] Telemetry v1.4.2 - 物理極性校正、遊戲設定導出與官方社群生態系整合
+
+### 🌟 核心突破
+*   **車輛設定檔 `.svm` 一鍵匯出**：完美實現將 DuckDB 遙測資料一鍵導出為遊戲端 `.svm` 設定檔，並修復了輪胎配方 `compoundsetting` 的偏移偏差（如原本 `0` 變 `1` 的 Bug），精確對應至 LMU 遊戲 UI 的實際屬性。
+*   **遙測圖表修正與避震改進**：
+    *   **避震行程自適應**：新增 Raw/Relative 雙模式、標準/反轉自訂極性切換，並實作後端「動態避震基準線計算」。
+    *   **圖表修復**：修正左側輪胎滑移率極性，並修復了 Handling 頁面下滑移率無法正常拆分/合併顯示的 Bug。
+*   **檔案管理與車型識別優化**：
+    *   **檔案管理員**：改由後端上傳 API 直接回傳新 Session ID 進行精確展開與捲動，取代舊版以時間猜測的方式。
+    *   **車款匹配重構**：移除破壞性的正則分詞邏輯，透過 `MODEL_ALIASES` 擴展別名，提升自定義塗裝車型的識別準確度（🚧 觀察中）。
+*   **Discord 官方社群與 Landing Page 生態整合**：
+    *   **App 介面整合**：於設定選單 Footer 整合了 glassmorphism 高質感 3D 微互動 Discord 加入按鈕；Navbar Logo 旁動態展示版本號 `v{version}` 並完美去抖。
+    *   **Landing Page 升級**：右上方新增 Discord 邀請，並加入 LMU 遊戲按鍵設定與產出 `.duckdb` 遙測資料庫的圖文引導教學。
+
+### 🚀 專案影響
+*   v1.4.2 成功打造了「遙測分析 -> 賽車工程調校 -> 一鍵匯入遊戲」的閉環工作流。極性修正與基準線校正將圖表精確度提升至專業 MoTeC 等級，而教學引導與官方 Discord 生態系的全面整合，更大幅度降低了玩家入門與交流的門檻。
+
+🟢 [2026-05-23] Telemetry v1.4.2 - Physical Calibration, SVM Export & Ecosystem Integration
+
+### 🌟 Key Breakthroughs
+*   **Car Setup `.svm` One-Click Export**: Translates telemetry data into fully compliant game `.svm` files. Fixed a critical compound index offset (e.g. `0` mapped as `1`) to accurately reflect LMU UI Setup compound attributes.
+*   **Chart Corrections & Suspension Improvements**:
+    *   **Suspension Evolution**: Introduces Raw/Relative modes, Standard/Inverted polarity switching, and backend dynamic baseline filtering (speed/G-force).
+    *   **Interactive Fixes**: Corrected left-wheel slip ratio polarity and fixed unresponsive split/merged toggle interactions under the Handling tab.
+*   **FileManager & Vehicle Identification**:
+    *   **Smart Expansion**: Uses backend API-returned session IDs for precise directory expansion and smooth scrolling, replacing created-time guessing.
+    *   **Livery Identification**: Rebuilt tokenization for custom liveries by expanding `MODEL_ALIASES` and eliminating destructive regex splits (🚧 under observation).
+*   **Discord Community & UI/UX Polish**:
+    *   **App Integrations**: Added a glassmorphic 3D parallax Discord join button to the settings footer. Navbar dynamically displays `v{version}` and hard-locks scaling to eliminate brand hover jitter.
+    *   **Landing Page Expansion**: Integrates Discord invite cards and introduces step-by-step graphical onboarding for LMU keybindings and `.duckdb` generation.
+
+### 🚀 Project Impact
+*   v1.4.2 establishes a seamless "Analysis -> Tuning -> Export" closed loop. Precise polarity alignment restores standard telemetry metrics, while dynamic SVM setup exports allow instant in-game tuning. Coupled with onboarding guides and official Discord channels, the ecosystem transforms into a highly sticky platform for players and engineers alike.
+
+---
+
 ### 🚀 Project Impact
 *   v1.4.0 marks a significant leap towards a professional data analysis platform. The new export capability simplifies data sharing, while the navigation and stability improvements set a new standard for telemetry UX.
 

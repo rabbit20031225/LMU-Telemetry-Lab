@@ -80,6 +80,7 @@ MODEL_ALIASES = {
     "296": ["ferrari", "296"],
     "huracan": ["lamborghini", "huracan"],
     "rcf": ["lexus", "rcf"],
+    "9x8": ["peugeot", "9x8"],
 }
 
 def normalize_custom_car_name(s):
@@ -87,11 +88,6 @@ def normalize_custom_car_name(s):
     s = s.lower()
     for k in LIVERY_KEYWORDS:
         s = s.replace(k, ' ')
-    
-    # Try to split jammed words like 911GT3R -> 911 GT3 R
-    import re
-    s = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', s) # 911GT3R -> 911 GT3R
-    s = re.sub(r'([a-zA-Z]+)(\d+)', r'\1 \2', s) # GT3R2025 -> GT3R 2025
     
     # Standard separators
     s = s.replace('#', ' ').replace('(', ' ').replace(')', ' ').replace(':', ' ').replace('-', ' ').replace('_', ' ')
