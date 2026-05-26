@@ -349,6 +349,31 @@ html {
   box-sizing: border-box;
 }
 
+.btn-discord-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 1.8rem;
+  background: #5865F2;
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(88, 101, 242, 0.25);
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 1.5rem;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-sizing: border-box;
+}
+
+.btn-discord-cta:hover {
+  background: #4752c4;
+  box-shadow: 0 8px 25px rgba(88, 101, 242, 0.45);
+}
+
 /* 截圖區塊 (3D傾斜視覺) */
 .screenshot-section {
   width: 100%;

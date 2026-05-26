@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Globe, ChevronDown, Layers, Crosshair, FolderKanban, Gamepad2, BarChart2, Settings2, MousePointer2, Monitor, BookOpen, FolderOpen } from 'lucide-react';
+import { Download, Globe, ChevronDown, Layers, Crosshair, FolderKanban, Gamepad2, BarChart2, Settings2, MousePointer2, Monitor, BookOpen, FolderOpen, Share2 } from 'lucide-react';
 import './App.css';
 
 import logo from './assets/logo.png';
@@ -19,6 +19,7 @@ import session3 from './assets/select_session_3.png';
 import session4 from './assets/select_session_4.png';
 import recording1 from './assets/recording_1.png';
 import recording2 from './assets/recording_2.png';
+import exportImg from './assets/export_lap_and_setup_files.png';
 
 const translations = {
   en: {
@@ -38,13 +39,16 @@ const translations = {
     featureMultiSessionTitle: 'Cross-Session Analysis',
     featureMultiSessionDesc: 'Compare telemetry data across different sessions. Track your progression over time and identify the optimal setup for every condition.',
     featureSetupTitle: 'Detailed Setup Comparison',
-    featureSetupDesc: 'Compare specific car setup parameters between different laps. Identify how changes in suspension, aerodynamics, or tire pressures affect your track performance.',
+    featureSetupDesc: 'Compare specific car setup parameters between different laps. Use the top-right button to export your exact configurations to share with others, and discover how suspension or tire pressure tweaks impact performance.',
     featureWorkspaceTitle: 'Advanced Data Organization',
     featureWorkspaceDesc: 'Easily organize vast amounts of telemetry data. Support for multiple workspaces and precise session selection to keep your analysis structured.',
     featureCustomTitle: 'Custom Display Settings',
     featureCustomDesc: 'Tailor your dashboard to perfection. Adjust HUD elements, map colors, and data overlays to suit your personal analysis workflow.',
     featureHardwareTitle: 'True-to-Life Hardware Sync',
     featureHardwareDesc: 'Choose or upload your exact steering wheel model. Sync your real-world hardware settings with the app for a 1:1 simulation experience.',
+    featureExportTitle: 'Seamless Export & Share',
+    featureExportDesc: 'Export your telemetry files and car setups simultaneously with a single click. Share your data with friends, teammates, or the sim racing community to compare racing lines. Join our Discord server to exchange setups and discuss strategies with drivers worldwide!',
+    joinDiscordBtn: 'Join Discord Community',
     footer: '© 2026 LMU Telemetry Lab. Built with passion for sim racing.',
     langName: 'English',
     clickToSwitch: 'Click to switch cards',
@@ -77,13 +81,16 @@ const translations = {
     featureMultiSessionTitle: '跨賽程深度比對',
     featureMultiSessionDesc: '跨越不同賽程進行遙測數據比對。輕鬆追蹤你的長期進步幅度，並在各種賽道條件下找出最完美的車輛調校。',
     featureSetupTitle: '深度車輛調校比對',
-    featureSetupDesc: '精確比對不同單圈間的車輛調校參數。分析懸吊、空力或胎壓的微調如何影響你的賽道表現，找出最完美的設定。',
+    featureSetupDesc: '精確比對不同單圈間的車輛調校參數。現在更支援透過右上方按鍵一鍵匯出調校設定與他人分享。深度分析懸吊、空力或胎壓的微調如何影響你的賽道表現。',
     featureWorkspaceTitle: '進階數據組織',
     featureWorkspaceDesc: '輕鬆整理龐大的遙測數據。支援多工作區與精確的賽程選擇系統，讓你的數據分析始終保持井然有序。',
     featureCustomTitle: '自定義顯示設定',
     featureCustomDesc: '隨心所欲調整你的儀表板。從 HUD 元素到賽道顏色與數據圖層，都能根據你的分析習慣進行深度客製化。',
     featureHardwareTitle: '真實硬體外觀同步',
     featureHardwareDesc: '選擇或上傳你專屬的方向盤模型。將真實世界的硬體設定與應用程式完美同步，享受 1:1 的沉浸分析體驗。',
+    featureExportTitle: '一鍵匯出與社群分享',
+    featureExportDesc: '一鍵同時匯出你的單圈遙測與車輛設定檔！輕鬆與朋友、隊友或賽車社群分享，比對彼此的賽道路線與車輛調校。歡迎加入我們的 Discord 社群，與全球車手交流遙測檔案、分享調校心得並探討駕駛技巧！',
+    joinDiscordBtn: '加入 Discord 社群',
     footer: '© 2026 LMU Telemetry Lab. Built with passion for sim racing.',
     langName: '繁體中文',
     clickToSwitch: '點擊切換圖片',
@@ -116,13 +123,16 @@ const translations = {
     featureMultiSessionTitle: 'Análisis Multisesión',
     featureMultiSessionDesc: 'Compara datos de telemetría de diferentes sesiones. Sigue tu progresión a lo largo del tiempo e identifica la configuración óptima.',
     featureSetupTitle: 'Comparación de Configuración',
-    featureSetupDesc: 'Compara parámetros específicos de configuración del coche entre vueltas.',
+    featureSetupDesc: 'Compara parámetros específicos de configuración entre vueltas. Use el botón superior derecho para exportar configuraciones y compartirlas.',
     featureWorkspaceTitle: 'Organización Avanzada',
     featureWorkspaceDesc: 'Configura múltiples espacios de trabajo para gestionar datos de telemetría sin esfuerzo.',
     featureCustomTitle: 'Ajustes de Pantalla',
     featureCustomDesc: 'Personaliza tu panel de control a la perfección. Ajusta elementos del HUD y colores.',
     featureHardwareTitle: 'Sincronización de Hardware',
     featureHardwareDesc: 'Elige o sube tu propio modelo de volante. Sincroniza tus ajustes reales.',
+    featureExportTitle: 'Exportar y Compartir Fácilmente',
+    featureExportDesc: 'Exporte sus archivos de telemetría y configuraciones simultáneamente con un solo clic. Comparta sus datos con amigos o la comunidad. ¡Únase a nuestro servidor de Discord para intercambiar archivos y discutir estrategias!',
+    joinDiscordBtn: 'Unirse a la Comunidad Discord',
     footer: '© 2026 LMU Telemetry Lab. Creado con pasión por el sim racing.',
     langName: 'Español',
     clickToSwitch: 'Haz clic para cambiar',
@@ -155,13 +165,16 @@ const translations = {
     featureMultiSessionTitle: 'Análisis Multi-Sessione',
     featureMultiSessionDesc: 'Confronta i dati telemetrici di diverse sessioni. Tieni traccia dei tuoi progressi nel tempo e identifica l\'assetto ottimale.',
     featureSetupTitle: 'Confronto Assetto',
-    featureSetupDesc: 'Confronta i parametri specifici dell\'assetto dell\'auto tra i vari giri.',
+    featureSetupDesc: 'Confronta i parametri di assetto tra i vari giri. Usa il pulsante in alto a destra per esportare le configurazioni e condividerle.',
     featureWorkspaceTitle: 'Organizzazione Avanzata',
     featureWorkspaceDesc: 'Imposta più aree di lavoro per gestire i dati telemetrici senza sforzo.',
     featureCustomTitle: 'Impostazioni Display',
     featureCustomDesc: 'Personalizza il tuo dashboard. Regola elementi HUD e colori della mappa.',
     featureHardwareTitle: 'Sincronizzazione Hardware',
     featureHardwareDesc: 'Scegli o carica il tuo modello di volante. Sincronizza le tue impostazioni reali.',
+    featureExportTitle: 'Esportazione e Condivisione Semplice',
+    featureExportDesc: 'Esporta i file di telemetria e gli assetti contemporaneamente con un solo clic. Condividi i tuoi dati con amici o la community. Unisciti al nostro server Discord per scambiare file e discutere strategie!',
+    joinDiscordBtn: 'Unisciti alla Community Discord',
     footer: '© 2026 LMU Telemetry Lab. Creato con passione per il sim racing.',
     langName: 'Italiano',
     clickToSwitch: 'Clicca per cambiare',
@@ -565,6 +578,39 @@ export const App: React.FC = () => {
             <div className="showcase-visual">
                 <img src={wheelImg} className="showcase-img small" alt="Hardware Wheel Sync" />
              </div>
+          </motion.div>
+
+          {/* Feature 6: Seamless Export & Share */}
+          <motion.div 
+            className="showcase-row reverse large-visual"
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ margin: "-50px" }}
+            transition={{ duration: 0.7 }}
+          >
+            <div className="showcase-text">
+               <div className="showcase-text-icon"><Share2 size={24} /></div>
+               <h3>{t.featureExportTitle}</h3>
+               <p>{t.featureExportDesc}</p>
+               
+               {/* High-quality Discord CTA Button inside the section */}
+               <motion.a 
+                 href="https://discord.gg/zNPehXA3jK"
+                 target="_blank"
+                 rel="noreferrer"
+                 className="btn-discord-cta"
+                 whileHover={{ scale: 1.05 }}
+                 whileTap={{ scale: 0.95 }}
+               >
+                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.6rem' }}>
+                   <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.894.077.077 0 0 1-.008-.128c.126-.093.252-.19.372-.287a.075.075 0 0 1 .077-.011c3.92 1.793 8.18 1.793 12.061 0a.073.073 0 0 1 .078.009c.12.099.246.195.373.289a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.156-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.156 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.156-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.156 2.418z" />
+                 </svg>
+                 {t.joinDiscordBtn}
+               </motion.a>
+            </div>
+            <div className="showcase-visual">
+               <img src={exportImg} className="showcase-img" alt="Export Lap and Setup Files" />
+            </div>
           </motion.div>
 
         </section>
