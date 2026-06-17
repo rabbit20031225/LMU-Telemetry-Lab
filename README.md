@@ -6,7 +6,7 @@
     <img src="https://img.shields.io/badge/version-1.4.3-blue" />
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey" />
     <img src="https://img.shields.io/badge/license-MIT-green" />
-    <img src="https://img.shields.io/badge/data-LMU_v1.3.1.2-orange" />
+    <img src="https://img.shields.io/badge/data-LMU_v1.3.3.4-orange" />
     <a href="https://rabbit20031225.github.io/LMU-Telemetry-Lab/"><img src="https://img.shields.io/badge/Website-Landing%20Page-blue?logo=googlechrome&logoColor=white" /></a>
     <a href="https://discord.gg/zNPehXA3jK"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" /></a>
     <a href="https://ko-fi.com/hungyc"><img src="https://img.shields.io/badge/Ko--fi-Support%20Me-ff5e5b?logo=kofi&logoColor=white" /></a>
