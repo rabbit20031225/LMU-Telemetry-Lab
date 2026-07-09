@@ -150,10 +150,10 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ onClose }) => {
                         {!isCreating ? (
                             <>
                                 {(profiles || []).map((p: any) => (
-                                    <button
+                                    <div
                                         key={p.id}
                                         onClick={() => handleSelect(p.id)}
-                                        className={`w-full group/item glass-container rounded-2xl transition-all duration-300 border ${activeProfileId === p.id ? 'bg-blue-600/20 border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.2)]' : 'bg-white/10 border-white/10 hover:bg-white/15 hover:border-white/20'}`}
+                                        className={`w-full group/item glass-container rounded-2xl transition-all duration-300 border cursor-pointer ${activeProfileId === p.id ? 'bg-blue-600/20 border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.2)]' : 'bg-white/10 border-white/10 hover:bg-white/15 hover:border-white/20'}`}
                                         onMouseMove={handleGlassMouseMove}
                                         style={{ '--glass-hover-scale': '1.02' } as any}
                                     >
@@ -266,7 +266,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ onClose }) => {
                                                 )}
                                             </div>
                                         </div>
-                                    </button>
+                                    </div>
                                 ))}
 
                                 <button

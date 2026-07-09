@@ -52,6 +52,100 @@ def find_track_in_registry(search_name: str):
 
     return None, None
 
+
+def find_layout_in_track(track_data, raw_layout: str, raw_track: str):
+    """
+    Finds layout data within a matched track data using various layout naming forms.
+    Returns (layout_name, layout_data) or (None, None).
+    """
+    import re
+    import unicodedata
+    
+    if not track_data or not raw_layout:
+        return None, None
+        
+    layouts_dict = track_data.get("layouts", {})
+    if not layouts_dict:
+        return None, None
+
+    def normalize(s):
+        # Normalize to NFD (decomposed) and filter out non-spacing marks (accents)
+        s = "".join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
+        s = s.lower().strip()
+        s = re.sub(r'[-_]', ' ', s)
+        return " ".join(s.split())
+
+    norm_layout = normalize(raw_layout)
+    norm_track = normalize(raw_track)
+
+    # 1. Exact match on layout key
+    for key, data in layouts_dict.items():
+        if normalize(key) == norm_layout:
+            return key, data
+
+    # 2. Check layout aliases
+    for key, data in layouts_dict.items():
+        aliases = data.get("aliases", [])
+        for alias in aliases:
+            if normalize(alias) == norm_layout:
+                return key, data
+
+    # 3. Strip track name prefix and match
+    # e.g., raw_layout = "Paul Ricard - 3A", norm_layout = "paul ricard 3a", norm_track = "paul ricard"
+    # stripped = "3a"
+    stripped_layout = norm_layout
+    if norm_track in norm_layout:
+        stripped_layout = norm_layout.replace(norm_track, "").strip()
+        # Clean up leading/trailing non-alphanumeric chars
+        stripped_layout = re.sub(r'^[^a-z0-9]+', '', stripped_layout).strip()
+
+    if stripped_layout:
+        # Step 3.1: Exact match on stripped key
+        for key, data in layouts_dict.items():
+            norm_key = normalize(key)
+            # Remove "layout" prefix from key for better matching, e.g. "layout 3a" -> "3a"
+            norm_key_stripped = norm_key.replace("layout", "").strip()
+            norm_key_stripped = re.sub(r'^[^a-z0-9]+', '', norm_key_stripped).strip()
+            
+            if norm_key_stripped == stripped_layout:
+                return key, data
+                
+            # Check aliases
+            aliases = data.get("aliases", [])
+            for alias in aliases:
+                norm_alias = normalize(alias)
+                if norm_alias == stripped_layout:
+                    return key, data
+                    
+        # Step 3.2: Partial match (stripped input is contained in key)
+        for key, data in layouts_dict.items():
+            norm_key = normalize(key)
+            norm_key_stripped = norm_key.replace("layout", "").strip()
+            norm_key_stripped = re.sub(r'^[^a-z0-9]+', '', norm_key_stripped).strip()
+            
+            if stripped_layout in norm_key_stripped:
+                return key, data
+                
+            # Check aliases
+            aliases = data.get("aliases", [])
+            for alias in aliases:
+                norm_alias = normalize(alias)
+                if stripped_layout in norm_alias:
+                    return key, data
+
+    # 4. Fuzzy containment on keys
+    for key, data in layouts_dict.items():
+        norm_key = normalize(key)
+        if norm_key in norm_layout or norm_layout in norm_key:
+            return key, data
+
+    # 5. Default fallback
+    default_data = layouts_dict.get("Default")
+    if default_data:
+        return "Default", default_data
+        
+    return None, None
+
 TRACK_REGISTRY = {
     "Bahrain International Circuit": {
         "display_name": "Bahrain",
@@ -59,6 +153,7 @@ TRACK_REGISTRY = {
         "country": "Bahrain",
         "layouts": {
             "Default": {
+                "aliases": ["Bahrain International Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish" },
                     { "dist": 450, "alt": 7.0, "corner": "T1 Braking (Downhill)" },
@@ -78,10 +173,11 @@ TRACK_REGISTRY = {
                     { "dist": 3900, "alt": 17.0, "corner": "T13 High Speed" },
                     { "dist": 4500, "alt": 11.5, "corner": "T14 Heavy Braking" },
                     { "dist": 4850, "alt": 10.5, "corner": "T15 Exit" },
-                    { "dist": 5412, "alt": 10.0, "corner": "Start/Finish" }
+                    { "dist": 5412, "alt": 10.0, "corner": "Start/Finish" },
                 ]
             },
             "Endurance Circuit": {
+                "aliases": ["Bahrain Endurance Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish Line" },
                     { "dist": 450, "alt": 6.8, "corner": "T1 Apex" },
@@ -96,10 +192,11 @@ TRACK_REGISTRY = {
                     { "dist": 3600, "alt": 16.2, "corner": "T10 Apex" },
                     { "dist": 3950, "alt": 22.5, "corner": "T11 (Highest Point)" },
                     { "dist": 5250, "alt": 11.5, "corner": "T14 Braking" },
-                    { "dist": 6299, "alt": 10.0, "corner": "Start/Finish Line" }
+                    { "dist": 6299, "alt": 10.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Outer Circuit": {
+                "aliases": ["Bahrain Outer Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish Line" },
                     { "dist": 250, "alt": 9.2, "corner": "T1 Braking" },
@@ -112,10 +209,11 @@ TRACK_REGISTRY = {
                     { "dist": 2400, "alt": 16.2, "corner": "T13 High Speed" },
                     { "dist": 2800, "alt": 12.0, "corner": "T14 Braking" },
                     { "dist": 3100, "alt": 10.8, "corner": "T15 Exit" },
-                    { "dist": 3543, "alt": 10.0, "corner": "Start/Finish Line" }
+                    { "dist": 3543, "alt": 10.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Paddock Circuit": {
+                "aliases": ["Bahrain Paddock Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish Line" },
                     { "dist": 1400, "alt": 21.2, "corner": "T4 Apex" },
@@ -123,9 +221,9 @@ TRACK_REGISTRY = {
                     { "dist": 1950, "alt": 15.5, "corner": "Paddock Link Mid (下坡)" },
                     { "dist": 2300, "alt": 12.0, "corner": "Re-joining GP T14" },
                     { "dist": 2700, "alt": 10.8, "corner": "T15 Exit" },
-                    { "dist": 3705, "alt": 10.0, "corner": "Start/Finish Line" }
+                    { "dist": 3705, "alt": 10.0, "corner": "Start/Finish Line" },
                 ]
-            }
+            },
         }
     },
     "Circuit de La Sarthe": {
@@ -134,6 +232,7 @@ TRACK_REGISTRY = {
         "country": "France",
         "layouts": {
             "Default": {
+                "aliases": ["Circuit de la Sarthe"],
                 "ref_points": [
                     { "dist": 0, "alt": 51.0, "corner": "Start/Finish Line" },
                     { "dist": 400, "alt": 62.0, "corner": "Dunlop Curve Entry" },
@@ -158,10 +257,11 @@ TRACK_REGISTRY = {
                     { "dist": 12700, "alt": 54.5, "corner": "Maison Blanche" },
                     { "dist": 13200, "alt": 53.0, "corner": "Ford Chicane 1" },
                     { "dist": 13450, "alt": 51.5, "corner": "Ford Chicane 2" },
-                    { "dist": 13626, "alt": 51.0, "corner": "Start/Finish Line" }
+                    { "dist": 13626, "alt": 51.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Mulsanne Circuit": {
+                "aliases": ["Circuit de la Sarthe Mulsanne"],
                 "ref_points": [
                     { "dist": 0, "alt": 51.0, "corner": "Start/Finish Line" },
                     { "dist": 250, "alt": 52.5, "corner": "Dunlop Curve Entry" },
@@ -188,9 +288,9 @@ TRACK_REGISTRY = {
                     { "dist": 12500, "alt": 54.0, "corner": "Corvette Corner" },
                     { "dist": 13000, "alt": 53.5, "corner": "Maison Blanche" },
                     { "dist": 13350, "alt": 51.5, "corner": "Ford Chicanes" },
-                    { "dist": 13554, "alt": 51.0, "corner": "Start/Finish Line" }
+                    { "dist": 13554, "alt": 51.0, "corner": "Start/Finish Line" },
                 ]
-            }
+            },
         }
     },
     "Paul Ricard": {
@@ -199,6 +299,7 @@ TRACK_REGISTRY = {
         "country": "France",
         "layouts": {
             "Default": {
+                "aliases": ["Paul Ricard - ELMS"],
                 "ref_points": [
                     { "dist": 0, "alt": 438.0, "corner": "Start/Finish Line" },
                     { "dist": 400, "alt": 435.0, "corner": "T1 (Verrerie) - 微幅下坡" },
@@ -209,10 +310,11 @@ TRACK_REGISTRY = {
                     { "dist": 4100, "alt": 432.0, "corner": "Signes (最快的高速右彎 - 最低點)" },
                     { "dist": 4600, "alt": 434.0, "corner": "Double Droite du Beausset" },
                     { "dist": 5200, "alt": 437.0, "corner": "Bendor / Village" },
-                    { "dist": 5842, "alt": 438.0, "corner": "Start/Finish Line" }
+                    { "dist": 5842, "alt": 438.0, "corner": "Start/Finish Line" },
                 ]
             },
-            "Layout 1A": { 
+            "Layout 1A": {
+                "aliases": ["Paul Ricard - 1A"],
                 "ref_points": [
                     { "dist": 0, "alt": 438.0, "corner": "Start of Lap (Main Straight)" },
                     { "dist": 250, "alt": 437.0, "corner": "T1 Braking Zone" },
@@ -226,9 +328,11 @@ TRACK_REGISTRY = {
                     { "dist": 4600, "alt": 434.5, "corner": "Double Droite du Beausset" },
                     { "dist": 5100, "alt": 436.0, "corner": "Bendor" },
                     { "dist": 5450, "alt": 437.5, "corner": "T14 (Final Corner)" },
-                    { "dist": 5752, "alt": 438.0, "corner": "Lap End" }
-                ] },
-            "Layout 1A-V2": { 
+                    { "dist": 5752, "alt": 438.0, "corner": "Lap End" },
+                ]
+            },
+            "Layout 1A-V2": {
+                "aliases": ["Paul Ricard - 1A-V2"],
                 "ref_points": [
                     { "dist": 0, "alt": 438.0, "corner": "Start Line" },
                     { "dist": 650, "alt": 435.5, "corner": "T1/T2 (Verrerie)" },
@@ -238,10 +342,11 @@ TRACK_REGISTRY = {
                     { "dist": 3100, "alt": 438.0, "corner": "Chicane Apex (Downhill)" },
                     { "dist": 4200, "alt": 432.0, "corner": "Signes (Lowest Point)" },
                     { "dist": 4800, "alt": 434.5, "corner": "Beausset" },
-                    { "dist": 5842, "alt": 438.0, "corner": "Finish" }
-                ] 
+                    { "dist": 5842, "alt": 438.0, "corner": "Finish" },
+                ]
             },
-            "Layout 1A-V2-Short": { 
+            "Layout 1A-V2-Short": {
+                "aliases": ["Paul Ricard - 1A-V2-Short"],
                 "ref_points": [
                     { "dist": 0, "alt": 438.0, "corner": "Start of Lap" },
                     { "dist": 380, "alt": 435.5, "corner": "T1 Apex" },
@@ -252,18 +357,19 @@ TRACK_REGISTRY = {
                     { "dist": 3650, "alt": 433.0, "corner": "Re-joining Beausset (Lowest Point)" },
                     { "dist": 4200, "alt": 435.5, "corner": "Bendor" },
                     { "dist": 4800, "alt": 437.0, "corner": "T14/T15" },
-                    { "dist": 5227, "alt": 438.0, "corner": "Lap End" }
-                ] 
+                    { "dist": 5227, "alt": 438.0, "corner": "Lap End" },
+                ]
             },
-            "Layout 3A": { 
+            "Layout 3A": {
+                "aliases": ["Paul Ricard - 3A"],
                 "ref_points": [
                     { "dist": 0, "alt": 438.0, "corner": "Start Line" },
                     { "dist": 650, "alt": 435.0, "corner": "T1" },
                     { "dist": 1200, "alt": 442.0, "corner": "Short Cut Link (T4 to T11)" },
                     { "dist": 2000, "alt": 434.0, "corner": "Re-joining Beausset" },
-                    { "dist": 3793, "alt": 438.0, "corner": "Finish" }
-                ] 
-            }
+                    { "dist": 3793, "alt": 438.0, "corner": "Finish" },
+                ]
+            },
         }
     },
     "Circuit of the Americas": {
@@ -272,6 +378,7 @@ TRACK_REGISTRY = {
         "country": "United States",
         "layouts": {
             "Default": {
+                "aliases": ["Circuit of the Americas"],
                 "ref_points": [
                     { "dist": 0, "alt": 131.0, "corner": "Start of Lap (Post-T20)" },
                     { "dist": 200, "alt": 132.0, "corner": "Start/Finish Line" },
@@ -286,10 +393,11 @@ TRACK_REGISTRY = {
                     { "dist": 4600, "alt": 130.0, "corner": "T16-T18 Carousel" },
                     { "dist": 5100, "alt": 131.5, "corner": "T19" },
                     { "dist": 5400, "alt": 131.0, "corner": "T20 Entry" },
-                    { "dist": 5513, "alt": 131.0, "corner": "Lap End" }
+                    { "dist": 5513, "alt": 131.0, "corner": "Lap End" },
                 ]
             },
             "National Circuit": {
+                "aliases": ["COTA National Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 131.0, "corner": "Start of Lap (Post-T20)" },
                     { "dist": 200, "alt": 132.0, "corner": "Start/Finish Line" },
@@ -302,9 +410,9 @@ TRACK_REGISTRY = {
                     { "dist": 2200, "alt": 129.5, "corner": "Re-joining Stadium Section" },
                     { "dist": 2700, "alt": 130.5, "corner": "T16-T18 Carousel" },
                     { "dist": 3300, "alt": 131.5, "corner": "T20 Apex" },
-                    { "dist": 3702, "alt": 131.0, "corner": "Lap End" }
+                    { "dist": 3702, "alt": 131.0, "corner": "Lap End" },
                 ]
-            }
+            },
         }
     },
     "Fuji Speedway": {
@@ -313,6 +421,7 @@ TRACK_REGISTRY = {
         "country": "Japan",
         "layouts": {
             "Default": {
+                "aliases": ["Fuji Speedway"],
                 "ref_points": [
                     { "dist": 0, "alt": 582.0, "corner": "Start/Finish Line" },
                     { "dist": 400, "alt": 575.0, "corner": "T1 (First Corner)" },
@@ -325,10 +434,11 @@ TRACK_REGISTRY = {
                     { "dist": 3500, "alt": 606.0, "corner": "T13 (全場最高點)" },
                     { "dist": 3800, "alt": 602.0, "corner": "T15" },
                     { "dist": 4250, "alt": 594.0, "corner": "Panasonic Corner (T16)" },
-                    { "dist": 4563, "alt": 582.0, "corner": "Start/Finish Line" }
+                    { "dist": 4563, "alt": 582.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Classic Circuit": {
+                "aliases": ["Fuji Speedway Classic"],
                 "ref_points": [
                     { "dist": 0, "alt": 582.0, "corner": "Start/Finish Line" },
                     { "dist": 400, "alt": 575.0, "corner": "T1" },
@@ -339,9 +449,9 @@ TRACK_REGISTRY = {
                     { "dist": 3400, "alt": 604.0, "corner": "Link Section Crest (最高點)" },
                     { "dist": 3800, "alt": 601.5, "corner": "Sweep into Final Straight" },
                     { "dist": 4200, "alt": 593.0, "corner": "Final Turn Exit" },
-                    { "dist": 4526, "alt": 582.0, "corner": "Start/Finish Line" }
+                    { "dist": 4526, "alt": 582.0, "corner": "Start/Finish Line" },
                 ]
-            }
+            },
         }
     },
     "Autodromo Internazionale Enzo e Dino Ferrari": {
@@ -350,6 +460,7 @@ TRACK_REGISTRY = {
         "country": "Italy",
         "layouts": {
             "Default": {
+                "aliases": ["Autodromo Enzo e Dino Ferrari"],
                 "ref_points": [
                     { "dist": 0, "alt": 42.0, "corner": "Start/Finish Line" },
                     { "dist": 350, "alt": 40.5, "corner": "Variante del Tamburello Entry" },
@@ -366,9 +477,9 @@ TRACK_REGISTRY = {
                     { "dist": 3900, "alt": 58.0, "corner": "Rivazza Entry (下坡開始)" },
                     { "dist": 4250, "alt": 46.5, "corner": "Rivazza 1 (陡降煞車區)" },
                     { "dist": 4500, "alt": 43.5, "corner": "Rivazza 2" },
-                    { "dist": 4909, "alt": 42.0, "corner": "Start/Finish Line" }
+                    { "dist": 4909, "alt": 42.0, "corner": "Start/Finish Line" },
                 ]
-            }
+            },
         }
     },
     "Autodromo Jose Carlos Pace": {
@@ -377,6 +488,7 @@ TRACK_REGISTRY = {
         "country": "Brazil",
         "layouts": {
             "Default": {
+                "aliases": ["Autódromo José Carlos Pace"],
                 "ref_points": [
                     { "dist": 0, "alt": 780.0, "corner": "Start/Finish Line" },
                     { "dist": 250, "alt": 776.0, "corner": "Senna S Entry (開始下墜)" },
@@ -391,9 +503,9 @@ TRACK_REGISTRY = {
                     { "dist": 3550, "alt": 750.0, "corner": "Mergulho (最後的小谷底)" },
                     { "dist": 3800, "alt": 768.5, "corner": "Junção (關鍵爬坡起點)" },
                     { "dist": 4100, "alt": 776.5, "corner": "Subida dos Boxes (全油門爬坡)" },
-                    { "dist": 4309, "alt": 780.0, "corner": "Start/Finish Line" }
+                    { "dist": 4309, "alt": 780.0, "corner": "Start/Finish Line" },
                 ]
-            }
+            },
         }
     },
     "Lusail International Circuit": {
@@ -402,6 +514,7 @@ TRACK_REGISTRY = {
         "country": "Qatar",
         "layouts": {
             "Default": {
+                "aliases": ["Lusail International Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 11.0, "corner": "Start/Finish" },
                     { "dist": 450, "alt": 10.3, "corner": "T1 Apex" },
@@ -415,10 +528,11 @@ TRACK_REGISTRY = {
                     { "dist": 4100, "alt": 11.2, "corner": "T14" },
                     { "dist": 4700, "alt": 10.5, "corner": "T16 Apex" },
                     { "dist": 5100, "alt": 10.8, "corner": "T16 Exit" },
-                    { "dist": 5400, "alt": 11.0, "corner": "Start/Finish" }
+                    { "dist": 5400, "alt": 11.0, "corner": "Start/Finish" },
                 ]
             },
             "Short Circuit": {
+                "aliases": ["Lusail Short Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 11.0, "corner": "Start/Finish Line" },
                     { "dist": 400, "alt": 10.3, "corner": "T1 Apex (下坡煞車)" },
@@ -430,9 +544,9 @@ TRACK_REGISTRY = {
                     { "dist": 2150, "alt": 10.8, "corner": "Re-joining T15 Entry" },
                     { "dist": 2500, "alt": 10.5, "corner": "T16 Apex (全場最低點)" },
                     { "dist": 3100, "alt": 10.8, "corner": "T16 Exit / Main Straight" },
-                    { "dist": 3701, "alt": 11.0, "corner": "Start/Finish Line" }
+                    { "dist": 3701, "alt": 11.0, "corner": "Start/Finish Line" },
                 ]
-            }
+            },
         }
     },
     "Autodromo Nazionale Monza": {
@@ -441,6 +555,7 @@ TRACK_REGISTRY = {
         "country": "Italy",
         "layouts": {
             "Default": {
+                "aliases": ["Autodromo Nazionale Monza"],
                 "ref_points": [
                     { "dist": 0, "alt": 183.0, "corner": "Start/Finish" },
                     { "dist": 400, "alt": 182.6, "corner": "T1 Braking" },
@@ -458,10 +573,11 @@ TRACK_REGISTRY = {
                     { "dist": 4600, "alt": 185.0, "corner": "Back Straight" },
                     { "dist": 5100, "alt": 184.2, "corner": "Parabolica Entry" },
                     { "dist": 5400, "alt": 183.5, "corner": "Parabolica Apex" },
-                    { "dist": 5793, "alt": 183.0, "corner": "Start/Finish" }
+                    { "dist": 5793, "alt": 183.0, "corner": "Start/Finish" },
                 ]
             },
             "Curva Grande Circuit": {
+                "aliases": ["Monza Curva Grande Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 183.0, "corner": "Start/Finish Line" },
                     { "dist": 400, "alt": 182.8, "corner": "High Speed Approach (原本的 T1 煞車區)" },
@@ -477,9 +593,9 @@ TRACK_REGISTRY = {
                     { "dist": 4600, "alt": 185.1, "corner": "Back Straight" },
                     { "dist": 5100, "alt": 184.3, "corner": "Parabolica Entry" },
                     { "dist": 5400, "alt": 183.5, "corner": "Parabolica Apex" },
-                    { "dist": 5750, "alt": 183.0, "corner": "Start/Finish Line" }
+                    { "dist": 5750, "alt": 183.0, "corner": "Start/Finish Line" },
                 ]
-            }
+            },
         }
     },
     "Algarve International Circuit": {
@@ -488,6 +604,7 @@ TRACK_REGISTRY = {
         "country": "Portugal",
         "layouts": {
             "Default": {
+                "aliases": ["Algarve International Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 125.0, "corner": "Start/Finish" },
                     { "dist": 300, "alt": 126.5, "corner": "T1 Braking (Crest)" },
@@ -504,9 +621,9 @@ TRACK_REGISTRY = {
                     { "dist": 3300, "alt": 118.0, "corner": "T14 Entry" },
                     { "dist": 3600, "alt": 122.5, "corner": "T15 Entry (Crest)" },
                     { "dist": 4000, "alt": 128.0, "corner": "Galp Apex (Downhill)" },
-                    { "dist": 4653, "alt": 125.0, "corner": "Start/Finish" }
+                    { "dist": 4653, "alt": 125.0, "corner": "Start/Finish" },
                 ]
-            }
+            },
         }
     },
     "Sebring International Raceway": {
@@ -515,6 +632,7 @@ TRACK_REGISTRY = {
         "country": "United States",
         "layouts": {
             "Default": {
+                "aliases": ["Sebring International Raceway"],
                 "ref_points": [
                     { "dist": 0, "alt": 18.0, "corner": "Start/Finish" },
                     { "dist": 350, "alt": 17.4, "corner": "T1 Apex" },
@@ -528,10 +646,11 @@ TRACK_REGISTRY = {
                     { "dist": 5000, "alt": 17.2, "corner": "T16" },
                     { "dist": 5500, "alt": 16.5, "corner": "T17 Sunset (Lowest)" },
                     { "dist": 5800, "alt": 17.5, "corner": "T17 Exit" },
-                    { "dist": 6019, "alt": 18.0, "corner": "Start/Finish" }
+                    { "dist": 6019, "alt": 18.0, "corner": "Start/Finish" },
                 ]
             },
             "School Circuit": {
+                "aliases": ["Sebring School Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 18.0, "corner": "Start/Finish Line" },
                     { "dist": 350, "alt": 17.4, "corner": "T1 Apex" },
@@ -542,9 +661,9 @@ TRACK_REGISTRY = {
                     { "dist": 2350, "alt": 17.8, "corner": "T15" },
                     { "dist": 2750, "alt": 16.6, "corner": "T17 Sunset Bend (Lowest Point)" },
                     { "dist": 3050, "alt": 17.6, "corner": "T17 Exit" },
-                    { "dist": 3219, "alt": 18.0, "corner": "Start/Finish Line" }
+                    { "dist": 3219, "alt": 18.0, "corner": "Start/Finish Line" },
                 ]
-            }
+            },
         }
     },
     "Silverstone": {
@@ -553,6 +672,7 @@ TRACK_REGISTRY = {
         "country": "United Kingdom",
         "layouts": {
             "Default": {
+                "aliases": ["Silverstone Grand Prix Circuit - ELMS"],
                 "ref_points": [
                     { "dist": 0, "alt": 154.5, "corner": "Start of Lap (Near Woodcote Exit)" },
                     { "dist": 200, "alt": 155.2, "corner": "Old National Straight" },
@@ -571,10 +691,11 @@ TRACK_REGISTRY = {
                     { "dist": 5200, "alt": 151.8, "corner": "Wellington Straight" },
                     { "dist": 5550, "alt": 153.2, "corner": "Brooklands / Luffield" },
                     { "dist": 5800, "alt": 154.5, "corner": "Woodcote Entry" },
-                    { "dist": 5890, "alt": 154.5, "corner": "Lap End / Crossing Line" }
+                    { "dist": 5890, "alt": 154.5, "corner": "Lap End / Crossing Line" },
                 ]
             },
-            "International Circuit": { 
+            "International Circuit": {
+                "aliases": ["Silverstone International Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 150.0, "corner": "Start Line (Hamilton Straight)" },
                     { "dist": 450, "alt": 149.2, "corner": "Abbey / Farm" },
@@ -584,10 +705,11 @@ TRACK_REGISTRY = {
                     { "dist": 1600, "alt": 152.0, "corner": "Link Mid (Crest)" },
                     { "dist": 1900, "alt": 153.5, "corner": "Re-joining Stowe" },
                     { "dist": 2300, "alt": 151.0, "corner": "Vale / Club" },
-                    { "dist": 2979, "alt": 150.0, "corner": "Finish" }
-                ] 
+                    { "dist": 2979, "alt": 150.0, "corner": "Finish" },
+                ]
             },
-            "National Circuit": { 
+            "National Circuit": {
+                "aliases": ["Silverstone National Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 155.0, "corner": "Start Line (Woodcote/Copse)" },
                     { "dist": 350, "alt": 155.8, "corner": "Copse Apex (Highest)" },
@@ -595,9 +717,9 @@ TRACK_REGISTRY = {
                     { "dist": 900, "alt": 152.0, "corner": "National Link (橫穿段)" },
                     { "dist": 1400, "alt": 150.5, "corner": "Re-joining Brooklands" },
                     { "dist": 1900, "alt": 153.5, "corner": "Luffield" },
-                    { "dist": 2639, "alt": 155.0, "corner": "Finish" }
-                ] 
-            }
+                    { "dist": 2639, "alt": 155.0, "corner": "Finish" },
+                ]
+            },
         }
     },
     "Circuit de Spa-Francorchamps": {
@@ -606,6 +728,7 @@ TRACK_REGISTRY = {
         "country": "Belgium",
         "layouts": {
             "Default": {
+                "aliases": ["Circuit de Spa-Francorchamps", "Circuit de Spa-Francorchamps Endurance"],
                 "ref_points": [
                     { "dist": 0, "alt": 410.0, "corner": "Start/Finish Line (F1 Pits)" },
                     { "dist": 250, "alt": 412.5, "corner": "La Source (Turn 1)" },
@@ -627,10 +750,10 @@ TRACK_REGISTRY = {
                     { "dist": 6250, "alt": 395.0, "corner": "Blanchimont 2" },
                     { "dist": 6700, "alt": 405.0, "corner": "Bus Stop Braking Zone" },
                     { "dist": 6850, "alt": 408.0, "corner": "Bus Stop Chicane" },
-                    { "dist": 7004, "alt": 410.0, "corner": "Start/Finish Line" }
+                    { "dist": 7004, "alt": 410.0, "corner": "Start/Finish Line" },
                 ]
             },
-            "Endurance Circuit": { 
+            "Endurance Circuit": {
                 "ref_points": [
                     { "dist": 0, "alt": 410.0, "corner": "Start/Finish Line (F1 Pits)" },
                     { "dist": 250, "alt": 412.5, "corner": "La Source (Turn 1)" },
@@ -652,9 +775,9 @@ TRACK_REGISTRY = {
                     { "dist": 6250, "alt": 395.0, "corner": "Blanchimont 2" },
                     { "dist": 6700, "alt": 405.0, "corner": "Bus Stop Braking Zone" },
                     { "dist": 6850, "alt": 408.0, "corner": "Bus Stop Chicane" },
-                    { "dist": 7004, "alt": 410.0, "corner": "Start/Finish Line" }
-                ] 
-            }
+                    { "dist": 7004, "alt": 410.0, "corner": "Start/Finish Line" },
+                ]
+            },
         }
     },
     "Circuit de Barcelona": {
@@ -663,6 +786,7 @@ TRACK_REGISTRY = {
         "country": "Spain",
         "layouts": {
             "Default": {
+                "aliases": ["Circuit de Barcelona"],
                 "ref_points": [
                     { "dist": 0, "alt": 145.5, "corner": "Start of Lap (Post-T16)" },
                     { "dist": 400, "alt": 145.2, "corner": "Main Straight Entry" },
@@ -679,9 +803,9 @@ TRACK_REGISTRY = {
                     { "dist": 3650, "alt": 143.5, "corner": "T12 (Banc de Sabadell)" },
                     { "dist": 4100, "alt": 146.0, "corner": "T13 (New Fast Right)" },
                     { "dist": 4450, "alt": 145.8, "corner": "T14-T15 Transition" },
-                    { "dist": 4657, "alt": 145.5, "corner": "Lap End / Crossing Line" }
+                    { "dist": 4657, "alt": 145.5, "corner": "Lap End / Crossing Line" },
                 ]
-            }
+            },
         }
-    }
+    },
 }

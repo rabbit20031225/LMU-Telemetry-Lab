@@ -6,7 +6,6 @@ import { handleGlassMouseMove } from '../utils/glassEffect';
 
 interface CompactTelemetryOverlayProps {
     data: any;
-    cursorIndex: number | null;
     theme?: 'current' | 'reference';
     carModel?: string;
     isMiniMap?: boolean;
@@ -14,11 +13,23 @@ interface CompactTelemetryOverlayProps {
 
 export const CompactTelemetryOverlay = React.memo(({
     data,
-    cursorIndex,
     theme = 'current',
     carModel,
     isMiniMap = false
 }: CompactTelemetryOverlayProps) => {
+    const storeCursorIndex = useTelemetryStore(state => state.cursorIndex);
+    const storeSmoothCursorIndex = useTelemetryStore(state => state.smoothCursorIndex);
+    const storeReferenceCursorIndex = useTelemetryStore(state => state.referenceCursorIndex);
+    const storeReferenceDeltaIndex = useTelemetryStore(state => state.referenceDeltaIndex);
+    const dashboardSyncMode = useTelemetryStore(state => state.dashboardSyncMode);
+    const selectedSegIdx = useTelemetryStore(state => state.selectedSegIdx);
+    const isPlaying = useTelemetryStore(state => state.isPlaying);
+
+    const isRef = theme === 'reference';
+    const activeCursorIndex = isRef
+        ? (dashboardSyncMode === 'distance' && selectedSegIdx === null ? storeReferenceDeltaIndex : storeReferenceCursorIndex)
+        : (isPlaying ? storeSmoothCursorIndex : storeCursorIndex);
+
     const speedUnit = useTelemetryStore(state => state.speedUnit);
     const sessionMetadata = useTelemetryStore(state => state.sessionMetadata);
     const referenceSessionMetadata = useTelemetryStore(state => state.referenceSessionMetadata);
@@ -33,8 +44,10 @@ export const CompactTelemetryOverlay = React.memo(({
         state.isMapMaximized ? state.overlapConfigMaximized : state.overlapConfig
     );
     const updateOverlapConfig = useTelemetryStore(state => state.updateOverlapConfig);
+    const showTelemetryOverlay = useTelemetryStore(state => state.showTelemetryOverlay);
+    const hudVisibility = useTelemetryStore(state => state.hudVisibility);
 
-    const isRef = theme === 'reference';
+    const isVisible = isMapMaximized ? hudVisibility.overlap : showTelemetryOverlay;
     const mainColor = isRef ? '#daa520' : '#3b82f6';
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -43,11 +56,11 @@ export const CompactTelemetryOverlay = React.memo(({
     const historyPoints = Math.round(frequency * telemetryHistorySeconds);
 
     const telemetry = useMemo(() => {
-        if (!data || cursorIndex === null) return { speed: 0, gear: 'N', throttle: 0, brake: 0, steer: 0, history: [] };
+        if (!data || activeCursorIndex === null) return { speed: 0, gear: 'N', throttle: 0, brake: 0, steer: 0, history: [] };
 
-        const idx = Math.floor(cursorIndex);
+        const idx = Math.floor(activeCursorIndex);
         const nextIdx = Math.min(idx + 1, (data['Ground Speed'] || data['Speed'] || []).length - 1);
-        const frac = cursorIndex - idx;
+        const frac = activeCursorIndex - idx;
 
         const getVal = (chan: string, alt?: string) => {
             const d = data[chan] || data[alt || ''];
@@ -100,7 +113,7 @@ export const CompactTelemetryOverlay = React.memo(({
         }
 
         return { speed, gear, throttle, brake, steer, history };
-    }, [data, cursorIndex, speedUnit, historyPoints]);
+    }, [data, activeCursorIndex, speedUnit, historyPoints]);
 
     // Draw history curves
     useEffect(() => {
@@ -201,7 +214,7 @@ export const CompactTelemetryOverlay = React.memo(({
                 MozOsxFontSmoothing: 'grayscale',
                 willChange: 'transform, left, top',
             }}
-            className={`pointer-events-auto flex items-center border ${editHudMode ? 'hud-edit-glow' : 'border-transparent'} rounded-xl p-2 px-3 gap-3 overflow-hidden glass-container-static group/teleOverlay ${isDragging || isResizing ? 'transition-none' : 'transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]'} select-none min-w-[280px] h-14`}
+            className={`${isVisible ? 'pointer-events-auto' : 'pointer-events-none'} flex items-center border ${editHudMode ? 'hud-edit-glow' : 'border-transparent'} rounded-xl p-2 px-3 gap-3 overflow-hidden glass-container-static group/teleOverlay ${isDragging || isResizing ? 'transition-none' : 'transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]'} select-none min-w-[280px] h-14`}
         >
             {/* Sidebar label indicator */}
             <div className={`absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center ${isRef ? 'bg-amber-500/20' : 'bg-blue-500/20'} border-r border-white/5`}>

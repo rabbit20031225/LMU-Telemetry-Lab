@@ -552,3 +552,14 @@ body,
 .glass-container-static.overflow-hidden {
   transform: translateZ(0);
 }
+
+/* Telemetry Dropzone Drag & Drop style (No Rerender) */
+.telemetry-dropzone.drag-active {
+  background-color: rgba(37, 99, 235, 0.2) !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.2) !important;
+}
+
+.telemetry-dropzone.drag-active svg {
+  color: rgba(96, 165, 250, 1) !important;
+}

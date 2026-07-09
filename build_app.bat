@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 :: 1. Initialize
-set APP_VERSION=1.4.3
+set APP_VERSION=1.5.0
 echo ===================================================
 echo [START] Building LMU Telemetry Lab v%APP_VERSION%
 echo ===================================================

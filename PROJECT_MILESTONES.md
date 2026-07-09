@@ -1,3 +1,35 @@
+## 🟢 [2026-07-09] Telemetry v1.5.0 - 微區段深度比較、G-Force 實時雷達與極致性能打磨
+
+### 🌟 核心突破
+*   **微區段播放限制與 Theoretical Best 過濾修正**：支援將播放範圍與時間軸限制至所選微區段，越界自動暫停。重構最速圈 Theoretical Best 與 Sector 計算，限制必須為大於 30 秒的完整計時圈，且物理防噪排除小於 1 秒的異常數據。
+*   **Live Telemetry G-Force 雷達與自適應佈局**：新增同心圓實時雷達圖，支援 8 幀發光拖尾，修正 G 軸物理極性；實作 G-Force Radar 於 Segment/Sector 模式下在左右工作區中的自適應重排，完美消除高度落差留白。
+*   **Time Delta 圖表深度升級**：在放大區段且無 Reference 時，圖表依然可比對 Theoretical Best 最速區段，起點強制雙向對齊 `0.000s`。Y 軸範圍自適應縮放，雙擊圖表自動重置回該區段。
+*   **高質感客製化 Modal 與操作細節**：
+    *   **Confirm Delete Modal**：移除了瀏覽器原生 confirm 框，改寫為 Framer Motion 玻璃擬態彈窗，具備 `isDeleting` 鎖定與 loading 旋轉動畫，防止重覆點擊。
+    *   **地圖左右懸浮導航**：在地圖兩側增設懸浮區段導航按鍵，且修復了導航大 useEffect 依賴 selectedSegIdx 缺失 Bug。
+    *   **多檔案上傳與滾動對齊**：多檔案上傳 Glow 特效與相對視區精密計算，焦點自動平滑滾動至接近最上方 24px 的黃金舒適位置。
+*   **極致 Cursor 滑順度優化**：將有 Reference 圈時 uPlot 的 `syncUI` DOM 渲染和 Store Dispatch 統一至同一個 `requestAnimationFrame` 幀中，大幅削減高頻 mousemove 事件所帶來的 CPU 負載。
+
+### 🚀 專案影響
+*   v1.5.0 透過微區段細分播放、G-Force 雷達軌跡拖尾以及 Time Delta 動態分色對比，將數據精度與對比分析能力提升到了全新的維度。與此同時，藉由 rAF 幀率優化與多項使用者操作細節（如客製化 Modal、Navbar 比例、精確滾動定位等）的精心打磨，帶來了極致流暢和頂級質感的賽車遙測分析體驗。
+
+🟢 [2026-07-09] Telemetry v1.5.0 - Mini-Segment Comparison, G-Force Radar & Extreme Polish
+
+### 🌟 Key Breakthroughs
+*   **Playback Limitations & Theoretical Best Filter**: Restricts timeline playback to selected mini-segments, auto-pausing at borders. Refactored Theoretical Best computations to filter valid timed laps (>30s), ignoring out/in laps and physical noise (<1.0s).
+*   **G-Force Radar & Dynamic Layouts**: Introduced a real-time G-Force canvas radar chart featuring 8-frame glowing trails. Fixed Lat/Long orientation and established dynamic layout reflows to eliminate vertical column gaps in both Segment and Sector modes.
+*   **Time Delta Deep Analytics**: Displays segment-level Time Delta compared to Theoretical Best even without reference laps. Zeroes out starting delta to exactly `0.000s` and introduces responsive Y-axis scaling along with segment-locked double-click resets.
+*   **Premium Custom Modals & UX Comfort**:
+    *   **Confirm Delete Modal**: Replaced browser `confirm()` with a Framer Motion glassmorphic dialog. Features `isDeleting` thread locks and spinning loaders to block double clicks.
+    *   **Map Segment Hover Navigation**: Added floating previous/next navigation buttons on track map edges and patched `selectedSegIdx` dependency updates.
+    *   **Precise Scroll Anchoring**: Implemented viewport-relative container scrolls to smooth-lock newly uploaded file cards exactly 24px below the top.
+*   **Buttery Smooth Chart Interactions**: Unified uPlot `syncUI` DOM writes and store dispatches under a single frame-throttled `requestAnimationFrame` handler, eliminating input latency when rendering complex double-curve reference laps.
+
+### 🚀 Project Impact
+*   v1.5.0 elevates DuckDB Telemetry Lab into a world-class analytics suite with granular segment breakdowns, glowing G-force trails, and dynamic delta coloring. Powered by extensive performance profiling (rAF-throttled events) and aesthetic details, it delivers an engineering-grade, premium UI/UX for competitive sim racers.
+
+---
+
 ## 🟢 [2026-06-06] Telemetry v1.4.3 - 2026 車輛陣容與 Logo 識別升級
 
 ### 🌟 核心突破

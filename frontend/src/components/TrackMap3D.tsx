@@ -1131,7 +1131,7 @@ export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleEx
     }, [track3DData, staticTrackBaseData, trackCenterOffset]);
 
     const carStats = useMemo(() => {
-        if (!telemetryData || cursorIndex === null) return { alt: null, dist: null };
+        if (!telemetryData || cursorIndex === null || !laps.length) return { alt: null, dist: null };
         const idx = Math.floor(isPlaying ? (smoothCursorIndex ?? cursorIndex) : cursorIndex);
 
         let alt = null;
@@ -1140,14 +1140,44 @@ export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleEx
         }
 
         let dist = null;
-        if (telemetryData['Lap Dist'] && telemetryData['Lap Dist'][idx] !== undefined) {
-            dist = telemetryData['Lap Dist'][idx];
-        } else if (telemetryData['Distance'] && telemetryData['Distance'][idx] !== undefined) {
-            dist = telemetryData['Distance'][idx];
+        const dists = telemetryData['Lap Dist'] || telemetryData['Distance'];
+        if (dists && dists[idx] !== undefined) {
+            dist = dists[idx];
+            
+            // Normalize and stretch distance to align with official track length
+            const lapsChan = telemetryData['Lap'] || telemetryData['lap'];
+            const currentLapIdx = (lapsChan && lapsChan[idx] !== undefined)
+                ? lapsChan[idx]
+                : (selectedLapIdx !== null ? selectedLapIdx : (laps.find(l => l.isValid)?.lap ?? laps[0].lap));
+            if (currentLapIdx !== undefined && lapsChan) {
+                let sIdx = -1;
+                let eIdx = -1;
+                for (let i = 0; i < lapsChan.length; i++) {
+                    if (lapsChan[i] == currentLapIdx) {
+                        if (sIdx === -1) sIdx = i;
+                        eIdx = i;
+                    }
+                }
+                if (sIdx !== -1 && eIdx !== -1 && dists[sIdx] !== undefined && dists[eIdx] !== undefined) {
+                    const actualLen = dists[eIdx] - dists[sIdx];
+                    const refLen = sessionMetadata?.officialTrackLength || actualLen;
+                    const stretchRatio = actualLen > 0 ? refLen / actualLen : 1;
+                    
+                    if (idx === eIdx) {
+                        dist = refLen;
+                    } else {
+                        const relDist = dist - dists[sIdx];
+                        dist = Math.max(0, relDist * stretchRatio);
+                    }
+                }
+            }
+        }
+        if (dist !== null && dist < 8) {
+            dist = 0;
         }
 
         return { alt, dist };
-    }, [telemetryData, cursorIndex, smoothCursorIndex, isPlaying]);
+    }, [telemetryData, cursorIndex, smoothCursorIndex, isPlaying, laps, selectedLapIdx, sessionMetadata?.officialTrackLength]);
 
     if (!staticTrackBaseData && !track3DData) return null; // Let global loader handle this via store.isLoading
 
@@ -1207,9 +1237,9 @@ export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleEx
                                 <div className="flex items-baseline gap-2">
                                     <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Dist</span>
                                     <span className="text-[18px] font-black text-blue-400 tabular-nums tracking-tighter leading-none">
-                                        {carStats.dist !== null ? (carStats.dist / 1000).toFixed(2) : "--.--"}
+                                        {carStats.dist !== null ? Math.round(carStats.dist) : "---"}
                                     </span>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">km</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">m</span>
                                 </div>
                             </div>
                         </div>
@@ -1224,7 +1254,7 @@ export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleEx
                 {/* HUD: Minimap (Top Right) - Fixed 5:3 Smaller */}
                 {!isAnimating && (
                     <div className={`absolute ${isMapMaximized ? 'top-6 right-8' : 'top-4 right-4'} z-[100] w-[14rem] aspect-[5/3] transition-all duration-500 transform ${showMiniMap ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-4 scale-95 pointer-events-none'}`}>
-                        <div className="w-full h-full glass-container rounded-xl overflow-hidden relative transition-all duration-300 pointer-events-auto"
+                        <div className={`w-full h-full glass-container rounded-xl overflow-hidden relative transition-all duration-300 ${showMiniMap ? 'pointer-events-auto' : 'pointer-events-none'}`}
                             onMouseMove={handleGlassMouseMove}
                             style={{ '--glass-hover-scale': '1', '--glass-content-scale': '1' } as any}>
                             <div className="glass-content w-full h-full">

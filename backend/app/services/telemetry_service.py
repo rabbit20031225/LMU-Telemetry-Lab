@@ -261,54 +261,41 @@ class TelemetryService:
             real_car_name, final_steer_lock = get_car_info(raw_car, raw_class, override_steer_lock=meta_steer_lock)
             
             # --- Enrich Track Metadata from Registry ---
-            from ..utils.track_db import find_track_in_registry
+            from ..utils.track_db import find_track_in_registry, find_layout_in_track
             matched_key, track_data = find_track_in_registry(raw_track)
             common_track_name = matched_key if matched_key else raw_track
             track_country = track_data.get("country", "") if matched_key else ""
             track_aliases = track_data.get("aliases", []) if matched_key else []
             official_track_length = None
+            matched_layout_key = None
             if matched_key:
                 layouts_dict = track_data.get("layouts", {})
-                
-                # Fuzzy Layout Matching
-                layout_data = layouts_dict.get(raw_layout)
-                if not layout_data:
-                    # Try to find if any registry layout key is part of the raw_layout string (or vice versa)
-                    for k, v in layouts_dict.items():
-                        if k.lower() in raw_layout.lower() or raw_layout.lower() in k.lower():
-                            layout_data = v
-                            break
-                            
-                # Fallback to Default if still not found or if layout name equals track name
-                if not layout_data or raw_layout == raw_track:
-                    layout_data = layouts_dict.get("Default")
+                matched_layout_key, layout_data = find_layout_in_track(track_data, raw_layout, matched_key)
                 
                 if layout_data and "ref_points" in layout_data:
                     official_track_length = float(layout_data["ref_points"][-1]["dist"])
 
             # --- Smart Fallback: Distance-based Fingerprinting ---
             if matched_key and layouts_dict:
-                # 1. Get actual median distance for this session
-                actual_median_dist = 0
+                # 1. Get actual max distance for this session
+                actual_max_dist = 0
                 try:
-                    # Sample median distance from valid laps
-                    dist_rows = con.execute('SELECT value FROM "Lap Dist" ORDER BY rowid DESC LIMIT 100').fetchall()
-                    if dist_rows:
-                        # This is a rough estimate for metadata purposes
-                        actual_median_dist = float(np.median([r[0] for r in dist_rows]))
+                    max_dist_row = con.execute('SELECT MAX(value) FROM "Lap Dist"').fetchone()
+                    if max_dist_row and max_dist_row[0] is not None:
+                        actual_max_dist = float(max_dist_row[0])
                         # If it looks like a lap distance (e.g. > 1km), use it for fingerprinting
-                        if actual_median_dist > 500:
+                        if actual_max_dist > 500:
                             # Verify if currently matched length makes sense
                             if official_track_length:
-                                ratio = actual_median_dist / official_track_length
+                                ratio = actual_max_dist / official_track_length
                                 if ratio < 0.8 or ratio > 1.2:
                                     logger.info(f"Metadata Layout mismatch (Ratio: {ratio:.2f}). Finding closest match...")
                                     best_len = official_track_length
-                                    min_diff = abs(actual_median_dist - official_track_length)
+                                    min_diff = abs(actual_max_dist - official_track_length)
                                     for k, v in layouts_dict.items():
                                         if "ref_points" in v:
                                             l_dist = float(v["ref_points"][-1]["dist"])
-                                            diff = abs(actual_median_dist - l_dist)
+                                            diff = abs(actual_max_dist - l_dist)
                                             if diff < min_diff:
                                                 min_diff = diff
                                                 best_len = l_dist
@@ -368,6 +355,7 @@ class TelemetryService:
                 "trackAliases": track_aliases,
                 "country": track_country,
                 "trackLayout": raw_layout,
+                "layoutKey": matched_layout_key if matched_layout_key else raw_layout,
                 "officialTrackLength": official_track_length,
                 "carClass": raw_class,
                 "modelName": real_car_name,
@@ -572,23 +560,11 @@ class TelemetryService:
             
             # Try to get official length from registry
             try:
-                from ..utils.track_db import find_track_in_registry
+                from ..utils.track_db import find_track_in_registry, find_layout_in_track
                 matched_key, track_data = find_track_in_registry(track_name)
                 if matched_key:
                     layouts_dict = track_data.get("layouts", {})
-                    
-                    # Fuzzy Layout Matching
-                    layout_data = layouts_dict.get(track_layout)
-                    if not layout_data:
-                        # Try to find if any registry layout key is part of the track_layout string (or vice versa)
-                        for k, v in layouts_dict.items():
-                            if k.lower() in track_layout.lower() or track_layout.lower() in k.lower():
-                                layout_data = v
-                                break
-
-                    # Fallback to Default if still not found or if layout name equals track name
-                    if not layout_data or track_layout == track_name:
-                        layout_data = layouts_dict.get("Default")
+                    matched_layout_key, layout_data = find_layout_in_track(track_data, track_layout, matched_key)
                         
                     # Secondary Check: Distance-based Fingerprinting
                     # If the matched length is significantly different from actual data, 

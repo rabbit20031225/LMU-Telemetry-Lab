@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { X, Gauge, Thermometer, Eye, EyeOff, Layout, GripVertical, RotateCcw, Move3d, Save, Compass, Activity, Settings as SettingsIcon, ArrowUpDown } from 'lucide-react';
+import { X, Gauge, Thermometer, Eye, EyeOff, Layout, GripVertical, RotateCcw, Move3d, Save, Compass, Activity, Settings as SettingsIcon, ArrowUpDown, Route } from 'lucide-react';
 import { useTelemetryStore, CATEGORY_CHART_CONFIGS, getCategoryTemplateConfigs } from '../store/telemetryStore';
 import { handleGlassMouseMove } from '../utils/glassEffect';
 import { Tooltip } from './ui/Tooltip';
@@ -101,6 +101,8 @@ export const SettingsOverlay: React.FC = () => {
     const currentSessionId = useTelemetryStore(state => state.currentSessionId);
     const userWheelRotation = useTelemetryStore(state => state.userWheelRotation);
     const setUserWheelRotation = useTelemetryStore(state => state.setUserWheelRotation);
+    const defaultShowMiniSectors = useTelemetryStore(state => state.defaultShowMiniSectors);
+    const setDefaultShowMiniSectors = useTelemetryStore(state => state.setDefaultShowMiniSectors);
     const telemetryHistorySeconds = useTelemetryStore(state => state.telemetryHistorySeconds);
     const setTelemetryHistorySeconds = useTelemetryStore(state => state.setTelemetryHistorySeconds);
     const singleLapXAxisMode = useTelemetryStore(state => state.singleLapXAxisMode);
@@ -378,6 +380,39 @@ export const SettingsOverlay: React.FC = () => {
                                     </button>
                                 ))}
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Default Segment Mode preference */}
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2 text-gray-400 px-2">
+                            <Route size={16} className="text-blue-400" />
+                            <span className="text-xs font-black uppercase tracking-widest">Default Segment Mode</span>
+                        </div>
+
+                        <div
+                            className="glass-container bg-black/30 rounded-[2rem] border border-white/5 p-4 flex flex-col items-center gap-1"
+                            onMouseMove={(e) => handleGlassMouseMove(e, 0.1)}
+                        >
+                            <div className="glass-content glass-container-flat bg-black/50 p-1.5 rounded-2xl flex border border-white/5 relative w-full">
+                                <div
+                                    className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-blue-500/20 backdrop-blur-md rounded-xl border border-blue-500/30 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                                    style={{ left: !defaultShowMiniSectors ? '6px' : 'calc(50%)' }}
+                                />
+                                <button
+                                    onClick={() => setDefaultShowMiniSectors(false)}
+                                    className={`relative z-10 flex-1 py-3 text-[11px] font-black uppercase transition-all rounded-xl ${!defaultShowMiniSectors ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Sectors
+                                </button>
+                                <button
+                                    onClick={() => setDefaultShowMiniSectors(true)}
+                                    className={`relative z-10 flex-1 py-3 text-[11px] font-black uppercase transition-all rounded-xl ${defaultShowMiniSectors ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Mini-Segments
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-gray-400 font-semibold tracking-wide mt-2.5 flex items-center gap-1.5 justify-center"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6] animate-pulse" />Initial display state when loading a new stint</p>
                         </div>
                     </div>
 

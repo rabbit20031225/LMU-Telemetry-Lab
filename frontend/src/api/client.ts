@@ -170,7 +170,7 @@ export const apiClient = {
     },
 
     async exportSessionSetup(sessionId: string, profileId: string = 'guest', customCarModel?: string): Promise<void> {
-        let url = `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/setup/export?profile_id=${profileId}`;
+        let url = `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/setup/export?profile_id=${profileId}&_t=${Date.now()}`;
         if (customCarModel) {
             url += `&custom_car_model=${encodeURIComponent(customCarModel)}`;
         }
@@ -211,7 +211,7 @@ export const apiClient = {
     },
 
     async exportLap(sessionId: string, lapNumber: number, profileId: string = 'guest', customCarModel?: string): Promise<void> {
-        let url = `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/export/lap/${lapNumber}?profile_id=${profileId}`;
+        let url = `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/export/lap/${lapNumber}?profile_id=${profileId}&_t=${Date.now()}`;
         if (customCarModel) {
             url += `&custom_car_model=${encodeURIComponent(customCarModel)}`;
         }
@@ -292,7 +292,7 @@ export const apiClient = {
         path: string,
         profileId: string = 'guest',
         bounds?: { x: number, y: number, width: number, height: number }
-    ): Promise<{ status: string, id?: string }> {
+    ): Promise<{ status: string, id?: string, ids?: string[] }> {
         const res = await fetch(`${API_BASE}/system/pick-and-upload?profile_id=${profileId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

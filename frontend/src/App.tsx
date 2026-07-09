@@ -5,10 +5,12 @@ import { useTelemetryStore, CATEGORY_CHART_CONFIGS } from './store/telemetryStor
 import { FileManager } from './components/FileManager';
 import { TelemetryChart } from './components/TelemetryChart';
 import { TrackMap } from './components/TrackMap';
+import { LapDetailsPanel } from './components/LapDetailsPanel';
 import { getBrandLogoPath, getClassColor } from './utils/carHelpers';
 import { ReferenceLapBrowser } from './components/ReferenceLapBrowser';
 import packageJson from '../package.json';
 import { AnalysisLapsWidget } from './components/AnalysisLapsWidget';
+import trackSegments from './assets/track_segments.json';
 import { Search } from 'lucide-react';
 import { TrackMap3D } from './components/TrackMap3D';
 import { LapSelect } from './components/LapSelect';
@@ -19,6 +21,7 @@ import { SettingsOverlay } from './components/SettingsOverlay';
 import { CarSelectionOverlay } from './components/CarSelectionOverlay';
 import { F1Dashboard } from './components/F1Dashboard';
 import { Tooltip } from './components/ui/Tooltip';
+import { GForceRadar } from './components/GForceRadar';
 import { Lab3DRoot } from './components/Lab3D/Lab3DRoot';
 import { UpdateNotifier } from './components/UpdateNotifier';
 import { CarSetupView } from './components/CarSetupView';
@@ -41,231 +44,6 @@ import {
 
 
 
-
-const TyreDashboard = memo(({ data, cursorIndex, carClass, tyreCompoundMax, theme = 'current', compact = false, className = "" }: { data: any, cursorIndex: number | null, carClass?: string, tyreCompoundMax?: number, theme?: 'current' | 'reference', compact?: boolean, className?: string }) => {
-  const getVal = (chan: string, idx: number | null, wheelIdx: number) => {
-    if (!data || idx === null || !data[chan]) return null;
-    const channel = data[chan];
-    if (!channel) return null;
-
-    const baseIdx = Math.floor(idx);
-    const nextIdx = Math.min(channel.length - 1, baseIdx + 1);
-    const frac = idx - baseIdx;
-
-    const v1 = channel[baseIdx]?.[wheelIdx];
-    const v2 = channel[nextIdx]?.[wheelIdx];
-
-    if (v1 === undefined) return null;
-    if (v2 === undefined) return v1;
-    return v1 + (v2 - v1) * frac;
-  };
-
-  const getCompoundInfo = (idx: number | null) => {
-    if (idx === null || isNaN(idx)) return { label: '?', color: 'text-gray-500' };
-    const roundIdx = Math.round(idx);
-
-    if (tyreCompoundMax === 1) {
-      if (roundIdx === 0) return { label: 'M', color: 'text-yellow-500' };
-      if (roundIdx === 1) return { label: 'W', color: 'text-blue-500' };
-    } else if (tyreCompoundMax === 2) {
-      if (roundIdx === 0) return { label: 'M', color: 'text-yellow-500' };
-      if (roundIdx === 1) return { label: 'H', color: 'text-white' };
-      if (roundIdx === 2) return { label: 'W', color: 'text-blue-500' };
-    } else if (tyreCompoundMax === 3) {
-      if (roundIdx === 0) return { label: 'S', color: 'text-red-500' };
-      if (roundIdx === 1) return { label: 'M', color: 'text-yellow-500' };
-      if (roundIdx === 2) return { label: 'H', color: 'text-white' };
-      if (roundIdx === 3) return { label: 'W', color: 'text-blue-500' };
-    }
-
-    const c = carClass?.toUpperCase() || '';
-    const isHypercar = c.includes('HYPER') || c.includes('GTP') || c.includes('LMH') || c.includes('LMDH') || c.includes('LMP');
-
-    if (isHypercar) {
-      switch (roundIdx) {
-        case 0: return { label: 'S', color: 'text-red-500' };
-        case 1: return { label: 'M', color: 'text-yellow-500' };
-        case 2: return { label: 'H', color: 'text-white' };
-        case 3: return { label: 'W', color: 'text-blue-500' };
-        default: return { label: '?', color: 'text-gray-500' };
-      }
-    } else {
-      switch (roundIdx) {
-        case 0: return { label: 'M', color: 'text-yellow-500' };
-        case 1: return { label: 'W', color: 'text-blue-500' };
-        default: return { label: 'M', color: 'text-yellow-500' };
-      }
-    }
-  };
-
-  const WheelInfo = ({ wheelIdx, label, className = "" }: { wheelIdx: number, label: string, className?: string }) => {
-    const pressure = getVal('TyresPressure', cursorIndex, wheelIdx);
-    const wear = getVal('Tyres Wear', cursorIndex, wheelIdx);
-    const temp = getVal('TyresTempCentre', cursorIndex, wheelIdx);
-    const brakeTemp = getVal('Brakes Temp', cursorIndex, wheelIdx);
-    const tempUnit = useTelemetryStore(state => state.tempUnit);
-    const compoundIdx = getVal('TyresCompound', cursorIndex, wheelIdx);
-    const isDetached = getVal('WheelsDetached', cursorIndex, wheelIdx) === 1;
-
-    const compound = getCompoundInfo(compoundIdx);
-    const wearPercent = wear ? Math.round(wear) : 0;
-    const wearColor = `hsl(${(wearPercent / 100) * 120}, 80%, 50%)`;
-
-    return (
-      <div
-        className={`relative flex flex-col items-center ${compact ? 'p-1.5' : 'p-2.5'} rounded-xl transition-all duration-300 group/wheel glass-container-flat hover:bg-white/10 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] ring-1 ring-inset ring-white/5 min-w-0 ${className}`}
-        onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
-      >
-        <div className="glass-content w-full flex flex-col items-center">
-          {isDetached && (
-            <div className={`absolute inset-0 z-20 bg-red-900/80 rounded-xl flex items-center justify-center border-2 border-red-500 animate-pulse box-content -m-0.5`}>
-              <span className={`${compact ? 'text-[7px]' : 'text-[10px]'} font-black uppercase text-white drop-shadow-md`}>DETACHED</span>
-            </div>
-          )}
-
-          <div className={`${compact ? 'text-[9px]' : 'text-[11px]'} font-mono font-bold text-gray-300 mb-1 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]`}>
-            {pressure ? pressure.toFixed(1) : "--"} <span className={`${compact ? 'text-[7px]' : 'text-[9px]'} text-gray-500 font-black`}>kPa</span>
-          </div>
-
-          <div className={`relative ${compact ? 'w-10 h-10' : 'w-16 h-16'} flex items-center justify-center mb-1`}>
-            <svg className="absolute inset-0 w-full h-full rotate-90 scale-x-[-1]" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="16" fill="none" stroke="currentColor" strokeWidth="3.5" className="text-white/5" />
-              <circle
-                cx="18" cy="18" r="16" fill="none" stroke="currentColor" strokeWidth="3.5"
-                className="transition-all duration-300"
-                style={{ color: wearColor }}
-                strokeDasharray={`${wearPercent} 100`}
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="flex flex-col items-center z-10">
-              <span className={`${compact ? 'text-[10px]' : 'text-sm'} font-black leading-none ${compound.color} drop-shadow-md`}>{compound.label}</span>
-              <span className={`${compact ? 'text-[7px]' : 'text-[9px]'} font-black text-white mt-0.5`}>{wearPercent ? `${wearPercent}%` : "--%"}</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-center gap-0.5 w-full border-t border-white/10 pt-1.5">
-            <div className={`${compact ? 'text-[11px]' : 'text-sm'} font-black text-white font-mono drop-shadow-[0_0_10px_rgba(255,255,255,0.3)] tracking-tight`}>
-              {temp ? (tempUnit === 'f' ? temp * 1.8 + 32 : temp).toFixed(compact ? 0 : 1) : "--"}°{tempUnit === 'c' ? 'C' : 'F'}
-            </div>
-            {!compact && (
-              <div className="flex items-center gap-1 opacity-80">
-                <img src="/brake.png" width={10} height={10} alt="Brake" className="opacity-70 brightness-125" />
-                <span className="text-[9px] font-bold text-gray-400 font-mono">{brakeTemp ? (tempUnit === 'f' ? brakeTemp * 1.8 + 32 : brakeTemp).toFixed(0) : "--"}°</span>
-              </div>
-            )}
-          </div>
-
-          <div className={`absolute -top-1 -left-1 bg-gray-800/90 text-gray-400 ${compact ? 'text-[6px] px-1' : 'text-[8px] px-1.5'} font-black py-0.5 rounded border border-white/10 uppercase tracking-tighter backdrop-blur-md`}>
-            {label}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const isRef = theme === 'reference';
-  const glowColor = isRef ? 'rgba(218, 165, 32, 0.4)' : undefined;
-
-  return (
-    <div
-      className={`bg-white/10 glass-container-flat ${compact ? 'p-2 pt-6 rounded-xl' : 'p-4 pt-10 rounded-2xl'} border border-white/25 shadow-xl transition-all duration-300 relative group/tyres overflow-hidden ${className}`}
-      style={{
-        boxShadow: isRef ? `0 10px 25px rgba(0,0,0,0.4), inset 0 0 20px ${glowColor}` : undefined,
-        borderColor: isRef ? 'rgba(218, 165, 32, 0.3)' : undefined
-      }}
-      onMouseMove={(e) => handleGlassMouseMove(e, 0.15)}
-    >
-      <div className={`absolute top-0 left-0 flex items-center gap-1.5 ${compact ? 'p-2' : 'p-3'}`}>
-        <div className={`w-1.5 h-1.5 rounded-full ${isRef ? 'bg-amber-400 animate-pulse' : 'bg-blue-400'}`} />
-        <span className={`${compact ? 'text-[8px]' : 'text-[10px]'} font-black uppercase tracking-[0.2em] ${isRef ? 'text-amber-500' : 'text-gray-500'} group-hover/tyres:text-white transition-colors`}>
-          {isRef ? 'Ref Tyres' : 'Tyres State'}
-        </span>
-      </div>
-      <div className="glass-content w-full">
-        <div className={`grid grid-cols-2 ${compact ? 'gap-2' : 'gap-4'}`}>
-          <WheelInfo wheelIdx={0} label="FL" />
-          <WheelInfo wheelIdx={1} label="FR" />
-          <WheelInfo wheelIdx={2} label="RL" />
-          <WheelInfo wheelIdx={3} label="RR" />
-        </div>
-      </div>
-    </div>
-  );
-});
-
-const FuelDashboard = memo(({ data, cursorIndex, fuelCapacity, theme = 'current', compact = false, className = "" }: { data: any, cursorIndex: number | null, fuelCapacity?: number, theme?: 'current' | 'reference', compact?: boolean, className?: string }) => {
-  const getFuel = () => {
-    if (!data || cursorIndex === null || !data['Fuel Level']) return null;
-    const channel = data['Fuel Level'];
-    const baseIdx = Math.floor(cursorIndex);
-    const nextIdx = Math.min(channel.length - 1, baseIdx + 1);
-    const frac = cursorIndex - baseIdx;
-
-    const v1Raw = Array.isArray(channel) ? channel[baseIdx] : undefined;
-    const v1 = (typeof v1Raw === 'number') ? v1Raw : (Array.isArray(v1Raw) ? v1Raw[0] : 0);
-    const v2Raw = Array.isArray(channel) ? channel[nextIdx] : undefined;
-    const v2 = (typeof v2Raw === 'number') ? v2Raw : (Array.isArray(v2Raw) ? v2Raw[0] : v1);
-
-    return v1 + (v2 - v1) * frac;
-  };
-
-  const fuelVal = getFuel();
-  const allFuel = data?.['Fuel Level'] || [];
-  const maxFuelInData = allFuel.length > 0 ? Math.max(...allFuel) : 0;
-  const effectiveCapacity = (fuelCapacity && fuelCapacity > 0) ? fuelCapacity : maxFuelInData;
-
-  const percentage = (fuelVal && effectiveCapacity) ? Math.min(100, (fuelVal / effectiveCapacity) * 100) : 0;
-  const isRef = theme === 'reference';
-  const fuelColor = isRef ? `hsl(${40 + percentage * 0.1}, 100%, 45%)` : `hsl(${percentage * 1.2}, 100%, 45%)`; // Amber hue for ref
-  const glowColor = isRef ? 'rgba(218, 165, 32, 0.4)' : undefined;
-
-  return (
-    <div
-      className={`bg-white/10 glass-container-flat ${compact ? 'p-1.5 pt-6 rounded-xl' : 'p-4 pt-10 rounded-2xl'} border border-white/25 shadow-xl transition-all duration-300 relative group/fuel overflow-hidden ${className}`}
-      style={{
-        boxShadow: isRef ? `0 10px 25px rgba(0,0,0,0.4), inset 0 0 20px ${glowColor}` : undefined,
-        borderColor: isRef ? 'rgba(218, 165, 32, 0.3)' : undefined
-      }}
-      onMouseMove={(e) => handleGlassMouseMove(e, 0.15)}
-    >
-      <div className={`absolute top-0 left-0 flex items-center gap-1.5 ${compact ? 'p-2' : 'p-3'}`}>
-        <div className={`w-1.5 h-1.5 rounded-full ${isRef ? 'bg-amber-400 animate-pulse' : 'bg-blue-400'}`} />
-        <span className={`${compact ? 'text-[8px]' : 'text-[10px]'} font-black uppercase tracking-[0.2em] ${isRef ? 'text-amber-500' : 'text-gray-500'} group-hover/fuel:text-white transition-colors`}>
-          {isRef ? 'Ref Fuel' : 'Fuel'}
-        </span>
-      </div>
-      <div className={`glass-content w-full flex items-center ${compact ? 'gap-2' : 'gap-5'}`}>
-        {!compact && (
-          <div className="p-2 bg-white/5 rounded-xl border border-white/10 group-hover:border-blue-500/40 group-hover:bg-white/10 transition-all">
-            <img src="/fuel.png" width={22} height={22} className={`opacity-90 object-contain w-4 h-4 shrink-0 pointer-events-none ${isRef ? 'sepia hue-rotate-[320deg]' : 'brightness-110'}`} alt="Fuel" />
-          </div>
-        )}
-        <div className="flex-1 flex flex-col gap-1">
-          <div className={`${compact ? 'h-2' : 'h-3'} bg-black/40 rounded-full overflow-hidden border border-white/10`}>
-            <div
-              className="h-full transition-all duration-700 ease-out"
-              style={{
-                width: `${percentage}%`,
-                backgroundColor: isRef ? '#daa520' : fuelColor,
-                boxShadow: `0 0 15px ${isRef ? '#daa520' : fuelColor}44`
-              }}
-            />
-          </div>
-          <div className={`${compact ? 'text-[7px]' : 'text-[9px]'} font-black text-gray-500 font-mono flex justify-between tracking-tighter uppercase`}>
-            <span>0.0 L</span>
-            <span>MAX: {effectiveCapacity.toFixed(0)}L</span>
-          </div>
-        </div>
-        <div className={`flex items-baseline gap-1 ${compact ? 'min-w-[50px]' : 'min-w-[80px]'} justify-end`}>
-          <span className={`${compact ? 'text-lg' : 'text-2xl'} font-black text-white font-mono drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] tracking-tighter`}>
-            {fuelVal !== null ? fuelVal.toFixed(compact ? 1 : 2) : "--"}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-});
 
 
 const CategoryTab = memo(({ id, label, isActive }: { id: any, label: string, isActive: boolean }) => {
@@ -303,11 +81,8 @@ function App() {
   const telemetryData = useTelemetryStore(state => state.telemetryData);
   const selectedStint = useTelemetryStore(state => state.selectedStint);
   const fetchStint = useTelemetryStore(state => state.fetchStint);
-  const cursorIndex = useTelemetryStore(state => state.cursorIndex);
   const setActiveChartCategory = useTelemetryStore(state => state.setActiveChartCategory);
   const activeChartCategory = useTelemetryStore(state => state.activeChartCategory);
-  const referenceCursorIndex = useTelemetryStore(state => state.referenceCursorIndex);
-  const referenceDeltaIndex = useTelemetryStore(state => state.referenceDeltaIndex);
   const liveDeltaStore = useTelemetryStore(state => state.liveDelta);
   const isPlaying = useTelemetryStore(state => state.isPlaying);
   const updatePlayback = useTelemetryStore(state => state.updatePlayback);
@@ -320,13 +95,14 @@ function App() {
   const showCarSelection = useTelemetryStore(state => state.showCarSelection);
   const dashboardSyncMode = useTelemetryStore(state => state.dashboardSyncMode);
   const setDashboardSyncMode = useTelemetryStore(state => state.setDashboardSyncMode);
-  const smoothCursorIndex = useTelemetryStore(state => state.smoothCursorIndex);
   const speedUnit = useTelemetryStore(state => state.speedUnit);
   const tempUnit = useTelemetryStore(state => state.tempUnit);
   const chartConfigs = useTelemetryStore(state => state.chartConfigs);
   const isProcessingTrack = useTelemetryStore(state => state.isProcessingTrack);
   const show3DLab = useTelemetryStore(state => state.show3DLab);
   const setShow3DLab = useTelemetryStore(state => state.setShow3DLab);
+  const showMiniSectors = useTelemetryStore(state => state.showMiniSectors);
+  const setShowMiniSectors = useTelemetryStore(state => state.setShowMiniSectors);
   const isLeftSidebarCollapsed = useTelemetryStore(state => state.isLeftSidebarCollapsed);
   const isRightPanelCollapsed = useTelemetryStore(state => state.isRightPanelCollapsed);
   const setLeftSidebarCollapsed = useTelemetryStore(state => state.setLeftSidebarCollapsed);
@@ -341,7 +117,361 @@ function App() {
   const fetchSetup = useTelemetryStore(state => state.fetchSetup);
   const exportLap = useTelemetryStore(state => state.exportLap);
   const exportLapWithSetup = useTelemetryStore(state => state.exportLapWithSetup);
+  const setMiniSectorState = useTelemetryStore(state => state.setMiniSectorState);
   const isListLoading = useTelemetryStore(state => state.isListLoading);
+  const selectedSegIdx = useTelemetryStore(state => state.selectedSegIdx);
+
+  const trackName = sessionMetadata?.trackName;
+  const layoutName = sessionMetadata?.layoutKey || sessionMetadata?.trackLayout || 'Default';
+
+  const isCrossSession = !!referenceLap && !!referenceTelemetryData;
+  const refLap = isCrossSession ? referenceLap : (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
+
+  const miniSectors = useMemo(() => {
+    if (!trackName || !trackSegments) {
+      return [];
+    }
+
+    const cleanTrackName = (name: string) => {
+      return name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, ' ')
+        .trim();
+    };
+
+    const targetTrackClean = cleanTrackName(trackName);
+
+    let trackKey = Object.keys(trackSegments).find(
+      key => key.toLowerCase() === trackName.toLowerCase()
+    );
+
+    if (!trackKey) {
+      trackKey = Object.keys(trackSegments).find(
+        key => cleanTrackName(key) === targetTrackClean
+      );
+    }
+
+    if (!trackKey) {
+      trackKey = Object.keys(trackSegments).find(key => {
+        const keyClean = cleanTrackName(key);
+        const keyWords = keyClean.split(/\s+/).filter(w => w.length > 2);
+        const targetWords = targetTrackClean.split(/\s+/).filter(w => w.length > 2);
+        const overlap = keyWords.filter(w => targetWords.includes(w));
+        const threshold = Math.min(keyWords.length, targetWords.length) * 0.7;
+        return overlap.length >= threshold;
+      });
+    }
+
+    if (!trackKey) return [];
+
+    const layouts = (trackSegments as any)[trackKey];
+    if (!layouts) return [];
+
+    const normalize = (lName: string) => {
+      let clean = cleanTrackName(lName);
+      const trackWords = cleanTrackName(trackName).split(/\s+/);
+      trackWords.forEach(word => {
+        if (word.length > 2) {
+          const escaped = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          clean = clean.replace(new RegExp(`\\b${escaped}\\b`, 'g'), '');
+        }
+      });
+      return clean.replace(/[^a-z0-9]/g, '').trim();
+    };
+
+    const targetNormalized = normalize(layoutName);
+
+    let layoutKey = Object.keys(layouts).find(
+      key => key.toLowerCase() === layoutName.toLowerCase()
+    );
+
+    if (!layoutKey) {
+      layoutKey = Object.keys(layouts).find(
+        key => normalize(key) === targetNormalized
+      );
+    }
+
+    if (!layoutKey) {
+      layoutKey = Object.keys(layouts).find(
+        key => {
+          const kClean = cleanTrackName(key);
+          const lClean = cleanTrackName(layoutName);
+          return kClean.includes(lClean) || lClean.includes(kClean);
+        }
+      );
+    }
+
+    layoutKey = layoutKey || Object.keys(layouts)[0];
+
+    const layoutData = layouts[layoutKey];
+    return layoutData ? (layoutData.segments || []) : [];
+  }, [trackName, layoutName]);
+
+  const currentLapMemo = useMemo(() => {
+    return laps.find(l => l.lap === selectedLapIdx) || null;
+  }, [laps, selectedLapIdx]);
+
+  // Helper to calculate segment times using linear interpolation for high-fidelity accuracy
+  const calculateMiniSectorTimes = (
+    times: number[],
+    dists: number[],
+    startTime: number,
+    endTime: number,
+    sectors: any[]
+  ) => {
+    const sIdx = times.findIndex(t => t >= startTime);
+    if (sIdx === -1) return null;
+    if (times[0] !== undefined && times[0] > endTime) return null;
+
+    const eIdx = times.findIndex(t => t > endTime);
+    const startIdx = sIdx;
+    const endIdx = eIdx === -1 ? times.length - 1 : eIdx;
+    
+    if (startIdx >= endIdx) return null;
+    
+    const distStart = dists[startIdx] || 0;
+    const distEnd = dists[endIdx] || distStart;
+    const actualLen = distEnd - distStart;
+    
+    const refLen = sectors[sectors.length - 1].end;
+    const stretchRatio = actualLen > 0 ? refLen / actualLen : 1;
+    
+    let lastTime = times[startIdx];
+    let lastTelemetryIdx = startIdx;
+    const segments: Array<{ duration: number; startIdx: number; endIdx: number }> = [];
+    
+    sectors.forEach((seg: any, idx: number) => {
+      const targetDist = seg.end;
+      
+      let currentTime = times[endIdx];
+      let bestI = endIdx;
+      let found = false;
+      
+      for (let i = startIdx + 1; i <= endIdx; i++) {
+        const rawDistPrev = dists[i - 1];
+        const rawDistCurr = dists[i];
+        if (rawDistPrev === undefined || rawDistCurr === undefined) continue;
+        
+        const dPrev = (rawDistPrev - distStart) * stretchRatio;
+        const dCurr = (rawDistCurr - distStart) * stretchRatio;
+        
+        if (dPrev <= targetDist && dCurr >= targetDist) {
+          if (dCurr !== dPrev) {
+            const frac = (targetDist - dPrev) / (dCurr - dPrev);
+            const tPrev = times[i - 1] || 0;
+            const tCurr = times[i] || 0;
+            currentTime = tPrev + frac * (tCurr - tPrev);
+            bestI = frac < 0.5 ? i - 1 : i;
+          } else {
+            currentTime = times[i] || 0;
+            bestI = i;
+          }
+          found = true;
+          break;
+        }
+      }
+      
+      if (!found) {
+        let bestI_closest = startIdx;
+        let minDist = Infinity;
+        for (let i = startIdx; i <= endIdx; i++) {
+          const rawDist = dists[i];
+          if (rawDist === undefined) continue;
+          const curDist = (rawDist - distStart) * stretchRatio;
+          const d = Math.abs(curDist - targetDist);
+          if (d < minDist) {
+            minDist = d;
+            bestI_closest = i;
+          }
+        }
+        currentTime = times[bestI_closest];
+        bestI = bestI_closest;
+      }
+      
+      const duration = Math.max(0, currentTime - lastTime);
+      segments.push({
+        duration,
+        startIdx: lastTelemetryIdx,
+        endIdx: bestI
+      });
+      lastTime = currentTime;
+      lastTelemetryIdx = bestI;
+    });
+    
+    return segments;
+  };
+
+  const currentLapMiniSectorTimes = useMemo(() => {
+    if (!telemetryData || !currentLapMemo || !miniSectors || miniSectors.length === 0) return null;
+    
+    const times = telemetryData['Time'] || [];
+    const dists = telemetryData['Lap Dist'] || telemetryData['Distance'] || [];
+    if (times.length === 0 || dists.length === 0) return null;
+    
+    return calculateMiniSectorTimes(times, dists, currentLapMemo.startTime, currentLapMemo.endTime, miniSectors);
+  }, [telemetryData, currentLapMemo, miniSectors]);
+
+  const refLapMiniSectorTimes = useMemo(() => {
+    const isCrossSession = !!referenceLap && !!referenceTelemetryData;
+    const refLapObj = isCrossSession ? referenceLap : (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
+    const refTelemetry = referenceTelemetryData || telemetryData;
+    
+    if (!refTelemetry || !refLapObj || !miniSectors || miniSectors.length === 0) return null;
+    
+    const times = refTelemetry['Time'] || [];
+    const dists = refTelemetry['Lap Dist'] || refTelemetry['Distance'] || [];
+    if (times.length === 0 || dists.length === 0) return null;
+    
+    return calculateMiniSectorTimes(times, dists, refLapObj.startTime, refLapObj.startTime + (refLapObj.duration || 0), miniSectors);
+  }, [telemetryData, referenceTelemetryData, referenceLap, referenceLapIdx, laps, miniSectors]);
+
+  // Calculate segment times for all valid laps in this stint
+  const allLapsMiniSectorTimes = useMemo(() => {
+    if (!telemetryData || !laps || laps.length === 0 || !miniSectors || miniSectors.length === 0) return {};
+    
+    const times = telemetryData['Time'] || [];
+    const dists = telemetryData['Lap Dist'] || telemetryData['Distance'] || [];
+    if (times.length === 0 || dists.length === 0) return {};
+
+    const results: Record<number, any[]> = {};
+
+    laps.forEach(lap => {
+      // Discard invalid, out-lap, in-pit, or abnormally short laps (< 30s)
+      const lapDur = lap.duration !== undefined ? lap.duration : (lap.endTime - (lap.startTime || 0));
+      if (
+        !lap.isValid || 
+        lap.isOutLap || 
+        lap.inPit || 
+        lapDur < 30 ||
+        lap.startTime === undefined || 
+        lap.endTime === undefined
+      ) return;
+
+      const sectorTimes = calculateMiniSectorTimes(times, dists, lap.startTime, lap.endTime, miniSectors);
+      if (sectorTimes) {
+        // Enforce that every mini-sector must be of a reasonable duration (> 1.0s) to filter out telemetry glitches
+        const hasGlitchedSector = sectorTimes.some(s => s.duration < 1.0);
+        if (hasGlitchedSector) {
+          return;
+        }
+
+        // Validation: The sum of mini-sector durations must match the actual lap duration close enough
+        const totalSectorDuration = sectorTimes.reduce((sum, s) => sum + s.duration, 0);
+        const lapDuration = lap.duration || (lap.endTime - lap.startTime);
+
+        if (Math.abs(totalSectorDuration - lapDuration) > 2.0) {
+          return;
+        }
+
+        results[lap.lap] = sectorTimes;
+      }
+    });
+    
+    return results;
+  }, [telemetryData, laps, miniSectors]);
+
+  // Find the best time for each mini sector in the session
+  const sessionMiniSectorBests = useMemo(() => {
+    if (!miniSectors || miniSectors.length === 0 || !allLapsMiniSectorTimes || Object.keys(allLapsMiniSectorTimes).length === 0) return null;
+
+    const bests = miniSectors.map((seg: any, idx: number) => {
+      let minVal = Infinity;
+      let minLap = 0;
+      
+      Object.entries(allLapsMiniSectorTimes).forEach(([lapStr, times]) => {
+        const lapNum = parseInt(lapStr, 10);
+        const val = times[idx]?.duration;
+        if (val !== undefined && val > 0 && val < minVal) {
+          minVal = val;
+          minLap = lapNum;
+        }
+      });
+      
+      const badgeNumber = seg.name.replace(/[^\d]/g, '') || String(idx + 1);
+      return {
+        label: `B${badgeNumber}`,
+        val: minVal === Infinity ? 0 : minVal,
+        lap: minLap
+      };
+    });
+
+    const theoreticalBest = bests.reduce((sum, item) => sum + item.val, 0);
+
+    return {
+      bests,
+      theoreticalBest
+    };
+  }, [miniSectors, allLapsMiniSectorTimes]);
+
+  const currentLapIdxForBounds = selectedLapIdx !== null ? selectedLapIdx : (laps.find(l => l.isValid)?.lap ?? laps[0]?.lap);
+  const bestLapNumForBounds = useMemo(() => {
+    const hasRef = referenceLapIdx !== null || !!referenceTelemetryData;
+    if (hasRef || selectedSegIdx === null || !sessionMiniSectorBests) return null;
+    const best = sessionMiniSectorBests.bests[selectedSegIdx];
+    return best ? best.lap : null;
+  }, [referenceLapIdx, referenceTelemetryData, selectedSegIdx, sessionMiniSectorBests]);
+
+  const lineBounds = useMemo(() => {
+    const lapChan = telemetryData?.['Lap'] || telemetryData?.['lap'];
+    const times = telemetryData?.['Time'] || telemetryData?.['GPS Time'];
+    if (!lapChan) return { curLineS: -1, refLineS: -1, refLineE: -1 };
+
+    let curLineS = -1;
+    for (let i = 0; i < lapChan.length; i++) {
+      if (lapChan[i] === currentLapIdxForBounds) { curLineS = i; break; }
+    }
+
+    let refLineS = -1;
+    let refLineE = -1;
+    if (bestLapNumForBounds !== null) {
+      for (let i = 0; i < lapChan.length; i++) {
+        if (lapChan[i] === bestLapNumForBounds) {
+          if (refLineS === -1) refLineS = i;
+          refLineE = i;
+        } else if (refLineS !== -1 && lapChan[i] > bestLapNumForBounds) {
+          break;
+        }
+      }
+      if (refLineS !== -1 && refLineE === -1 && times) {
+        refLineE = times.length - 1;
+      }
+    }
+
+    return { curLineS, refLineS, refLineE };
+  }, [telemetryData, currentLapIdxForBounds, bestLapNumForBounds]);
+
+  const telemetryMaxStats = useMemo(() => {
+    const speedArr = telemetryData?.['Ground Speed'];
+    const gearArr = telemetryData?.['Gear'];
+    
+    let maxSpeed = 300;
+    if (speedArr && Array.isArray(speedArr) && speedArr.length > 0) {
+      let m = -Infinity;
+      for (let i = 0; i < speedArr.length; i++) if (speedArr[i] > m) m = speedArr[i];
+      maxSpeed = m === -Infinity ? 300 : m;
+    }
+    
+    let maxGear = 8;
+    if (gearArr && Array.isArray(gearArr) && gearArr.length > 0) {
+      let m = -Infinity;
+      for (let i = 0; i < gearArr.length; i++) if (gearArr[i] > m) m = gearArr[i];
+      maxGear = m === -Infinity ? 8 : m;
+    }
+    
+    return { maxSpeed, maxGear };
+  }, [telemetryData]);
+
+  useEffect(() => {
+    setMiniSectorState({
+      miniSectors,
+      currentLapMiniSectorTimes,
+      refLapMiniSectorTimes,
+      allLapsMiniSectorTimes,
+      sessionMiniSectorBests
+    });
+  }, [miniSectors, currentLapMiniSectorTimes, refLapMiniSectorTimes, allLapsMiniSectorTimes, sessionMiniSectorBests, setMiniSectorState]);
 
   const handleReload = () => {
     window.location.reload();
@@ -438,10 +568,13 @@ function App() {
     let bestS3 = { val: Infinity, lap: 0 };
 
     laps.forEach(l => {
-      if (l.isValid) {
-        if (l.s1 > 0 && l.s1 < bestS1.val) { bestS1 = { val: l.s1, lap: l.lap }; }
-        if (l.s2 > 0 && l.s2 < bestS2.val) { bestS2 = { val: l.s2, lap: l.lap }; }
-        if (l.s3 > 0 && l.s3 < bestS3.val) { bestS3 = { val: l.s3, lap: l.lap }; }
+      const lapDur = l.duration !== undefined ? l.duration : (l.endTime - (l.startTime || 0));
+      // Discard invalid, out-lap, in-pit, or abnormally short laps (< 30s)
+      if (l.isValid && !l.isOutLap && !l.inPit && lapDur > 30) {
+        // Enforce a reasonable minimum time for standard sectors to prevent glitch values
+        if (l.s1 > 1.0 && l.s1 < bestS1.val) { bestS1 = { val: l.s1, lap: l.lap }; }
+        if (l.s2 > 1.0 && l.s2 < bestS2.val) { bestS2 = { val: l.s2, lap: l.lap }; }
+        if (l.s3 > 1.0 && l.s3 < bestS3.val) { bestS3 = { val: l.s3, lap: l.lap }; }
       }
     });
 
@@ -622,13 +755,14 @@ function App() {
   };
 
   const ComparisonRow = ({
-    label, val, refVal, valColorClass, compact = false
+    label, val, refVal, valColorClass, compact = false, highlighted = false
   }: {
     label: React.ReactNode,
     val: number | undefined | null,
     refVal: number | undefined | null,
     valColorClass?: string,
-    compact?: boolean
+    compact?: boolean,
+    highlighted?: boolean
   }) => {
     const diff = (val != null && refVal != null) ? val - refVal : null;
     const sign = diff && diff > 0 ? "+" : "-";
@@ -637,7 +771,7 @@ function App() {
 
     return (
       <div
-        className={`glass-container-flat rounded-xl hover:bg-white/5 transition-all duration-300 ${compact ? 'ring-1 ring-white/5' : ''}`}
+        className={`glass-container-flat rounded-xl hover:bg-white/5 transition-all duration-300 ${compact ? 'ring-1 ring-white/5' : ''} ${highlighted ? 'bg-purple-500/10 ring-2 ring-purple-500/50 shadow-[0_0_12px_rgba(168,85,247,0.2)] border border-purple-500/20' : ''}`}
         onMouseMove={(e) => handleGlassMouseMove(e, 0.2)}
       >
         <div className={`glass-content grid ${compact ? 'grid-cols-[20px_1fr_45px_1fr] gap-1 py-1.5 px-2' : 'grid-cols-[30px_1fr_50px_1fr] gap-2 py-2.5 px-4'} items-center whitespace-nowrap cursor-default`}>
@@ -1005,27 +1139,52 @@ function App() {
 
             {/* Right Side: Account / Profile Switcher */}
             <div className="flex items-center gap-3">
-              {/* 2D/3D Dimension Toggle - NAVBAR INTEGRATION */}
+              {/* Toggles Group - Mini Sector and 2D/3D */}
               {selectedLapIdx !== null && (
-                <div className="relative flex items-center p-1 bg-[#1a1a1e]/60 backdrop-blur-md rounded-xl border border-white/10 glass-container mr-3 h-8 w-28 overflow-hidden group/toggle" onMouseMove={handleGlassMouseMove}>
-                  {/* Sliding Indicator Pill */}
-                  <div 
-                    className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
-                    style={{ left: !show3DLab ? '4px' : 'calc(50%)' }}
-                  />
-                  
-                  <button
-                    onClick={() => setShow3DLab(false)}
-                    className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${!show3DLab ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                  >
-                    2D
-                  </button>
-                  <button
-                    onClick={() => setShow3DLab(true)}
-                    className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${show3DLab ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                  >
-                    3D
-                  </button>
+                <div className="flex items-center gap-1.5 mr-3">
+                  {/* Mini Sector Quick Toggle - NAVBAR INTEGRATION */}
+                  <div className="relative flex items-center p-1 bg-[#1a1a1e]/60 backdrop-blur-md rounded-xl border border-white/10 glass-container h-8 w-28 overflow-hidden group/mini-toggle" onMouseMove={handleGlassMouseMove}>
+                    {/* Sliding Indicator Pill */}
+                    <div 
+                      className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
+                      style={{ left: !showMiniSectors ? '4px' : 'calc(50%)' }}
+                    />
+                    
+                    <button
+                      onClick={() => setShowMiniSectors(false)}
+                      className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${!showMiniSectors ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      SEC
+                    </button>
+                    <button
+                      onClick={() => setShowMiniSectors(true)}
+                      className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${showMiniSectors ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      SEG
+                    </button>
+                  </div>
+
+                  {/* 2D/3D Dimension Toggle - NAVBAR INTEGRATION */}
+                  <div className="relative flex items-center p-1 bg-[#1a1a1e]/60 backdrop-blur-md rounded-xl border border-white/10 glass-container h-8 w-28 overflow-hidden group/toggle" onMouseMove={handleGlassMouseMove}>
+                    {/* Sliding Indicator Pill */}
+                    <div 
+                      className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
+                      style={{ left: !show3DLab ? '4px' : 'calc(50%)' }}
+                    />
+                    
+                    <button
+                      onClick={() => setShow3DLab(false)}
+                      className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${!show3DLab ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      2D
+                    </button>
+                    <button
+                      onClick={() => setShow3DLab(true)}
+                      className={`relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${show3DLab ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      3D
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1228,7 +1387,7 @@ function App() {
                         {chartConfigs
                           .filter(c => {
                             if (!c.visible) return false;
-                            if (c.id === 'Time Delta' && referenceLapIdx === null && referenceLap === null) return false;
+                            if (c.id === 'Time Delta' && referenceLapIdx === null && referenceLap === null && selectedSegIdx === null) return false;
                             
                             // Class-based visibility
                             if (c.id === 'SoC' && sessionMetadata?.carClass !== 'Hyper') return false;
@@ -1274,7 +1433,8 @@ function App() {
                         onMouseDown={() => !isRightPanelCollapsed && setIsDraggingMap(true)}
                         onDoubleClick={() => {
                           if (isRightPanelCollapsed) return;
-                          const hasRef = (!!referenceTelemetryData || referenceLapIdx !== null) && (referenceCursorIndex !== null || referenceDeltaIndex !== null);
+                          const { referenceCursorIndex: rci, referenceDeltaIndex: rdi } = useTelemetryStore.getState();
+                          const hasRef = (!!referenceTelemetryData || referenceLapIdx !== null) && (rci !== null || rdi !== null);
                           setMapWidth(hasRef ? DUAL_MAP_WIDTH : DEFAULT_MAP_WIDTH);
                         }}
                       >
@@ -1365,208 +1525,16 @@ function App() {
                         </div>
 
                         {selectedLapIdx !== null ? (
-                          (() => {
-                            const currentLap = laps.find(l => l.lap === selectedLapIdx);
-                            const isCrossSession = !!referenceLap && !!referenceTelemetryData;
-                            const refLap = isCrossSession ? referenceLap : (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
-
-                            const getVal = (chan: string, idx: number | null, isRefSource: boolean = false) => {
-                              const source = isRefSource && referenceTelemetryData ? referenceTelemetryData : telemetryData;
-                              if (!source || !source[chan] || idx === null) return null;
-
-                              const channel = source[chan];
-                              if (!Array.isArray(channel)) return null;
-                              const baseIdx = Math.floor(idx);
-                              const nextIdx = Math.min(channel.length - 1, baseIdx + 1);
-                              const frac = idx - baseIdx;
-
-                              const v1 = channel[baseIdx];
-                              const v2 = channel[nextIdx];
-
-                              if (v1 === undefined) return null;
-                              if (v2 === undefined) return v1;
-                              return v1 + (v2 - v1) * frac;
-                            };
-
-                            const getMax = (arr: any) => {
-                              if (!arr || arr.length === 0) return 0;
-                              let m = -Infinity;
-                              for (let i = 0; i < arr.length; i++) if (arr[i] > m) m = arr[i];
-                              return m;
-                            };
-
-                            const maxSpeed = (telemetryData?.['Ground Speed'] && Array.isArray(telemetryData['Ground Speed'])) ? getMax(telemetryData['Ground Speed']) : 300;
-                            const maxGear = (telemetryData?.['Gear'] && Array.isArray(telemetryData['Gear'])) ? getMax(telemetryData['Gear']) : 8;
-                            const refIdx = dashboardSyncMode === 'time' ? referenceCursorIndex : referenceDeltaIndex;
-                            const hasRef = referenceLapIdx !== null || !!referenceTelemetryData;
-                            const refData = referenceTelemetryData || telemetryData;
-                            const refMeta = referenceSessionMetadata || sessionMetadata;
-
-                            return (
-                              <div className="min-w-max flex flex-col gap-3">
-                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                                  <div
-                                    className={`bg-white/10 glass-container-flat ${hasRef ? 'p-2 pt-6' : 'p-4 pt-10'} rounded-2xl border border-white/25 shadow-xl hover:bg-white/15 transition-all relative group/laptime`}
-                                    onMouseMove={handleGlassMouseMove}
-                                  >
-                                    <div className={`absolute top-0 left-0 flex items-center gap-2 ${hasRef ? 'p-2' : 'p-4'}`}>
-                                      <span className={`${hasRef ? 'text-[8px]' : 'text-[10px]'} font-black uppercase tracking-[0.2em] text-gray-500 group-hover/laptime:text-white transition-colors`}>Lap Time</span>
-                                    </div>
-                                    <div className="glass-content">
-                                      {hasRef ? (
-                                        <div className="flex flex-col gap-1.5">
-                                          <ComparisonRow label={<img src="/finish-flag.png" width={12} height={12} className="opacity-70" alt="Flag" />} val={currentLap?.duration} refVal={(refLap as any)?.duration} compact={true} />
-                                          <ComparisonRow label="S1" val={currentLap?.s1} refVal={(refLap as any)?.s1} valColorClass="text-gray-300" compact={true} />
-                                          <ComparisonRow label="S2" val={currentLap?.s2} refVal={(refLap as any)?.s2} valColorClass="text-gray-300" compact={true} />
-                                          <ComparisonRow label="S3" val={currentLap?.s3} refVal={(refLap as any)?.s3} valColorClass="text-gray-300" compact={true} />
-                                        </div>
-                                      ) : (
-                                        /* COMPACT TWO-TIER LAYOUT FOR SINGLE LAP */
-                                        <div className="flex flex-col gap-3 min-w-[260px]">
-                                          {/* Upper Section: Theoretical / Bests (Only show if multiple laps exist) */}
-                                          {laps.length > 1 && (
-                                            <>
-                                              <div className="flex flex-col gap-2">
-                                                <div className="flex justify-between items-baseline border-b border-white/5 pb-1.5 px-1">
-                                                  <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Theoretical Best</span>
-                                                  <span className="text-[17px] font-black text-purple-400 font-mono tracking-tighter">
-                                                    {formatTime(sessionBests?.theoreticalBest)}
-                                                  </span>
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-2 px-1">
-                                                  {[
-                                                    { label: 'BS1', val: sessionBests?.bestS1.val, lap: sessionBests?.bestS1.lap },
-                                                    { label: 'BS2', val: sessionBests?.bestS2.val, lap: sessionBests?.bestS2.lap },
-                                                    { label: 'BS3', val: sessionBests?.bestS3.val, lap: sessionBests?.bestS3.lap }
-                                                  ].map((item, i) => {
-                                                    const formatted = formatTime(item.val);
-                                                    const displayTime = formatted.startsWith('0:') ? formatted.slice(2) : formatted;
-                                                    return (
-                                                      <div key={i} className="flex flex-col">
-                                                        <span className="text-[8px] font-black text-gray-500 uppercase tracking-[0.15em] mb-0.5">{item.label}</span>
-                                                        <div className="flex items-baseline gap-1.5">
-                                                          <span className="text-[12px] font-black text-purple-400 font-mono tracking-tighter">
-                                                            {displayTime}
-                                                          </span>
-                                                          {item.lap && (
-                                                            <span className="px-1.5 py-0.5 rounded-sm bg-purple-500/20 text-white text-[7px] font-black border border-purple-500/20 leading-none">
-                                                              L{item.lap}
-                                                            </span>
-                                                          )}
-                                                        </div>
-                                                      </div>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </div>
-
-                                              {/* Separator Line */}
-                                              <div className="h-px bg-white/10 w-full" />
-                                            </>
-                                          )}
-
-                                          {/* Lower Section: Current Lap */}
-                                          <div className="flex flex-col gap-2">
-                                            <div className="flex justify-between items-baseline border-b border-white/5 pb-1.5 px-1">
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Current Lap</span>
-                                                {currentLap && (
-                                                  <span className="px-1.5 py-0.5 rounded-sm bg-blue-500/20 text-white text-[7px] font-black border border-blue-500/20 leading-none">
-                                                    L{currentLap.lap}
-                                                  </span>
-                                                )}
-                                              </div>
-                                              <span className="text-[20px] font-black text-white font-mono tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
-                                                {formatTime(currentLap?.duration)}
-                                              </span>
-                                            </div>
-                                            <div className="grid grid-cols-3 gap-2 px-1">
-                                              {[
-                                                { label: 'S1', val: currentLap?.s1, isBest: currentLap?.s1 > 0 && currentLap?.s1 <= (sessionBests?.bestS1.val || 0) },
-                                                { label: 'S2', val: currentLap?.s2, isBest: currentLap?.s2 > 0 && currentLap?.s2 <= (sessionBests?.bestS2.val || 0) },
-                                                { label: 'S3', val: currentLap?.s3, isBest: currentLap?.s3 > 0 && currentLap?.s3 <= (sessionBests?.bestS3.val || 0) }
-                                              ].map((item, i) => {
-                                                const formatted = formatTime(item.val);
-                                                const displayTime = formatted.startsWith('0:') ? formatted.slice(2) : formatted;
-                                                return (
-                                                  <div key={i} className="flex flex-col">
-                                                    <span className="text-[8px] font-black text-gray-400 uppercase tracking-[0.15em] mb-0.5">{item.label}</span>
-                                                    <span className={`text-[13px] font-black font-mono tracking-tighter ${item.isBest ? 'text-purple-400' : 'text-yellow-500'}`}>
-                                                      {displayTime}
-                                                    </span>
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div
-                                    className={`bg-white/10 glass-container-flat ${hasRef ? 'p-2 pt-6' : 'p-4 pt-10'} rounded-2xl border border-white/25 shadow-xl hover:bg-white/15 transition-all relative group/telemetry`}
-                                    onMouseMove={handleGlassMouseMove}
-                                  >
-                                    <div className={`absolute top-0 left-0 w-full flex items-center justify-between ${hasRef ? 'p-2' : 'p-4'} mix-blend-screen`}>
-                                      <span className={`${hasRef ? 'text-[8px]' : 'text-[10px]'} font-black uppercase tracking-[0.2em] text-gray-500 group-hover/telemetry:text-white transition-colors`}>Live Telemetry</span>
-                                    </div>
-                                    <div className="glass-content">
-                                      <div className="flex flex-col gap-1.5">
-                                        <LiveTelemetryRow icon={({ size, className }: any) => <img src="/speed.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="S" />} label="Speed" color={chartConfigs.find(c => c.id === 'Ground Speed' || c.id === 'Speed')?.color || '#00aaff'} unit={speedUnit === 'kmh' ? "kmh" : "mph"} max={speedUnit === 'kmh' ? maxSpeed : maxSpeed * 0.621371} val={getVal('Ground Speed', cursorIndex)} refVal={getVal('Ground Speed', refIdx, true)} compact={hasRef} />
-                                        <LiveTelemetryRow icon={({ size, className }: any) => <img src="/throttle.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="T" />} label="Throttle" color={chartConfigs.find(c => c.id === 'Throttle Pos' || c.id === 'Throttle')?.color || '#00ff00'} unit="%" val={getVal('Throttle Pos', cursorIndex)} refVal={getVal('Throttle Pos', refIdx, true)} compact={hasRef} />
-                                        <LiveTelemetryRow icon={({ size, className }: any) => <img src="/brake.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="B" />} label="Brake" color={chartConfigs.find(c => c.id === 'Brake Pos' || c.id === 'Brake')?.color || '#ff0000'} unit="%" val={getVal('Brake Pos', cursorIndex)} refVal={getVal('Brake Pos', refIdx, true)} compact={hasRef} />
-                                        <LiveTelemetryRow icon={({ size, className }: any) => <img src="/gear.png" width={hasRef ? 10 : size} height={hasRef ? 10 : size} className={className} alt="G" />} label="Gear" color={chartConfigs.find(c => c.id === 'Gear')?.color || '#ffaa00'} max={maxGear} val={getVal('Gear', cursorIndex)} refVal={getVal('Gear', refIdx, true)} compact={hasRef} />
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {hasRef && (
-                                  <div className="relative flex items-center p-1 bg-black/30 rounded-xl border border-white/10 self-center w-48 h-8 overflow-hidden group/sync-toggle" onMouseMove={handleGlassMouseMove}>
-                                    {/* Sliding Indicator Pill */}
-                                    <div 
-                                      className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-0"
-                                      style={{ left: dashboardSyncMode === 'distance' ? '4px' : 'calc(50%)' }}
-                                    />
-                                    
-                                    <button
-                                      onClick={() => setDashboardSyncMode('distance')}
-                                      className={`relative z-10 flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-widest transition-colors duration-300 ${dashboardSyncMode === 'distance' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                                    >
-                                      Distance Sync
-                                    </button>
-                                    <button
-                                      onClick={() => setDashboardSyncMode('time')}
-                                      className={`relative z-10 flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-widest transition-colors duration-300 ${dashboardSyncMode === 'time' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
-                                    >
-                                      Time Sync
-                                    </button>
-                                  </div>
-                                )}
-
-                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                                  <F1Dashboard data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} theme="current" compact={hasRef} />
-                                  {hasRef && <F1Dashboard data={refData} cursorIndex={refIdx} theme="reference" compact={hasRef} />}
-                                </div>
-
-                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                                  <SteeringWheelView data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} carModel={sessionMetadata?.modelName} theme="current" compact={hasRef} />
-                                  {hasRef && <SteeringWheelView data={refData} cursorIndex={refIdx} carModel={refMeta?.modelName} theme="reference" compact={hasRef} />}
-                                </div>
-
-                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                                  <TyreDashboard data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} carClass={sessionMetadata?.carClass} tyreCompoundMax={sessionMetadata?.tyreCompoundMax} theme="current" compact={hasRef} />
-                                  {hasRef && <TyreDashboard data={refData} cursorIndex={refIdx} carClass={refMeta?.carClass} tyreCompoundMax={refMeta?.tyreCompoundMax} theme="reference" compact={hasRef} />}
-                                </div>
-
-                                <div className={hasRef ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
-                                  <FuelDashboard data={telemetryData} cursorIndex={smoothCursorIndex ?? cursorIndex} fuelCapacity={sessionMetadata?.fuelCapacity} theme="current" compact={hasRef} />
-                                  {hasRef && <FuelDashboard data={refData} cursorIndex={refIdx} fuelCapacity={refMeta?.fuelCapacity} theme="reference" compact={hasRef} />}
-                                </div>
-                              </div>
-                            );
-                          })()
+                          <LapDetailsPanel
+                            telemetryMaxStats={telemetryMaxStats}
+                            lineBounds={lineBounds}
+                            miniSectors={miniSectors}
+                            currentLapMiniSectorTimes={currentLapMiniSectorTimes}
+                            refLapMiniSectorTimes={refLapMiniSectorTimes}
+                            sessionMiniSectorBests={sessionMiniSectorBests}
+                            allLapsMiniSectorTimes={allLapsMiniSectorTimes}
+                            sessionBests={sessionBests}
+                          />
                         ) : (
                           <div className="text-gray-500 text-sm italic border-t border-gray-800 pt-4">Select a lap to view details</div>
                         )}

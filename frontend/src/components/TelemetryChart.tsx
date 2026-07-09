@@ -20,7 +20,7 @@ interface TelemetryChartProps {
     wheelIndex?: number; // 0:FL, 1:FR, 2:RL, 3:RR
 }
 
-export const TelemetryChart: React.FC<TelemetryChartProps> = ({
+export const TelemetryChart = React.memo<TelemetryChartProps>(({
     channel, alias, color, height = 200, syncKey, unit = "", showLapTime = false, isPlaying = false, wheelIndex
 }) => {
     const [isCollapsed, setIsCollapsed] = React.useState(false);
@@ -32,9 +32,9 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     const referenceTelemetryData = useTelemetryStore(state => state.referenceTelemetryData);
     const referenceLap = useTelemetryStore(state => state.referenceLap);
     const laps = useTelemetryStore(state => state.laps);
-    const cursorIndex = useTelemetryStore(state => state.cursorIndex);
     const setCursorIndex = useTelemetryStore(state => state.setCursorIndex);
     const setZoomRange = useTelemetryStore(state => state.setZoomRange);
+    const zoomRange = useTelemetryStore(state => state.zoomRange);
     const speedUnit = useTelemetryStore(state => state.speedUnit);
     const invertSuspensionTravel = useTelemetryStore(state => state.invertSuspensionTravel);
     const suspensionTravelMode = useTelemetryStore(state => state.suspensionTravelMode);
@@ -43,11 +43,12 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     const referenceSessionMetadata = useTelemetryStore(state => state.referenceSessionMetadata);
     const dashboardSyncMode = useTelemetryStore(state => state.dashboardSyncMode);
     const singleLapXAxisMode = useTelemetryStore(state => state.singleLapXAxisMode);
-    const playbackElapsed = useTelemetryStore(state => state.playbackElapsed);
     const updateChartHeight = useTelemetryStore(state => state.updateChartHeight);
     const resetChartHeight = useTelemetryStore(state => state.resetChartHeight);
     const setPlaybackTime = useTelemetryStore(state => state.setPlaybackTime);
     const activeChartCategory = useTelemetryStore(state => state.activeChartCategory);
+    const selectedSegIdx = useTelemetryStore(state => state.selectedSegIdx);
+    const miniSectorState = useTelemetryStore(state => state.miniSectorState);
 
     const isNoABS = React.useMemo(() => {
         if (channel !== 'ABS') return false;
@@ -72,7 +73,6 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         }
     }, [isNoABS, isNoSoC]);
 
-    const isUserInteractingWithCharts = useTelemetryStore(state => state.isUserInteractingWithCharts);
     const setIsUserInteractingWithCharts = useTelemetryStore(state => state.setIsUserInteractingWithCharts);
     const isMapMaximized = useTelemetryStore(state => state.isMapMaximized);
     const suspensionViewMode = useTelemetryStore(state => state.suspensionViewMode);
@@ -101,6 +101,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     const multiValueContainerRef = useRef<HTMLDivElement>(null);
     const multiRefValueContainerRef = useRef<HTMLDivElement>(null);
     const timeRef = useRef<HTMLDivElement>(null);
+    const cursorRafRef = useRef<number>(0); // throttle store dispatch to 60fps
     
     const isTireHeat = channel === 'TireHeat';
     const isBundled = isTireHeat || 
@@ -157,7 +158,6 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     const currentXDataRef = useRef<Float64Array | null>(null); // NEW: Points to either elapsed or dist
     const currentTimeRef = useRef<Float64Array | null>(null);
     const refTimeAlignedRef = useRef<Float64Array | null>(null);
-    const cursorIndexRef = useRef<number | null>(null);
     const isPlayingRef = useRef(isPlaying);
     const lapStartTimeRef = useRef(0);
     const isHoveringRef = useRef(false);
@@ -166,10 +166,6 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
     useEffect(() => {
         isPlayingRef.current = isPlaying;
     }, [isPlaying]);
-
-    useEffect(() => {
-        cursorIndexRef.current = cursorIndex;
-    }, [cursorIndex]);
 
     // Helper: Linear Interpolation with Boundary Termination (returns NaN if outside source range)
     const interp = (xTarget: any, xSource: any, ySource: any) => {
@@ -345,9 +341,21 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         for (let i = 0; i < rawCurrentDist.length; i++) currentDist[i] = rawCurrentDist[i] - currentDistStart;
 
         const currentTime = timeArray.slice(startIdx, endIdx + 1);
-        const lapStartTime = lap.startTime;
+        let lapStartTime = lap.startTime;
+        if (selectedSegIdx !== null && miniSectorState?.currentLapMiniSectorTimes) {
+            const curSeg = miniSectorState.currentLapMiniSectorTimes[selectedSegIdx];
+            if (curSeg) {
+                lapStartTime = timeArray[curSeg.startIdx];
+            }
+        }
+        lapStartTimeRef.current = lapStartTime;
         const currentElapsed = new Float64Array(currentTime.length);
-        for (let i = 0; i < currentTime.length; i++) currentElapsed[i] = Math.max(0, currentTime[i] - lapStartTime);
+        for (let i = 0; i < currentTime.length; i++) {
+            currentElapsed[i] = currentTime[i] - lapStartTime;
+            if (selectedSegIdx === null) {
+                currentElapsed[i] = Math.max(0, currentElapsed[i]);
+            }
+        }
         
         let currentVal: Float64Array;
         const smartScale = (arr: Float64Array, multiplier: number) => {
@@ -509,15 +517,30 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
         const refSource = reliesOnExternalData ? referenceTelemetryData : telemetryData;
 
-        if (targetRefLapIdx !== null && (targetRefLapIdx != selectedLapIdx || reliesOnExternalData)) {
-            const refTimeArray = getChan(refSource, 'Time');
-            const refDistArray = getChan(refSource, 'Lap Dist', 'Distance');
-            const refLapArray = getChan(refSource, 'Lap', 'lap');
+        let effectiveRefLapIdx = targetRefLapIdx;
+        let effectiveRefSource = refSource;
+        let isComparingToTheoreticalBest = false;
+
+        if (effectiveRefLapIdx === null || (effectiveRefLapIdx == selectedLapIdx && !reliesOnExternalData)) {
+            if (selectedSegIdx !== null && channel === 'Time Delta' && miniSectorState?.sessionMiniSectorBests?.bests) {
+                const bestLapIdx = miniSectorState.sessionMiniSectorBests.bests[selectedSegIdx]?.lap;
+                if (bestLapIdx !== undefined && bestLapIdx !== null) {
+                    effectiveRefLapIdx = bestLapIdx;
+                    effectiveRefSource = telemetryData;
+                    isComparingToTheoreticalBest = true;
+                }
+            }
+        }
+
+        if (effectiveRefLapIdx !== null && (effectiveRefLapIdx != selectedLapIdx || reliesOnExternalData || isComparingToTheoreticalBest)) {
+            const refTimeArray = getChan(effectiveRefSource, 'Time');
+            const refDistArray = getChan(effectiveRefSource, 'Lap Dist', 'Distance');
+            const refLapArray = getChan(effectiveRefSource, 'Lap', 'lap');
 
             if (refTimeArray && refDistArray && refLapArray) {
                 let refStart = -1, refEnd = -1;
                 for (let i = 0; i < refLapArray.length; i++) {
-                    if (refLapArray[i] == targetRefLapIdx) {
+                    if (refLapArray[i] == effectiveRefLapIdx) {
                         if (refStart === -1) refStart = i;
                         refEnd = i;
                     }
@@ -525,9 +548,25 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
                 if (refStart !== -1 && refEnd !== -1) {
                     const rTime = refTimeArray.slice(refStart, refEnd + 1);
-                    const rStartTime = rTime[0];
+                    let rStartTime = rTime[0];
+                    if (selectedSegIdx !== null) {
+                        let refSeg = null;
+                        if (isComparingToTheoreticalBest) {
+                            refSeg = miniSectorState.allLapsMiniSectorTimes[effectiveRefLapIdx]?.[selectedSegIdx];
+                        } else if (miniSectorState?.refLapMiniSectorTimes) {
+                            refSeg = miniSectorState.refLapMiniSectorTimes[selectedSegIdx];
+                        }
+                        if (refSeg) {
+                            rStartTime = refTimeArray[refSeg.startIdx];
+                        }
+                    }
                     const rElapsedTime = new Float64Array(rTime.length);
-                    for (let k = 0; k < rTime.length; k++) rElapsedTime[k] = Math.max(0, rTime[k] - rStartTime);
+                    for (let k = 0; k < rTime.length; k++) {
+                        rElapsedTime[k] = rTime[k] - rStartTime;
+                        if (selectedSegIdx === null) {
+                            rElapsedTime[k] = Math.max(0, rElapsedTime[k]);
+                        }
+                    }
 
                     const rawRefDist = refDistArray.slice(refStart, refEnd + 1);
                     const refDist = new Float64Array(rawRefDist.length);
@@ -536,8 +575,8 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
                     const alignAndExtract = (chan: string, wheelIdx?: number) => {
                         if (chan === 'Yaw Rate') {
-                            const gLat = extractChannelData(refSource as TelemetryData, 'G Force Lat');
-                            const speed = extractChannelData(refSource as TelemetryData, 'Ground Speed');
+                            const gLat = extractChannelData(effectiveRefSource as TelemetryData, 'G Force Lat');
+                            const speed = extractChannelData(effectiveRefSource as TelemetryData, 'Ground Speed');
                             if (!gLat || !speed) return null;
                             const yaw = new Float64Array(gLat.length);
                             for (let i = 0; i < gLat.length; i++) {
@@ -554,7 +593,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                             return interp(currentDist, refDist, processed);
                         }
 
-                        const raw = extractChannelData(refSource as TelemetryData, chan, wheelIdx !== undefined ? wheelIdx : wheelIndex);
+                        const raw = extractChannelData(effectiveRefSource as TelemetryData, chan, wheelIdx !== undefined ? wheelIdx : wheelIndex);
                         if (!raw) return null;
                         const sliced = raw.slice(refStart, refEnd + 1);
                         
@@ -705,20 +744,8 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                                 if (f) refSeries.push(f);
                                 if (r) refSeries.push(r);
                             } else if (channel === 'HandlingMerged') {
-                                // Extract Yaw Rate for ref
-                                const gLat = extractChannelData(refSource as TelemetryData, 'G Force Lat');
-                                const speed = extractChannelData(refSource as TelemetryData, 'Ground Speed');
-                                if (gLat && speed) {
-                                    const yaw = new Float64Array(gLat.length);
-                                    for (let i = 0; i < gLat.length; i++) {
-                                        const v = speed[i] / 3.6;
-                                        yaw[i] = v > 1.0 ? (gLat[i] * 9.81 / v) * (180 / Math.PI) : 0;
-                                    }
-                                    const alignedYaw = isTimeSync 
-                                        ? (rElapsedTime[rElapsedTime.length - 1] > (currentElapsed[currentElapsed.length - 1] || 0) + 0.001 ? yaw : interp(currentElapsed, rElapsedTime, yaw as any))
-                                        : interp(currentDist, refDist, yaw as any);
-                                    refSeries.push(alignedYaw);
-                                }
+                                const alignedYaw = alignAndExtract('Yaw Rate');
+                                if (alignedYaw) refSeries.push(alignedYaw);
                                 const alignedSteer = alignAndExtract('Steering Angle');
                                 if (alignedSteer) refSeries.push(alignedSteer);
                             } else {
@@ -773,7 +800,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 const refMeta = referenceLap || (referenceLapIdx !== null ? laps.find(l => l.lap === referenceLapIdx) : null);
                 const refLapDuration = refMeta ? refMeta.duration : 0;
                 
-                if (curLapDuration > 0 && refLapDuration > 0 && lastValidIdx > 0) {
+                if (selectedSegIdx === null && curLapDuration > 0 && refLapDuration > 0 && lastValidIdx > 0) {
                     const finalTrueDelta = curLapDuration - refLapDuration;
                     const uncorrectedFinalDelta = currentVal[lastValidIdx];
                     const driftError = finalTrueDelta - uncorrectedFinalDelta;
@@ -781,6 +808,40 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                     for (let i = 0; i <= lastValidIdx; i++) {
                         if (!Number.isNaN(currentVal[i])) {
                             currentVal[i] += (i / lastValidIdx) * driftError;
+                        }
+                    }
+                }
+
+                if (selectedSegIdx !== null && miniSectorState?.currentLapMiniSectorTimes) {
+                    const curSeg = miniSectorState.currentLapMiniSectorTimes[selectedSegIdx];
+                    if (curSeg) {
+                        const segStartIdxInSliced = curSeg.startIdx - startIdx;
+                        if (segStartIdxInSliced >= 0 && segStartIdxInSliced < currentVal.length) {
+                            let offset = NaN;
+                            // Search forward from segStartIdxInSliced for the first valid value
+                            for (let k = segStartIdxInSliced; k < currentVal.length; k++) {
+                                if (!Number.isNaN(currentVal[k])) {
+                                    offset = currentVal[k];
+                                    break;
+                                }
+                            }
+                            // If still NaN, search backward
+                            if (Number.isNaN(offset)) {
+                                for (let k = segStartIdxInSliced - 1; k >= 0; k--) {
+                                    if (!Number.isNaN(currentVal[k])) {
+                                        offset = currentVal[k];
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (!Number.isNaN(offset)) {
+                                for (let j = 0; j < currentVal.length; j++) {
+                                    if (!Number.isNaN(currentVal[j])) {
+                                        currentVal[j] -= offset;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -883,24 +944,85 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             }
         };
 
+        let pendingIdx: number | null | undefined = null;
+        let pendingElapsed: number | null = null;
+        let pendingTargetIdx: number | null = null;
+        let uiRafHandle = 0;
+
         const setCursorHook = (u: uPlot) => {
             const idx = u.cursor.idx;
-            syncUI(idx);
-            // ONLY update the global store if the user is actually hovering/interacting with THIS chart
-            // This prevents infinite update loops when programmatically moving the cursor during sync.
-            if (idx !== undefined && idx !== null && xAxisData && !isPlayingRef.current && isHoveringRef.current) {
+
+            // Use matches(':hover') as a robust fallback to ensure synchronization works even if React rerenders dropped the mouseenter event
+            const isCurrentlyHovered = isHoveringRef.current || (chartRef.current?.matches(':hover') ?? false);
+
+            // Batch both UI update AND store dispatch into a single rAF frame
+            if (!uiRafHandle) {
+                uiRafHandle = requestAnimationFrame(() => {
+                    uiRafHandle = 0;
+                    // 1. Update DOM display values (previously blocking the main thread per-event)
+                    syncUI(pendingIdx);
+
+                    // 2. Dispatch store updates
+                    if (pendingIdx !== undefined && pendingIdx !== null && xAxisData && !isPlayingRef.current && isCurrentlyHovered) {
+                        if (pendingElapsed !== null) {
+                            const { setPlaybackTime } = useTelemetryStore.getState();
+                            setPlaybackTime(pendingElapsed);
+                        } else if (pendingTargetIdx !== null) {
+                            if (isXAxisTime) {
+                                const { setPlaybackTime } = useTelemetryStore.getState();
+                                setPlaybackTime(xAxisData[pendingIdx]);
+                            } else if (dashboardSyncMode !== 'time') {
+                                const curIdx = useTelemetryStore.getState().cursorIndex;
+                                if (pendingTargetIdx !== curIdx) {
+                                    setCursorIndex(pendingTargetIdx);
+                                }
+                            }
+                        }
+                    }
+                    pendingIdx = null;
+                    pendingElapsed = null;
+                    pendingTargetIdx = null;
+                });
+            }
+
+            // Always update pending values so the rAF sees the latest position when it fires
+            pendingIdx = idx;
+
+            if (idx !== undefined && idx !== null && xAxisData && !isPlayingRef.current && isCurrentlyHovered) {
                 const xVal = xAxisData[idx];
-                const time = telemetryData['Time'];
+                const time = timeArray;
                 if (time && sessionMetadata) {
                     if (isXAxisTime) {
-                        // In Time Sync, update the absolute playback time. 
-                        // This allows maps/overlays to show cars beyond the current lap's end.
-                        const { setPlaybackTime } = useTelemetryStore.getState();
-                        setPlaybackTime(xVal);
+                        let targetElapsed = xVal;
+                        if (selectedSegIdx !== null && miniSectorState?.currentLapMiniSectorTimes) {
+                            const curSeg = miniSectorState.currentLapMiniSectorTimes[selectedSegIdx];
+                            if (curSeg) {
+                                const curSegStartElapsed = timeArray[curSeg.startIdx] - timeArray[startIdx];
+                                targetElapsed += curSegStartElapsed;
+                            }
+                        }
+                        pendingElapsed = targetElapsed;
+                        pendingTargetIdx = null;
                     } else {
-                        // In Distance Sync, update the physical cursor index.
                         const targetIdx = startIdx + idx;
-                        if (targetIdx !== null && targetIdx !== cursorIndex) setCursorIndex(targetIdx);
+                        if (dashboardSyncMode === 'time') {
+                            const absoluteTime = time[targetIdx];
+                            if (absoluteTime !== undefined && absoluteTime !== null) {
+                                let elapsed = absoluteTime - lapStartTimeRef.current;
+                                if (selectedSegIdx !== null && miniSectorState?.currentLapMiniSectorTimes) {
+                                    const curSeg = miniSectorState.currentLapMiniSectorTimes[selectedSegIdx];
+                                    if (curSeg) {
+                                        const curSegStartElapsed = timeArray[curSeg.startIdx] - timeArray[startIdx];
+                                        elapsed += curSegStartElapsed;
+                                    }
+                                }
+                                pendingElapsed = elapsed;
+                                pendingTargetIdx = null;
+                            }
+                        } else {
+                            pendingTargetIdx = targetIdx;
+                            pendingElapsed = null;
+                        }
                     }
                 }
             }
@@ -908,13 +1030,48 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
         const setScaleHook = (u: uPlot) => {
             const minX = u.scales.x.min || 0, maxX = u.scales.x.max || maxXBound;
-            if (minX <= (isXAxisTime ? 0.01 : 1) && maxX >= maxXBound - (isXAxisTime ? 0.01 : 1)) { setZoomRange(null); return; }
+
+            // Prevent loop if scale matches current global zoomRange
+            const currentGlobalZoom = useTelemetryStore.getState().zoomRange;
+            if (currentGlobalZoom) {
+                const [gStart, gEnd] = currentGlobalZoom;
+                const localGStart = Math.max(0, Math.min(gStart - startIdx, xAxisData.length - 1));
+                const localGEnd = Math.max(0, Math.min(gEnd - startIdx, xAxisData.length - 1));
+                const gMinX = xAxisData[localGStart] ?? 0;
+                const gMaxX = xAxisData[localGEnd] ?? maxXBound;
+
+                if (Math.abs(minX - gMinX) < 0.05 && Math.abs(maxX - gMaxX) < 0.05) {
+                    return;
+                }
+            } else {
+                if (minX <= (isXAxisTime ? 0.01 : 1) && maxX >= maxXBound - (isXAxisTime ? 0.01 : 1)) {
+                    return;
+                }
+            }
+
+            if (minX <= (isXAxisTime ? 0.01 : 1) && maxX >= maxXBound - (isXAxisTime ? 0.01 : 1)) {
+                // Double click reset: if we are in segment mode, reset to segment bounds, otherwise clear
+                const curSegIdx = useTelemetryStore.getState().selectedSegIdx;
+                const segTimes = useTelemetryStore.getState().miniSectorState?.currentLapMiniSectorTimes;
+                if (curSegIdx !== null && segTimes && segTimes[curSegIdx]) {
+                    const segTime = segTimes[curSegIdx];
+                    setZoomRange([segTime.startIdx, segTime.endIdx]);
+                } else {
+                    setZoomRange(null);
+                }
+                return;
+            }
             let sIdx = -1, eIdx = -1;
             for (let i = 0; i < xAxisData.length; i++) {
                 if (xAxisData[i] >= minX && sIdx === -1) sIdx = i;
                 if (xAxisData[i] <= maxX) eIdx = i;
             }
-            if (sIdx !== -1 && eIdx !== -1) setZoomRange([startIdx + sIdx, startIdx + eIdx]);
+            if (sIdx !== -1 && eIdx !== -1) {
+                const nextRange: [number, number] = [startIdx + sIdx, startIdx + eIdx];
+                if (!currentGlobalZoom || currentGlobalZoom[0] !== nextRange[0] || currentGlobalZoom[1] !== nextRange[1]) {
+                    setZoomRange(nextRange);
+                }
+            }
         };
 
         // --- 3. Dynamic Series Config for uPlot ---
@@ -927,28 +1084,41 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             const isElectronics = activeChartCategory === 'Systems' && (channel === 'TC' || channel === 'ABS');
             uSeries.push({
                 label: info.label,
-                stroke: info.stroke,
-                width: isElectronics ? 2 : 2,
-                ...(isElectronics ? {
-                    points: { 
-                        show: true,
-                        filter: (u: uPlot, seriesIdx: number) => {
-                            const data = u.data[seriesIdx];
-                            const res = [];
-                            for (let i = 0; i < (data?.length || 0); i++) {
-                                const v = data[i];
-                                if (v != null && v > 0) res.push(i);
-                            }
-                            return res;
-                        },
-                        space: 20,
-                        size: 4,
-                        stroke: info.stroke,
-                        fill: info.stroke
+                stroke: channel === 'Time Delta'
+                    ? (u: uPlot, seriesIdx: number) => {
+                        const { ctx, bbox } = u;
+                        const zeroY = u.valToPos(0, 'y', true);
+                        const grad = ctx.createLinearGradient(0, bbox.top, 0, bbox.top + bbox.height);
+                        const pctZero = Math.max(0, Math.min(1, (zeroY - bbox.top) / bbox.height));
+                        
+                        grad.addColorStop(0, '#ef4444');
+                        grad.addColorStop(pctZero, '#ef4444');
+                        grad.addColorStop(pctZero, '#22c55e');
+                        grad.addColorStop(1, '#22c55e');
+                        
+                        return grad;
                     }
-                } : {}),
+                    : info.stroke,
+                points: isElectronics ? { 
+                    show: true,
+                    filter: (u: uPlot, seriesIdx: number) => {
+                        const data = u.data[seriesIdx];
+                        const res = [];
+                        for (let i = 0; i < (data?.length || 0); i++) {
+                            const v = data[i];
+                            if (v != null && v > 0) res.push(i);
+                        }
+                        return res;
+                    },
+                    space: 20,
+                    size: 4,
+                    stroke: info.stroke,
+                    fill: info.stroke
+                } : {
+                    show: false
+                },
                 spanGaps: true,
-                ...({ shadowBlur: (isTireHeat && i === 0) ? 0 : 10, shadowColor: info.stroke } as any)
+                ...({ shadowBlur: channel === 'Time Delta' ? 0 : ((isTireHeat && i === 0) ? 0 : 10), shadowColor: info.stroke } as any)
             });
         });
 
@@ -961,24 +1131,24 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 stroke: 'rgba(218, 165, 32, 0.6)', // Golden with opacity
                 width: isElectronics ? 2 : 2,
                 dash: [5, 5],
-                ...(isElectronics ? {
-                    points: { 
-                        show: true,
-                        filter: (u: uPlot, seriesIdx: number) => {
-                            const data = u.data[seriesIdx];
-                            const res = [];
-                            for (let i = 0; i < (data?.length || 0); i++) {
-                                const v = data[i];
-                                if (v != null && v > 0) res.push(i);
-                            }
-                            return res;
-                        },
-                        space: 20,
-                        size: 4,
-                        stroke: 'rgba(218, 165, 32, 0.8)',
-                        fill: 'rgba(218, 165, 32, 0.8)'
-                    }
-                } : {}),
+                points: isElectronics ? { 
+                    show: true,
+                    filter: (u: uPlot, seriesIdx: number) => {
+                        const data = u.data[seriesIdx];
+                        const res = [];
+                        for (let i = 0; i < (data?.length || 0); i++) {
+                            const v = data[i];
+                            if (v != null && v > 0) res.push(i);
+                        }
+                        return res;
+                    },
+                    space: 20,
+                    size: 4,
+                    stroke: 'rgba(218, 165, 32, 0.8)',
+                    fill: 'rgba(218, 165, 32, 0.8)'
+                } : {
+                    show: false
+                },
                 spanGaps: true
             });
         });
@@ -1062,9 +1232,38 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             // Symmetric Scale for Yaw, Steering, G-Forces, HandlingMerged, Time Delta
             if (channel === 'Yaw Rate' || channel === 'Steering Angle' || channel === 'HandlingMerged' || channel === 'G Force Lat' || channel === 'G Force Long' || channel === 'Time Delta' ||
                 ((channel === 'Susp Pos' || channel === 'SuspPosFront' || channel === 'SuspPosRear') && suspensionTravelMode === 'relative')) {
-                const absMax = Math.max(Math.abs(minV), Math.abs(maxV));
-                // Add 10% padding
-                const paddedMax = absMax * 1.1 || (channel === 'Time Delta' ? 1 : 10);
+                
+                let activeMinV = minV;
+                let activeMaxV = maxV;
+
+                // For Time Delta under segment zoom mode, only scan values within the segment for a tighter Y range
+                if (channel === 'Time Delta' && selectedSegIdx !== null && miniSectorState?.currentLapMiniSectorTimes) {
+                    const curSeg = miniSectorState.currentLapMiniSectorTimes[selectedSegIdx];
+                    if (curSeg) {
+                        let segStartIdx = curSeg.startIdx - startIdx;
+                        let segEndIdx = curSeg.endIdx - startIdx;
+                        segStartIdx = Math.max(0, Math.min(segStartIdx, currentVal.length - 1));
+                        segEndIdx = Math.max(0, Math.min(segEndIdx, currentVal.length - 1));
+                        
+                        let segMin = Infinity;
+                        let segMax = -Infinity;
+                        for (let k = segStartIdx; k <= segEndIdx; k++) {
+                            const v = currentVal[k];
+                            if (v != null && !Number.isNaN(v)) {
+                                if (v < segMin) segMin = v;
+                                if (v > segMax) segMax = v;
+                            }
+                        }
+                        if (segMin !== Infinity) {
+                            activeMinV = segMin;
+                            activeMaxV = segMax;
+                        }
+                    }
+                }
+
+                const absMax = Math.max(Math.abs(activeMinV), Math.abs(activeMaxV));
+                // Add 15% padding, default to 0.05s if very close to 0 to keep detailed grid
+                const paddedMax = absMax * 1.15 || (channel === 'Time Delta' ? 0.05 : 10);
                 minY = -paddedMax;
                 maxY = paddedMax;
             } else {
@@ -1102,13 +1301,26 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             maxY = 1.2;
         }
 
+        // Initialize scales to align with zoomRange if already present
+        const activeZoomRange = useTelemetryStore.getState().zoomRange;
+        let initialMinX = 0;
+        let initialMaxX = maxXBound;
+
+        if (activeZoomRange && xAxisData) {
+            const [zStart, zEnd] = activeZoomRange;
+            const localStart = Math.max(0, Math.min(zStart - startIdx, xAxisData.length - 1));
+            const localEnd = Math.max(0, Math.min(zEnd - startIdx, xAxisData.length - 1));
+            initialMinX = xAxisData[localStart] ?? 0;
+            initialMaxX = xAxisData[localEnd] ?? maxXBound;
+        }
+
         const opts: uPlot.Options = {
             width: chartRef.current.clientWidth, 
             height: height, 
             legend: { show: false },
             series: uSeries,
             scales: { 
-                x: { time: false, auto: false, min: 0, max: maxXBound }, 
+                x: { time: false, auto: false, min: initialMinX, max: initialMaxX }, 
                 y: { auto: false, range: [minY, maxY] } 
             },
             axes: [
@@ -1274,7 +1486,122 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
                 uplotRef.current = null; 
             }
         };
-    }, [telemetryData, referenceTelemetryData, referenceLap, selectedLapIdx, referenceLapIdx, laps, channel, showLapTime, color, syncKey, setCursorIndex, setZoomRange, speedUnit, invertSuspensionTravel, userWheelRotation, sessionMetadata, referenceSessionMetadata, dashboardSyncMode, singleLapXAxisMode, suspensionTravelMode]);
+    }, [telemetryData, referenceTelemetryData, referenceLap, selectedLapIdx, referenceLapIdx, laps, channel, showLapTime, color, syncKey, setCursorIndex, setZoomRange, speedUnit, invertSuspensionTravel, userWheelRotation, sessionMetadata, referenceSessionMetadata, dashboardSyncMode, singleLapXAxisMode, suspensionTravelMode, selectedSegIdx]);
+
+    // Sync uPlot scale when global zoomRange changes (e.g. mini-sector click)
+    useEffect(() => {
+        const u = uplotRef.current;
+        if (!u || !currentXDataRef.current) return;
+
+        const xAxisData = currentXDataRef.current;
+        const startIdx = startIdxRef.current;
+        
+        let targetMin = 0;
+        let targetMax = xAxisData.length > 0 ? xAxisData[xAxisData.length - 1] : 0;
+        if (!isXAxisTime && sessionMetadata?.officialTrackLength) {
+            targetMax = sessionMetadata.officialTrackLength;
+        }
+
+        if (zoomRange) {
+            const [zStart, zEnd] = zoomRange;
+            const localStart = Math.max(0, Math.min(zStart - startIdx, xAxisData.length - 1));
+            const localEnd = Math.max(0, Math.min(zEnd - startIdx, xAxisData.length - 1));
+            
+            targetMin = xAxisData[localStart] ?? 0;
+            targetMax = xAxisData[localEnd] ?? targetMax;
+        }
+
+        const currentMin = u.scales.x.min ?? 0;
+        const currentMax = u.scales.x.max ?? targetMax;
+
+        const diffMin = Math.abs(currentMin - targetMin);
+        const diffMax = Math.abs(currentMax - targetMax);
+
+        // Dynamically adjust Y-axis scale based on the visible range
+        const adjustYScale = () => {
+            const isPercentage = unit === '%';
+            let sIdx = 0;
+            let eIdx = xAxisData.length - 1;
+            for (let i = 0; i < xAxisData.length; i++) {
+                if (xAxisData[i] >= targetMin) {
+                    sIdx = i;
+                    break;
+                }
+            }
+            for (let i = xAxisData.length - 1; i >= 0; i--) {
+                if (xAxisData[i] <= targetMax) {
+                    eIdx = i;
+                    break;
+                }
+            }
+            if (sIdx > eIdx) {
+                const temp = sIdx;
+                sIdx = eIdx;
+                eIdx = temp;
+            }
+
+            let minYVal = Infinity;
+            let maxYVal = -Infinity;
+
+            for (let s = 1; s < u.data.length; s++) {
+                const seriesData = u.data[s];
+                if (!seriesData) continue;
+                for (let k = sIdx; k <= eIdx; k++) {
+                    const v = seriesData[k];
+                    if (v != null && !Number.isNaN(v)) {
+                        if (v < minYVal) minYVal = v;
+                        if (v > maxYVal) maxYVal = v;
+                    }
+                }
+            }
+
+            if (minYVal !== Infinity && maxYVal !== -Infinity) {
+                let finalMinY = minYVal;
+                let finalMaxY = maxYVal;
+
+                const isSymmetric = channel === 'Yaw Rate' || channel === 'Steering Angle' || 
+                                    channel === 'HandlingMerged' || channel === 'G Force Lat' || 
+                                    channel === 'G Force Long' || channel === 'Time Delta' ||
+                                    ((channel === 'Susp Pos' || channel === 'SuspPosFront' || channel === 'SuspPosRear') && suspensionTravelMode === 'relative');
+
+                if (isSymmetric) {
+                    const absMax = Math.max(Math.abs(minYVal), Math.abs(maxYVal));
+                    const paddedMax = absMax * 1.15 || (channel === 'Time Delta' ? 0.05 : 10);
+                    finalMinY = -paddedMax;
+                    finalMaxY = paddedMax;
+                } else {
+                    const range = maxYVal - minYVal;
+                    const pad = Math.max(0.1, range * 0.15);
+                    finalMinY -= pad;
+                    finalMaxY += pad;
+
+                    const isPedal = channel.includes('Throttle') || channel.includes('Brake');
+                    if (isPercentage && isPedal && finalMinY > -5 && finalMaxY < 105) {
+                        finalMinY = Math.min(finalMinY, -2);
+                        finalMaxY = Math.max(finalMaxY, 102);
+                    }
+                }
+
+                if (finalMinY === finalMaxY) {
+                    finalMinY -= 1;
+                    finalMaxY += 1;
+                }
+
+                if (channel === 'TC' || channel === 'ABS') {
+                    finalMinY = 0;
+                    finalMaxY = 1.2;
+                }
+
+                u.setScale('y', { min: finalMinY, max: finalMaxY });
+            }
+        };
+
+        // A threshold of 0.01 units is safe and prevents micro-adjustments loops
+        if (diffMin > 0.01 || diffMax > 0.01) {
+            u.setScale('x', { min: targetMin, max: targetMax });
+        }
+        adjustYScale();
+    }, [zoomRange, isXAxisTime, sessionMetadata, channel, suspensionTravelMode, unit]);
 
     useEffect(() => {
         if (!chartRef.current) return;
@@ -1292,30 +1619,55 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         return () => observer.disconnect();
     }, []); // Empty dependency array: we want the observer to live as long as the component
 
-    // Cursor Index Sync: Programmatically update uPlot cursor to match store index/time
+    // Cursor Index Sync: Programmatically update uPlot cursor to match store index/time via direct subscription
     useEffect(() => {
-        if (!uplotRef.current || cursorIndex === null || !currentXDataRef.current) return;
-        const u = uplotRef.current;
-        // Pause sync if user is hovering, zooming, or interacting with ANY chart globally
-        if (isHoveringRef.current || u.select.width > 0 || isUserInteractingWithCharts) return;
+        let prevCursorIndex: number | null = null;
+        let prevPlaybackElapsed: number | null = null;
 
-        if (isXAxisTime) {
-            // In Time Sync, use playbackElapsed to allow mapping significantly beyond the current lap's duration
-            u.setCursor({
-                left: u.valToPos(playbackElapsed, 'x'),
-                top: u.cursor.top || 0
-            });
-        } else {
-            // In Distance Sync, stick to the current lap's distance-mapped index
-            const localIdx = Math.min(cursorIndex - startIdxRef.current, currentXDataRef.current.length - 1);
-            if (localIdx >= 0) {
+        const unsubscribe = useTelemetryStore.subscribe((state) => {
+            // Skip syncing via subscription if the user is actively dragging/hovering any chart
+            // as uPlot's internal syncKey mechanism handles cursor replication natively.
+            if (state.isUserInteractingWithCharts) return;
+
+            const u = uplotRef.current;
+            if (!u || !currentXDataRef.current) return;
+
+            const globalCursorIndex = state.cursorIndex;
+            const globalPlaybackElapsed = state.playbackElapsed;
+
+            // Prevent redundant updates
+            if (globalCursorIndex === prevCursorIndex && globalPlaybackElapsed === prevPlaybackElapsed) {
+                return;
+            }
+
+            prevCursorIndex = globalCursorIndex;
+            prevPlaybackElapsed = globalPlaybackElapsed;
+
+            // Pause sync if user is hovering or zooming on THIS chart
+            if (isHoveringRef.current || u.select.width > 0) return;
+
+            if (isXAxisTime) {
                 u.setCursor({
-                    left: u.valToPos(currentXDataRef.current[localIdx], 'x'),
+                    left: u.valToPos(globalPlaybackElapsed, 'x'),
                     top: u.cursor.top || 0
                 });
+            } else {
+                if (globalCursorIndex !== null) {
+                    const localIdx = Math.min(globalCursorIndex - startIdxRef.current, currentXDataRef.current.length - 1);
+                    if (localIdx >= 0) {
+                        u.setCursor({
+                            left: u.valToPos(currentXDataRef.current[localIdx], 'x'),
+                            top: u.cursor.top || 0
+                        });
+                    }
+                }
             }
-        }
-    }, [cursorIndex, playbackElapsed, dashboardSyncMode, channel, isXAxisTime]);
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    }, [isXAxisTime]);
 
 
     return (
@@ -1327,8 +1679,9 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             onMouseLeave={() => { 
                 isHoveringRef.current = false; 
                 setIsUserInteractingWithCharts(false);
-                if (uplotRef.current && cursorIndex !== null && currentXDataRef.current) {
-                    const localIdx = cursorIndex - startIdxRef.current;
+                const currentGlobalCursorIdx = useTelemetryStore.getState().cursorIndex;
+                if (uplotRef.current && currentGlobalCursorIdx !== null && currentXDataRef.current) {
+                    const localIdx = currentGlobalCursorIdx - startIdxRef.current;
                     if (localIdx >= 0 && localIdx < currentXDataRef.current.length) {
                         uplotRef.current.setCursor({
                             left: uplotRef.current.valToPos(currentXDataRef.current[localIdx], 'x'),
@@ -1616,4 +1969,4 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
             </div>
         </div>
     );
-};
+});

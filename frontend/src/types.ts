@@ -6,6 +6,7 @@ export interface Session {
     created: number; // Unix timestamp
     trackName?: string;
     trackLayout?: string;
+    layoutKey?: string;
     commonTrackName?: string;
     displayName?: string;
     trackAliases?: string[];
@@ -22,6 +23,7 @@ export interface Session {
 export interface SessionMetadata {
     trackName: string;
     trackLayout: string;
+    layoutKey?: string;
     carClass: string;
     modelName: string;   // Real Name (e.g. McLaren 720S...)
     rawCarName: string;  // Raw ID (e.g. United Autosports...)

@@ -97,7 +97,7 @@ else:
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "antigravity-backend", "version": "1.4.3"}
+    return {"status": "ok", "service": "antigravity-backend", "version": "1.5.0"}
 
 if __name__ == "__main__":
     import uvicorn

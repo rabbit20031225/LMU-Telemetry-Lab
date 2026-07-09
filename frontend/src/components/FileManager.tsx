@@ -27,10 +27,12 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
     const isListLoading = useTelemetryStore(state => state.isListLoading);
     const fetchSessions = useTelemetryStore(state => state.fetchSessions);
     const activeProfileId = useTelemetryStore(state => state.activeProfileId);
+    const error = useTelemetryStore(state => state.error);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const dropzoneRef = useRef<HTMLDivElement>(null);
     const [searchQuery, setSearchQuery] = useState("");
-    const [isDragging, setIsDragging] = useState(false);
+    const [isDragActive, setIsDragActive] = useState(false);
     const [showHint, setShowHint] = useState(false);
     const [shouldRenderHint, setShouldRenderHint] = useState(false);
     const [isAnimatingHint, setIsAnimatingHint] = useState(false);
@@ -38,8 +40,10 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
     const [isEditingPath, setIsEditingPath] = useState(false);
     const [tempPath, setTempPath] = useState(telemetryPath);
     const [pathExists, setPathExists] = useState(true);
-    const [newlyUploadedId, setNewlyUploadedId] = useState<string | null>(null);
+    const [newlyUploadedIds, setNewlyUploadedIds] = useState<Set<string>>(new Set());
     const [expandedFolders, setExpandedFolders] = useState<string[]>([]);
+    const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [groupingMode, setGroupingMode] = useState<'track' | 'class' | 'car' | 'all'>(() => (localStorage.getItem('file_manager_grouping') as any) || 'track');
     const [classSubModes, setClassSubModes] = useState<Record<string, 'track' | 'car'>>(() => JSON.parse(localStorage.getItem('file_manager_class_submodes') || '{}'));
     const containerRef = useRef<HTMLDivElement>(null);
@@ -83,6 +87,193 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
         };
         checkPath();
     }, [telemetryPath]);
+
+    // Prevent default drag/drop behaviors on global window and handle global drops
+    React.useEffect(() => {
+        const handleWindowDragOver = (e: DragEvent) => {
+            e.preventDefault();
+
+            let isOverDropzone = false;
+            if (dropzoneRef.current) {
+                const rect = dropzoneRef.current.getBoundingClientRect();
+                isOverDropzone = (
+                    e.clientX >= rect.left &&
+                    e.clientX <= rect.right &&
+                    e.clientY >= rect.top &&
+                    e.clientY <= rect.bottom
+                );
+            }
+
+            // Check if dragging files, and filter non-.duckdb files if files list is available (e.g. Electron)
+            let hasValidFile = true;
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const filesArray = Array.from(e.dataTransfer.files);
+                hasValidFile = filesArray.some(file => file.name.toLowerCase().endsWith(".duckdb"));
+            }
+
+            // Only allow copy (upload) when dragging valid files over the dropzone container
+            if (isOverDropzone && hasValidFile) {
+                if (e.dataTransfer) {
+                    e.dataTransfer.dropEffect = 'copy';
+                }
+                setIsDragActive(true);
+            } else {
+                if (e.dataTransfer) {
+                    e.dataTransfer.dropEffect = 'none';
+                }
+                setIsDragActive(false);
+            }
+        };
+
+        const handleWindowDragEnter = (e: DragEvent) => {
+            e.preventDefault();
+            if (dropzoneRef.current) {
+                const rect = dropzoneRef.current.getBoundingClientRect();
+                const isOverDropzone = (
+                    e.clientX >= rect.left &&
+                    e.clientX <= rect.right &&
+                    e.clientY >= rect.top &&
+                    e.clientY <= rect.bottom
+                );
+                setIsDragActive(isOverDropzone);
+            }
+        };
+
+        const handleWindowDragLeave = (e: DragEvent) => {
+            e.preventDefault();
+            if (e.clientX === 0 && e.clientY === 0) {
+                setIsDragActive(false);
+            } else if (dropzoneRef.current) {
+                const rect = dropzoneRef.current.getBoundingClientRect();
+                const isOverDropzone = (
+                    e.clientX >= rect.left &&
+                    e.clientX <= rect.right &&
+                    e.clientY >= rect.top &&
+                    e.clientY <= rect.bottom
+                );
+                if (!isOverDropzone) {
+                    setIsDragActive(false);
+                }
+            }
+        };
+
+        const handleWindowDrop = async (e: DragEvent) => {
+            e.preventDefault();
+            setIsDragActive(false);
+
+            console.log("[DEBUG] global window drop triggered!");
+            
+            // Check if dropped inside the dropzone container using bounding rect
+            let isInsideDropzone = false;
+            if (dropzoneRef.current) {
+                const rect = dropzoneRef.current.getBoundingClientRect();
+                isInsideDropzone = (
+                    e.clientX >= rect.left &&
+                    e.clientX <= rect.right &&
+                    e.clientY >= rect.top &&
+                    e.clientY <= rect.bottom
+                );
+            }
+
+            if (!isInsideDropzone) {
+                console.warn("[DEBUG] Dropped outside upload dropzone.");
+                return;
+            }
+
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                console.log("[DEBUG] global window drop files count:", e.dataTransfer.files.length);
+                const rawFiles = Array.from(e.dataTransfer.files);
+                const files = rawFiles.filter(file => 
+                    file.name.toLowerCase().endsWith(".duckdb")
+                );
+
+                if (files.length === 0) {
+                    console.warn("[DEBUG] No valid .duckdb files in drop.");
+                    useTelemetryStore.setState({ error: "Only .duckdb files are supported for upload." });
+                    return;
+                }
+
+                useTelemetryStore.setState({ error: null });
+                const uploadedIds: string[] = [];
+
+                for (const file of files) {
+                    try {
+                        console.log("[DEBUG] Global drop starting upload for file:", file.name);
+                        const id = await uploadSession(file);
+                        console.log("[DEBUG] Global drop upload success, returned ID:", id);
+                        if (id) {
+                            uploadedIds.push(id);
+                        }
+                    } catch (err) {
+                        console.error("[DEBUG] Global drop upload failed for:", file.name, err);
+                        useTelemetryStore.setState({ error: `Upload failed: ${(err as Error).message}` });
+                    }
+                }
+
+                if (uploadedIds.length > 0) {
+                    console.log("[DEBUG] Drag and Drop uploadedIds:", uploadedIds);
+                    setNewlyUploadedIds(prev => {
+                        const next = new Set(prev);
+                        uploadedIds.forEach(id => next.add(id));
+                        return next;
+                    });
+
+                    const freshSessions = useTelemetryStore.getState().sessions;
+                    
+                    // Find the newest session among the uploaded ones based on created time
+                    let newestId = uploadedIds[uploadedIds.length - 1];
+                    let maxCreated = 0;
+                    for (const id of uploadedIds) {
+                        const s = freshSessions.find(x => x.id === id);
+                        if (s && (s.created || 0) > maxCreated) {
+                            maxCreated = s.created || 0;
+                            newestId = id;
+                        }
+                    }
+                    const newestIdx = uploadedIds.indexOf(newestId);
+                    const scrollIdx = newestIdx >= 0 ? newestIdx : 0;
+
+                    expandSessions(uploadedIds, freshSessions, scrollIdx, false);
+
+                    const currentlyOpenId = useTelemetryStore.getState().currentSessionId;
+                    if (!currentlyOpenId) {
+                        const firstId = uploadedIds[0];
+                        selectSession(firstId);
+                        
+                        const isSingleFile = files.length === 1;
+                        if (isSingleFile && onClose) {
+                            onClose();
+                        } else {
+                            setTimeout(() => {
+                                const finalSessions = useTelemetryStore.getState().sessions;
+                                expandSessions(uploadedIds, finalSessions, scrollIdx, true);
+                            }, 200);
+                        }
+                    } else {
+                        setTimeout(() => {
+                            const finalSessions = useTelemetryStore.getState().sessions;
+                            expandSessions(uploadedIds, finalSessions, scrollIdx, true);
+                        }, 200);
+                    }
+                }
+
+            } else {
+                console.warn("[DEBUG] No dataTransfer or files found in global drop.");
+            }
+        };
+
+        window.addEventListener('dragover', handleWindowDragOver);
+        window.addEventListener('dragenter', handleWindowDragEnter);
+        window.addEventListener('dragleave', handleWindowDragLeave);
+        window.addEventListener('drop', handleWindowDrop);
+
+        return () => {
+            window.removeEventListener('dragover', handleWindowDragOver);
+            window.removeEventListener('dragenter', handleWindowDragEnter);
+            window.removeEventListener('dragleave', handleWindowDragLeave);
+            window.removeEventListener('drop', handleWindowDrop);
+        };
+    }, [onClose]);
 
     React.useEffect(() => {
         if (showHint) {
@@ -133,25 +324,26 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
         return null;
     };
 
-    const expandAndScrollToSession = (sessionId: string, currentSessions: Session[], smooth = true) => {
-        const session = currentSessions.find(s => s.id === sessionId);
-        if (!session) return;
-
-        const trackName = session.displayName || session.commonTrackName || session.trackName || parseMetadata(session.id)?.circuit || 'Unknown Track';
+    const expandSessions = (sessionIds: string[], currentSessions: Session[], scrollToIndex = 0, smooth = true) => {
         const newExpanded: string[] = [];
+        for (const sessionId of sessionIds) {
+            const session = currentSessions.find(s => s.id === sessionId);
+            if (!session) continue;
 
-        if (groupingMode === 'track') {
-            newExpanded.push(trackName);
-        } else if (groupingMode === 'class') {
-            const classKey = session.carClass || 'Unknown Class';
-            const currentSubMode = classSubModes[classKey] || 'track';
-            const secondaryKey = currentSubMode === 'track' ? trackName : (session.carModel || 'Unknown Car');
-            newExpanded.push(classKey);
-            newExpanded.push(`${classKey}-${secondaryKey}`);
-        } else if (groupingMode === 'car') {
-            const carKey = session.carModel || 'Unknown Car';
-            newExpanded.push(carKey);
-            newExpanded.push(`${carKey}-${trackName}`);
+            const trackName = session.displayName || session.commonTrackName || session.trackName || parseMetadata(session.id)?.circuit || 'Unknown Track';
+            if (groupingMode === 'track') {
+                newExpanded.push(trackName);
+            } else if (groupingMode === 'class') {
+                const classKey = session.carClass || 'Unknown Class';
+                const currentSubMode = classSubModes[classKey] || 'track';
+                const secondaryKey = currentSubMode === 'track' ? trackName : (session.carModel || 'Unknown Car');
+                newExpanded.push(classKey);
+                newExpanded.push(`${classKey}-${secondaryKey}`);
+            } else if (groupingMode === 'car') {
+                const carKey = session.carModel || 'Unknown Car';
+                newExpanded.push(carKey);
+                newExpanded.push(`${carKey}-${trackName}`);
+            }
         }
 
         setExpandedFolders(prev => {
@@ -159,21 +351,45 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
             return Array.from(unique);
         });
 
-        // Scroll to the session after a short delay for expansion animation
-        setTimeout(() => {
-            const element = document.querySelector(`[data-session-id="${sessionId}"]`);
-            if (element) {
-                element.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
-            }
-        }, 400);
+        if (sessionIds.length > 0 && scrollToIndex >= 0 && scrollToIndex < sessionIds.length) {
+            const targetId = sessionIds[scrollToIndex];
+            console.log("[DEBUG] expandSessions scrolling to targetId:", targetId, "smooth:", smooth);
+            setTimeout(() => {
+                const element = document.querySelector(`[data-session-id="${targetId}"]`) as HTMLElement;
+                if (element) {
+                    const container = element.closest('.overflow-y-scroll, .overflow-y-auto') as HTMLElement;
+                    if (container) {
+                        const elementTop = element.getBoundingClientRect().top;
+                        const containerTop = container.getBoundingClientRect().top;
+                        const targetScrollTop = (elementTop - containerTop + container.scrollTop) - 24;
+                        container.scrollTo({
+                            top: Math.max(0, targetScrollTop),
+                            behavior: smooth ? 'smooth' : 'auto'
+                        });
+                    } else {
+                        element.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'nearest' });
+                    }
+                } else {
+                    console.warn("[DEBUG] scroll element not found for ID:", targetId);
+                }
+            }, 400);
+        }
+    };
+
+    const expandAndScrollToSession = (sessionId: string, currentSessions: Session[], smooth = true) => {
+        expandSessions([sessionId], currentSessions, 0, smooth);
     };
 
     const autoExpandNewestSession = (currentSessions: Session[]) => {
         if (currentSessions.length === 0) return;
         const newest = [...currentSessions].sort((a, b) => (b.created || 0) - (a.created || 0))[0];
         if (!newest) return;
-        setNewlyUploadedId(newest.id);
-        expandAndScrollToSession(newest.id, currentSessions);
+        setNewlyUploadedIds(prev => {
+            const next = new Set(prev);
+            next.add(newest.id);
+            return next;
+        });
+        expandSessions([newest.id], currentSessions);
     };
 
     // Auto-expand and scroll to current session on mount
@@ -192,14 +408,49 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
             const result = await apiClient.pickAndUpload(telemetryPath, activeProfileId, bounds);
             if (result.status === 'success') {
                 await fetchSessions();
-                // Need to get the fresh sessions from store since we just updated them
                 setTimeout(() => {
                     const freshSessions = useTelemetryStore.getState().sessions;
-                    if (result.id) {
-                        setNewlyUploadedId(result.id);
-                        expandAndScrollToSession(result.id, freshSessions);
-                    } else {
-                        autoExpandNewestSession(freshSessions);
+                    const uploadedIds: string[] = result.ids || (result.id ? [result.id] : []);
+                    console.log("[DEBUG] Native picker success. result.ids:", result.ids, "result.id:", result.id, "final uploadedIds:", uploadedIds);
+                    if (uploadedIds.length === 0) {
+                        const newest = [...freshSessions].sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+                        if (newest) {
+                            uploadedIds.push(newest.id);
+                        }
+                    }
+
+                    if (uploadedIds.length > 0) {
+                        setNewlyUploadedIds(prev => {
+                            const next = new Set(prev);
+                            uploadedIds.forEach(id => next.add(id));
+                            return next;
+                        });
+                        
+                        // Find the newest session among the uploaded ones based on created time
+                        let newestId = uploadedIds[uploadedIds.length - 1];
+                        let maxCreated = 0;
+                        for (const id of uploadedIds) {
+                            const s = freshSessions.find(x => x.id === id);
+                            if (s && (s.created || 0) > maxCreated) {
+                                maxCreated = s.created || 0;
+                                newestId = id;
+                            }
+                        }
+                        const newestIdx = uploadedIds.indexOf(newestId);
+                        const scrollIdx = newestIdx >= 0 ? newestIdx : 0;
+
+                        expandSessions(uploadedIds, freshSessions, scrollIdx, false);
+
+                        const currentlyOpenId = useTelemetryStore.getState().currentSessionId;
+                        if (!currentlyOpenId) {
+                            selectSession(uploadedIds[0]);
+                            if (onClose) onClose();
+                        } else {
+                            setTimeout(() => {
+                                const finalSessions = useTelemetryStore.getState().sessions;
+                                expandSessions(uploadedIds, finalSessions, scrollIdx, true);
+                            }, 200);
+                        }
                     }
                 }, 100);
                 return;
@@ -211,49 +462,84 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            const id = await uploadSession(e.target.files[0]);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-            // Auto expand after upload
-            setTimeout(() => {
-                const freshSessions = useTelemetryStore.getState().sessions;
-                if (id) {
-                    setNewlyUploadedId(id);
-                    expandAndScrollToSession(id, freshSessions);
-                } else {
-                    autoExpandNewestSession(freshSessions);
-                }
-            }, 100);
-        }
-    };
+            const rawFiles = Array.from(e.target.files);
+            const files = rawFiles.filter(file => 
+                file.name.toLowerCase().endsWith(".duckdb")
+            );
+            
+            if (files.length === 0) return;
 
-    const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
-    const onDragLeave = () => setIsDragging(false);
-
-    const onDrop = async (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            const file = e.dataTransfer.files[0];
-            if (file.name.endsWith(".duckdb")) {
-                const id = await uploadSession(file);
-                // Auto expand after upload
-                setTimeout(() => {
-                    const freshSessions = useTelemetryStore.getState().sessions;
+            useTelemetryStore.setState({ error: null });
+            const uploadedIds: string[] = [];
+            
+            for (const file of files) {
+                try {
+                    console.log("[DEBUG] Click-upload starting for file:", file.name);
+                    const id = await uploadSession(file);
                     if (id) {
-                        setNewlyUploadedId(id);
-                        expandAndScrollToSession(id, freshSessions);
-                    } else {
-                        autoExpandNewestSession(freshSessions);
+                        uploadedIds.push(id);
                     }
-                }, 100);
+                } catch (err) {
+                    console.error("Click-upload failed for:", file.name, err);
+                    useTelemetryStore.setState({ error: `Upload failed: ${(err as Error).message}` });
+                }
+            }
+
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+
+            if (uploadedIds.length > 0) {
+                console.log("[DEBUG] Click-upload uploadedIds:", uploadedIds);
+                setNewlyUploadedIds(prev => {
+                    const next = new Set(prev);
+                    uploadedIds.forEach(id => next.add(id));
+                    return next;
+                });
+
+                const freshSessions = useTelemetryStore.getState().sessions;
+                
+                // Find the newest session among the uploaded ones based on created time
+                let newestId = uploadedIds[uploadedIds.length - 1];
+                let maxCreated = 0;
+                for (const id of uploadedIds) {
+                    const s = freshSessions.find(x => x.id === id);
+                    if (s && (s.created || 0) > maxCreated) {
+                        maxCreated = s.created || 0;
+                        newestId = id;
+                    }
+                }
+                const newestIdx = uploadedIds.indexOf(newestId);
+                const scrollIdx = newestIdx >= 0 ? newestIdx : 0;
+
+                expandSessions(uploadedIds, freshSessions, scrollIdx, false);
+
+                const currentlyOpenId = useTelemetryStore.getState().currentSessionId;
+                if (!currentlyOpenId) {
+                    const firstId = uploadedIds[0];
+                    selectSession(firstId);
+                    
+                    const isSingleFile = files.length === 1;
+                    if (isSingleFile && onClose) {
+                        onClose();
+                    } else {
+                        setTimeout(() => {
+                            const finalSessions = useTelemetryStore.getState().sessions;
+                            expandSessions(uploadedIds, finalSessions, scrollIdx, true);
+                        }, 200);
+                    }
+                } else {
+                    setTimeout(() => {
+                        const finalSessions = useTelemetryStore.getState().sessions;
+                        expandSessions(uploadedIds, finalSessions, scrollIdx, true);
+                    }, 200);
+                }
             }
         }
     };
 
     const handleDelete = async (sessionId: string) => {
-        if (confirm(`Are you sure you want to delete ${sessionId}?`)) {
-            await deleteSession(sessionId);
-        }
+        setDeleteTarget(sessionId);
     };
 
     const saveCustomPath = () => {
@@ -416,15 +702,42 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
             </div>
 
             <div className="px-4 pt-1 pb-1">
-                <div className={`group relative glass-container p-6 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer ring-1 ring-inset ${isDragging ? 'bg-blue-600/20 border-blue-500/50 ring-blue-500/30' : 'bg-white/5 border-white/10 ring-white/5 hover:bg-white/10 hover:border-white/30 hover:shadow-[0_0_30px_rgba(255,255,255,0.08)]'} border`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onClick={handleUploadClick} onMouseMove={handleGlassMouseMove}>
-                    <div className="glass-content flex flex-col items-center justify-center w-full">
-                        <input type="file" ref={fileInputRef} className="hidden" accept=".duckdb" onChange={handleFileChange} />
-                        <div className="p-3 bg-white/5 rounded-full border border-white/10 mb-3 group-hover:bg-blue-600/20 group-hover:border-blue-500/30 transition-all duration-500"><Upload size={24} className={`transition-colors duration-500 ${isDragging ? 'text-blue-400' : 'text-gray-400 group-hover:text-blue-400'}`} /></div>
+                <div 
+                    ref={dropzoneRef} 
+                    className={`group relative glass-container telemetry-dropzone p-6 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer ring-1 ring-inset border ${
+                        isDragActive 
+                            ? 'drag-active ring-blue-500 border-blue-500 bg-blue-500/10 shadow-[0_0_30px_rgba(59,130,246,0.2)] scale-[1.01]' 
+                            : 'bg-white/5 border-white/10 ring-white/5 hover:bg-white/10 hover:border-white/30 hover:shadow-[0_0_30px_rgba(255,255,255,0.08)]'
+                    }`} 
+                    onClick={handleUploadClick} 
+                    onMouseMove={handleGlassMouseMove}
+                >
+                    <div className="glass-content flex flex-col items-center justify-center w-full pointer-events-none">
+                        <input type="file" ref={fileInputRef} className="hidden" accept=".duckdb" multiple onChange={handleFileChange} />
+                        <div className={`p-3 rounded-full border mb-3 transition-all duration-500 ${
+                            isDragActive 
+                                ? 'bg-blue-500/30 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.6)] scale-110' 
+                                : 'bg-white/5 border-white/10 group-hover:bg-blue-600/20 group-hover:border-blue-500/30'
+                        }`}>
+                            <Upload size={24} className={`transition-colors duration-500 ${
+                                isDragActive 
+                                    ? 'text-blue-300 animate-bounce' 
+                                    : 'text-gray-400 group-hover:text-blue-400'
+                            }`} />
+                        </div>
                         <span className="text-[12px] text-white font-black uppercase tracking-[0.15em] mb-1">Upload Telemetry</span>
-                        <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Drop .duckdb file here</span>
+                        <span className={`text-[9px] font-black uppercase tracking-widest transition-colors duration-300 ${
+                            isDragActive ? 'text-blue-400 animate-pulse' : 'text-gray-400'
+                        }`}>Drop .duckdb file here</span>
                     </div>
                 </div>
             </div>
+
+            {error && (
+                <div className="mx-4 my-1.5 p-3 bg-red-950/40 border border-red-500/30 text-red-400 rounded-xl text-[10px] uppercase tracking-wider font-bold">
+                    Error: {error}
+                </div>
+            )}
 
             <div className="px-4 pt-2 pb-2">
                 <div className="flex items-center justify-between mb-3 px-1">
@@ -494,7 +807,7 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
                                             data-session-id={s.id}
                                             className={`group relative rounded-xl p-3 flex items-center justify-between transition-[transform,background-color,border-color] duration-300 border ring-1 ring-inset glass-container scroll-mt-20 min-w-0 w-full overflow-hidden ${isSelected
                                                 ? (isExport ? 'bg-cyan-600/20 border-cyan-500/40 ring-cyan-500/20' : 'bg-blue-600/20 border-blue-500/30 ring-blue-500/20')
-                                                : (s.id === newlyUploadedId
+                                                : (newlyUploadedIds.has(s.id)
                                                     ? 'new-upload-highlight'
                                                     : isExport
                                                         ? 'bg-cyan-950/40 border-cyan-500/15 ring-cyan-500/10 hover:bg-cyan-950/60 hover:border-cyan-500/30'
@@ -507,7 +820,11 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
                                                     className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
                                                     onClick={() => {
                                                         selectSession(s.id);
-                                                        setNewlyUploadedId(null);
+                                                        setNewlyUploadedIds(prev => {
+                                                            const next = new Set(prev);
+                                                            next.delete(s.id);
+                                                            return next;
+                                                        });
                                                         if (onClose) onClose();
                                                     }}
                                                 >
@@ -689,8 +1006,83 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
                             </div>
                         );
                     })}
-                </div>
             </div>
+
+            {/* Custom Delete Confirmation Modal */}
+            <AnimatePresence>
+                {deleteTarget && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => !isDeleting && setDeleteTarget(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                            transition={{ type: "spring", duration: 0.3 }}
+                            className="bg-black/40 border border-red-500/20 rounded-2xl p-6 max-w-md w-full shadow-2xl relative overflow-hidden glass-container group/deleteModal"
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseMove={(e) => handleGlassMouseMove(e, 0.15)}
+                        >
+                            <div className="glass-content flex flex-col gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 flex-shrink-0 animate-pulse">
+                                        <Trash2 size={20} />
+                                    </div>
+                                    <h3 className="text-base font-black text-white uppercase tracking-wider">Confirm Delete</h3>
+                                </div>
+
+                                <div className="text-xs text-gray-400 leading-relaxed font-semibold">
+                                    Are you sure you want to delete this file? This action is permanent and cannot be undone.<br/>
+                                    <span className="font-mono bg-black/40 px-2.5 py-1.5 rounded border border-white/5 text-red-400 block mt-3 text-[10px] break-all">
+                                        {deleteTarget}
+                                    </span>
+                                </div>
+
+                                <div className="flex gap-3 mt-2">
+                                    <button
+                                        disabled={isDeleting}
+                                        onClick={() => setDeleteTarget(null)}
+                                        className="flex-1 py-2 px-4 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-xs font-black uppercase tracking-wider transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        disabled={isDeleting}
+                                        onClick={async () => {
+                                            if (deleteTarget && !isDeleting) {
+                                                setIsDeleting(true);
+                                                try {
+                                                    await deleteSession(deleteTarget);
+                                                    setDeleteTarget(null);
+                                                } catch (err) {
+                                                    console.error("[DEBUG] Delete session failed:", err);
+                                                } finally {
+                                                    setIsDeleting(false);
+                                                }
+                                            }
+                                        }}
+                                        className="flex-1 py-2 px-4 rounded-xl border border-red-500/30 hover:border-red-500 bg-red-600/20 hover:bg-red-600/80 text-white text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_20px_rgba(239,68,68,0.3)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {isDeleting ? (
+                                            <>
+                                                <Loader2 size={12} className="animate-spin" />
+                                                <span>Deleting...</span>
+                                            </>
+                                        ) : (
+                                            <span>Delete File</span>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
+    </div>
     );
 };

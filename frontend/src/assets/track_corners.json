@@ -1,0 +1,2103 @@
+{
+  "Bahrain International Circuit": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 740.0,
+        "start": 696.0,
+        "end": 785.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T2",
+        "apex": 830.0,
+        "start": 785.0,
+        "end": 895.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T3",
+        "apex": 960.0,
+        "start": 895.0,
+        "end": 1009.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": 1540.0,
+        "start": 1470.0,
+        "end": 1610.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": 1790.0,
+        "start": 1720.0,
+        "end": 1835.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T6",
+        "apex": 1880.0,
+        "start": 1835.0,
+        "end": 1937.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T7",
+        "apex": 1995.0,
+        "start": 1937.5,
+        "end": 2065.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": 2260.0,
+        "start": 2190.0,
+        "end": 2330.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": 2630.0,
+        "start": 2560.0,
+        "end": 2680.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T10",
+        "apex": 2730.0,
+        "start": 2680.0,
+        "end": 2800.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11(long left corner)",
+        "apex": 3450.0,
+        "start": 3380.0,
+        "end": 3635.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T12(long right corner)",
+        "apex": 3820.0,
+        "start": 3635.0,
+        "end": 3890.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": 4130.0,
+        "start": 4060.0,
+        "end": 4200.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": 4930.0,
+        "start": 4860.0,
+        "end": 4975.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T15",
+        "apex": 5020.0,
+        "start": 4975.0,
+        "end": 5067.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Endurance Circuit": [
+      {
+        "name": "T1",
+        "apex": 750.0,
+        "start": 700.0,
+        "end": 796.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T2",
+        "apex": 843.0,
+        "start": 796.5,
+        "end": 904.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T3",
+        "apex": 965.0,
+        "start": 904.0,
+        "end": 1035.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": 1540.0,
+        "start": 1470.0,
+        "end": 1605.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5",
+        "apex": 1670.0,
+        "start": 1605.0,
+        "end": 1785.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T6",
+        "apex": 1900.0,
+        "start": 1785.0,
+        "end": 1970.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T7",
+        "apex": 2040.0,
+        "start": 1970.0,
+        "end": 2072.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8",
+        "apex": 2105.0,
+        "start": 2072.5,
+        "end": 2137.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T9",
+        "apex": 2170.0,
+        "start": 2137.5,
+        "end": 2205.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T10",
+        "apex": 2240.0,
+        "start": 2205.0,
+        "end": 2290.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T11",
+        "apex": 2340.0,
+        "start": 2290.0,
+        "end": 2395.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T12",
+        "apex": 2450.0,
+        "start": 2395.0,
+        "end": 2492.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T13",
+        "apex": 2535.0,
+        "start": 2492.5,
+        "end": 2561.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T14",
+        "apex": 2650.0,
+        "start": 2561.5,
+        "end": 2710.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T15",
+        "apex": 2770.0,
+        "start": 2710.0,
+        "end": 2820.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T16",
+        "apex": 2870.0,
+        "start": 2820.0,
+        "end": 2940.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T17",
+        "apex": 3140.0,
+        "start": 3070.0,
+        "end": 3210.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T18",
+        "apex": 3505.0,
+        "start": 3435.0,
+        "end": 3552.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T19",
+        "apex": 3600.0,
+        "start": 3552.5,
+        "end": 3670.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T20(long left)",
+        "apex": 4340.0,
+        "start": 4270.0,
+        "end": 4510.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T21(long right)",
+        "apex": 4680.0,
+        "start": 4510.0,
+        "end": 4750.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T22",
+        "apex": 5010.0,
+        "start": 4940.0,
+        "end": 5080.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T23",
+        "apex": 5820.0,
+        "start": 5750.0,
+        "end": 5872.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T24",
+        "apex": 5925.0,
+        "start": 5872.5,
+        "end": 5974.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Outer Circuit": [
+      {
+        "name": "T1",
+        "apex": 745.0,
+        "start": 695.0,
+        "end": 792.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T2",
+        "apex": 840.0,
+        "start": 792.5,
+        "end": 902.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T3",
+        "apex": 965.0,
+        "start": 902.5,
+        "end": 1013.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": 1540.0,
+        "start": 1470.0,
+        "end": 1605.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5",
+        "apex": 1670.0,
+        "start": 1605.0,
+        "end": 1785.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T6",
+        "apex": 1900.0,
+        "start": 1785.0,
+        "end": 1970.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T7",
+        "apex": 2040.0,
+        "start": 1970.0,
+        "end": 2067.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8",
+        "apex": 2095.0,
+        "start": 2067.5,
+        "end": 2165.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": 2300.0,
+        "start": 2230.0,
+        "end": 2370.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": 3060.0,
+        "start": 2990.0,
+        "end": 3105.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T11",
+        "apex": 3150.0,
+        "start": 3105.0,
+        "end": 3204.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Paddock Circuit": [
+      {
+        "name": "T1",
+        "apex": 725.0,
+        "start": 674.0,
+        "end": 767.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T2",
+        "apex": 810.0,
+        "start": 767.5,
+        "end": 865.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T3",
+        "apex": 920.0,
+        "start": 865.0,
+        "end": 950.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T4",
+        "apex": 980.0,
+        "start": 950.0,
+        "end": 1050.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5",
+        "apex": 1120.0,
+        "start": 1050.0,
+        "end": 1139.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": 1820.0,
+        "start": 1750.0,
+        "end": 1985.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T7",
+        "apex": 2150.0,
+        "start": 1985.0,
+        "end": 2220.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": 2460.0,
+        "start": 2390.0,
+        "end": 2530.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": 3240.0,
+        "start": 3170.0,
+        "end": 3290.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T10",
+        "apex": 3340.0,
+        "start": 3290.0,
+        "end": 3375.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Paul Ricard": {},
+  "Circuit of the Americas": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 660.0,
+        "start": 590.0,
+        "end": 730.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 890.0,
+        "start": 820.0,
+        "end": 960.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": 1175.0,
+        "start": 1174.0,
+        "end": 1215.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T4",
+        "apex": 1255.0,
+        "start": 1215.0,
+        "end": 1302.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5",
+        "apex": 1350.0,
+        "start": 1302.5,
+        "end": 1435.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T6",
+        "apex": 1520.0,
+        "start": 1435.0,
+        "end": 1615.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T7",
+        "apex": 1710.0,
+        "start": 1615.0,
+        "end": 1795.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8",
+        "apex": 1880.0,
+        "start": 1795.0,
+        "end": 1925.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T9",
+        "apex": 1970.0,
+        "start": 1925.0,
+        "end": 2040.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": 2175.0,
+        "start": 2105.0,
+        "end": 2210.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": 2575.0,
+        "start": 2505.0,
+        "end": 2645.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": 3790.0,
+        "start": 3720.0,
+        "end": 3860.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": 4005.0,
+        "start": 3935.0,
+        "end": 4057.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T14",
+        "apex": 4110.0,
+        "start": 4057.5,
+        "end": 4180.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15(special, from 4210 to 4330m, include two turns)",
+        "apex": 4300.0,
+        "start": 4210.0,
+        "end": 4330.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16",
+        "apex": 4540.0,
+        "start": 4470.0,
+        "end": 4580.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T17",
+        "apex": 4620.0,
+        "start": 4580.0,
+        "end": 4670.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T18",
+        "apex": 4720.0,
+        "start": 4670.0,
+        "end": 4790.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T19",
+        "apex": 5060.0,
+        "start": 4990.0,
+        "end": 5130.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T20",
+        "apex": 5370.0,
+        "start": 5300.0,
+        "end": 5440.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "National Circuit": [
+      {
+        "name": "T1",
+        "apex": 660.0,
+        "start": 590.0,
+        "end": 730.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 910.0,
+        "start": 840.0,
+        "end": 980.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": 1170.0,
+        "start": 1100.0,
+        "end": 1215.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T4",
+        "apex": 1260.0,
+        "start": 1215.0,
+        "end": 1305.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5",
+        "apex": 1350.0,
+        "start": 1305.0,
+        "end": 1395.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T6",
+        "apex": 1440.0,
+        "start": 1395.0,
+        "end": 1485.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T7",
+        "apex": 1530.0,
+        "start": 1485.0,
+        "end": 1610.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8(special, from 1620m to 1740m, actually include three corners)",
+        "apex": 1625.0,
+        "start": 1610.0,
+        "end": 1740.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": 1990.0,
+        "start": 1920.0,
+        "end": 2060.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": 2210.0,
+        "start": 2140.0,
+        "end": 2255.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T11",
+        "apex": 2300.0,
+        "start": 2255.0,
+        "end": 2370.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12(from 2400 to 2530, include two corners",
+        "apex": 2490.0,
+        "start": 2400.0,
+        "end": 2530.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": 2730.0,
+        "start": 2660.0,
+        "end": 2765.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T14",
+        "apex": 2800.0,
+        "start": 2765.0,
+        "end": 2887.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T15",
+        "apex": 2975.0,
+        "start": 2887.5,
+        "end": 3045.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16",
+        "apex": 3255.0,
+        "start": 3185.0,
+        "end": 3325.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T17",
+        "apex": 3550.0,
+        "start": 3480.0,
+        "end": 3620.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Fuji Speedway": {},
+  "Autodromo Internazionale Enzo e Dino Ferrari": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 310.0,
+        "start": 286.0,
+        "end": 321.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 690.0,
+        "start": 620.0,
+        "end": 720.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T3",
+        "apex": 750.0,
+        "start": 720.0,
+        "end": 823.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T4",
+        "apex": 890.0,
+        "start": 823.5,
+        "end": 960.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": 1330.0,
+        "start": 1260.0,
+        "end": 1372.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T6",
+        "apex": 1415.0,
+        "start": 1372.5,
+        "end": 1485.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": 1710.0,
+        "start": 1640.0,
+        "end": 1780.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": 2120.0,
+        "start": 2063.0,
+        "end": 2185.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": 2320.0,
+        "start": 2254.0,
+        "end": 2410.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T10",
+        "apex": 2500.0,
+        "start": 2410.0,
+        "end": 2620.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T11",
+        "apex": 2740.0,
+        "start": 2620.0,
+        "end": 2795.0,
+        "direction": "Straight",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T12",
+        "apex": 2850.0,
+        "start": 2795.0,
+        "end": 2885.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T13",
+        "apex": 2920.0,
+        "start": 2885.0,
+        "end": 2937.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": 3350.0,
+        "start": 3312.0,
+        "end": 3365.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T15",
+        "apex": 3380.0,
+        "start": 3365.0,
+        "end": 3450.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16",
+        "apex": 3700.0,
+        "start": 3633.0,
+        "end": 3836.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T17",
+        "apex": 3950.0,
+        "start": 3836.0,
+        "end": 4040.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T18",
+        "apex": 4130.0,
+        "start": 4040.0,
+        "end": 4195.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T19",
+        "apex": 4260.0,
+        "start": 4195.0,
+        "end": 4330.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T20",
+        "apex": 4620.0,
+        "start": 4550.0,
+        "end": 4642.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Autodromo Jose Carlos Pace": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 380.0,
+        "start": 310.0,
+        "end": 430.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T2",
+        "apex": 480.0,
+        "start": 430.0,
+        "end": 570.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T3",
+        "apex": 660.0,
+        "start": 570.0,
+        "end": 730.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": 1450.0,
+        "start": 1380.0,
+        "end": 1545.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5",
+        "apex": 1640.0,
+        "start": 1545.0,
+        "end": 1710.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": 2080.0,
+        "start": 2010.0,
+        "end": 2140.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T7",
+        "apex": 2200.0,
+        "start": 2140.0,
+        "end": 2270.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": 2380.0,
+        "start": 2310.0,
+        "end": 2440.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T9",
+        "apex": 2500.0,
+        "start": 2440.0,
+        "end": 2570.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": 2780.0,
+        "start": 2710.0,
+        "end": 2890.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T11",
+        "apex": 3000.0,
+        "start": 2890.0,
+        "end": 3070.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": 3280.0,
+        "start": 3210.0,
+        "end": 3355.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T13",
+        "apex": 3430.0,
+        "start": 3355.0,
+        "end": 3475.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": 3670.0,
+        "start": 3652.0,
+        "end": 3674.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15",
+        "apex": 4060.0,
+        "start": 4050.0,
+        "end": 4070.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Lusail International Circuit": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 800.0,
+        "start": 730.0,
+        "end": 950.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T2",
+        "apex": 1100.0,
+        "start": 950.0,
+        "end": 1215.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T3",
+        "apex": 1330.0,
+        "start": 1215.0,
+        "end": 1400.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": 1730.0,
+        "start": 1660.0,
+        "end": 1815.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5",
+        "apex": 1900.0,
+        "start": 1815.0,
+        "end": 1970.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": 2210.0,
+        "start": 2140.0,
+        "end": 2280.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": 2610.0,
+        "start": 2540.0,
+        "end": 2700.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8",
+        "apex": 2790.0,
+        "start": 2700.0,
+        "end": 2855.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T9",
+        "apex": 2940.0,
+        "start": 2855.5,
+        "end": 3055.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T10",
+        "apex": 3170.0,
+        "start": 3055.0,
+        "end": 3295.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T11",
+        "apex": 3420.0,
+        "start": 3295.0,
+        "end": 3435.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": 3790.0,
+        "start": 3720.0,
+        "end": 3890.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T13",
+        "apex": 3990.0,
+        "start": 3890.0,
+        "end": 4090.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T14",
+        "apex": 4190.0,
+        "start": 4090.0,
+        "end": 4260.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15",
+        "apex": 4520.0,
+        "start": 4450.0,
+        "end": 4590.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16",
+        "apex": 4990.0,
+        "start": 4920.0,
+        "end": 5060.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Short Circuit": [
+      {
+        "name": "T1",
+        "apex": 810.0,
+        "start": 740.0,
+        "end": 941.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T2",
+        "apex": 1010.0,
+        "start": 941.5,
+        "end": 1100.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T3",
+        "apex": 1240.0,
+        "start": 1100.5,
+        "end": 1270.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T4",
+        "apex": 1300.0,
+        "start": 1270.0,
+        "end": 1340.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5",
+        "apex": 1380.0,
+        "start": 1340.0,
+        "end": 1473.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T6",
+        "apex": 1530.0,
+        "start": 1473.5,
+        "end": 1547.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": 2070.0,
+        "start": 2000.0,
+        "end": 2175.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8",
+        "apex": 2280.0,
+        "start": 2175.0,
+        "end": 2385.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T9",
+        "apex": 2490.0,
+        "start": 2385.0,
+        "end": 2560.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": 2800.0,
+        "start": 2730.0,
+        "end": 2870.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": 3280.0,
+        "start": 3210.0,
+        "end": 3350.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Autodromo Nazionale Monza": {},
+  "Algarve International Circuit": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 410.0,
+        "start": 340.0,
+        "end": 480.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 570.0,
+        "start": 500.0,
+        "end": 640.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": 735.0,
+        "start": 665.0,
+        "end": 802.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": 870.0,
+        "start": 802.5,
+        "end": 940.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": 1460.0,
+        "start": 1390.0,
+        "end": 1530.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": 1710.0,
+        "start": 1640.0,
+        "end": 1817.5,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T7",
+        "apex": 1925.0,
+        "start": 1817.5,
+        "end": 2002.5,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8",
+        "apex": 2080.0,
+        "start": 2002.5,
+        "end": 2150.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": 2460.0,
+        "start": 2390.0,
+        "end": 2526.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": 2680.0,
+        "start": 2610.0,
+        "end": 2720.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T11",
+        "apex": 2760.0,
+        "start": 2720.0,
+        "end": 2827.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": 2970.0,
+        "start": 2900.0,
+        "end": 3040.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": 3200.0,
+        "start": 3130.0,
+        "end": 3270.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14(3380m to 3570m)",
+        "apex": 3420.0,
+        "start": 3380.0,
+        "end": 3570.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15(3710m to 4070m)",
+        "apex": 3870.0,
+        "start": 3710.0,
+        "end": 4070.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Sebring International Raceway": {},
+  "Silverstone": {},
+  "Circuit de Spa-Francorchamps": {
+    "Default": [
+      {
+        "name": "T1 (La Source)",
+        "apex": 270.0,
+        "start": 200.0,
+        "end": 340.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 600.0,
+        "start": 571.0,
+        "end": 644.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3 (Eau Rouge 1)",
+        "apex": 930.0,
+        "start": 860.0,
+        "end": 945.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T4 (Eau Rouge 2)",
+        "apex": 1020.0,
+        "start": 945.0,
+        "end": 1120.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5 (Raidillon)",
+        "apex": 1160.0,
+        "start": 1120.0,
+        "end": 1170.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6 (Kemmel Straight)",
+        "apex": 1500.0,
+        "start": 1491.0,
+        "end": 1570.0,
+        "direction": "Straight",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7 (Les Combes 1)",
+        "apex": 2310.0,
+        "start": 2240.0,
+        "end": 2350.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8 (Les Combes 2)",
+        "apex": 2390.0,
+        "start": 2350.0,
+        "end": 2465.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T9 (Les Combes 3)",
+        "apex": 2540.0,
+        "start": 2465.0,
+        "end": 2610.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10 (Bruxelles)",
+        "apex": 2950.0,
+        "start": 2880.0,
+        "end": 3020.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11 (Speaker's Corner)",
+        "apex": 3180.0,
+        "start": 3110.0,
+        "end": 3250.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12 (Pouhon, 3650m to 4020m)",
+        "apex": 3820.0,
+        "start": 3650.0,
+        "end": 4020.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13 (Fagnes 1)",
+        "apex": 4400.0,
+        "start": 4330.0,
+        "end": 4470.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T14 (Campus)",
+        "apex": 4540.0,
+        "start": 4470.0,
+        "end": 4610.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15 (Stavelot)",
+        "apex": 4840.0,
+        "start": 4770.0,
+        "end": 4910.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16 (Paul Frere)",
+        "apex": 5070.0,
+        "start": 5000.0,
+        "end": 5140.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T17 (Blanchimont 1)",
+        "apex": 5810.0,
+        "start": 5749.0,
+        "end": 5946.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T18 (Blanchimont 2)",
+        "apex": 6090.0,
+        "start": 5946.0,
+        "end": 6160.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T19 (Bus Stop 1)",
+        "apex": 6640.0,
+        "start": 6588.0,
+        "end": 6665.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T20 (Bus Stop 2)",
+        "apex": 6690.0,
+        "start": 6665.0,
+        "end": 6760.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Endurance Circuit": [
+      {
+        "name": "T1 (La Source)",
+        "apex": 270.0,
+        "start": 200.0,
+        "end": 340.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 600.0,
+        "start": 571.0,
+        "end": 644.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3 (Eau Rouge 1)",
+        "apex": 930.0,
+        "start": 860.0,
+        "end": 945.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T4 (Eau Rouge 2)",
+        "apex": 1020.0,
+        "start": 945.0,
+        "end": 1120.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5 (Raidillon)",
+        "apex": 1160.0,
+        "start": 1120.0,
+        "end": 1170.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6 (Kemmel Straight)",
+        "apex": 1500.0,
+        "start": 1491.0,
+        "end": 1570.0,
+        "direction": "Straight",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7 (Les Combes 1)",
+        "apex": 2310.0,
+        "start": 2240.0,
+        "end": 2350.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8 (Les Combes 2)",
+        "apex": 2390.0,
+        "start": 2350.0,
+        "end": 2465.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T9 (Les Combes 3)",
+        "apex": 2540.0,
+        "start": 2465.0,
+        "end": 2610.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10 (Bruxelles)",
+        "apex": 2950.0,
+        "start": 2880.0,
+        "end": 3020.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11 (Speaker's Corner)",
+        "apex": 3180.0,
+        "start": 3110.0,
+        "end": 3250.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12 (Pouhon, 3650m to 4020m)",
+        "apex": 3820.0,
+        "start": 3650.0,
+        "end": 4020.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13 (Fagnes 1)",
+        "apex": 4400.0,
+        "start": 4330.0,
+        "end": 4470.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T14 (Campus)",
+        "apex": 4540.0,
+        "start": 4470.0,
+        "end": 4610.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15 (Stavelot)",
+        "apex": 4840.0,
+        "start": 4770.0,
+        "end": 4910.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16 (Paul Frere)",
+        "apex": 5070.0,
+        "start": 5000.0,
+        "end": 5140.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T17 (Blanchimont 1)",
+        "apex": 5810.0,
+        "start": 5749.0,
+        "end": 5946.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T18 (Blanchimont 2)",
+        "apex": 6090.0,
+        "start": 5946.0,
+        "end": 6160.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T19 (Bus Stop 1)",
+        "apex": 6640.0,
+        "start": 6588.0,
+        "end": 6665.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T20 (Bus Stop 2)",
+        "apex": 6690.0,
+        "start": 6665.0,
+        "end": 6760.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Circuit de Barcelona": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 850.0,
+        "start": 780.0,
+        "end": 900.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T2",
+        "apex": 950.0,
+        "start": 900.0,
+        "end": 1075.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T3(long right, to 1460m)",
+        "apex": 1200.0,
+        "start": 1075.0,
+        "end": 1270.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4(1670m to 1910m)",
+        "apex": 1760.0,
+        "start": 1670.0,
+        "end": 1910.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5(2070m to 2200m)",
+        "apex": 2130.0,
+        "start": 2070.0,
+        "end": 2200.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": 2380.0,
+        "start": 2310.0,
+        "end": 2450.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": 2560.0,
+        "start": 2490.0,
+        "end": 2600.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T8",
+        "apex": 2640.0,
+        "start": 2600.0,
+        "end": 2710.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": 2910.0,
+        "start": 2840.0,
+        "end": 2980.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10(3460m to 3560m)",
+        "apex": 3500.0,
+        "start": 3460.0,
+        "end": 3560.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11(3560m to 3690m)",
+        "apex": 3610.0,
+        "start": 3560.0,
+        "end": 3690.0,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12(3690m to 3890m)",
+        "apex": 3790.0,
+        "start": 3690.0,
+        "end": 3950.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T13(4010m to 4140m)",
+        "apex": 4070.0,
+        "start": 3950.0,
+        "end": 4140.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14(4300m to 4430m)",
+        "apex": 4370.0,
+        "start": 4300.0,
+        "end": 4430.0,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  }
+}

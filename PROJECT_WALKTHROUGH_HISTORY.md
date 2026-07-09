@@ -1,5 +1,89 @@
 # PROJECT WALKTHROUGH HISTORY
 
+## 2026-07-06 | 全新 mini sector 微區段分析與 G-Force Radar 實時雷達圖重磅上線 (v1.5.0)
+
+本次更新重磅推出了「mini sector 微區段分析系統」與「G-Force Radar 實時雷達圖」，全面升級了遙測系統的核心分析能力。導入了起點時間對齊播放、左右導航按鍵、uPlot 圖表 Y 軸自適應伸縮、雙擊區段重置、Live Telemetry 對照 Theoretical Best 以及 G-Force 實時雷達圖與拖尾渲染等功能。
+
+### 變更內容
+- **微區段播放範圍限制與同步 (Mini-Sector Playback Range & Alignment)**：
+  - 限制遙測播放範圍至選中的微區段 `[min, max]`，越界自動暫停，拖曳進度條與時間顯示均與區段對齊。
+  - 將車輛起點時間基準統一為 Lap Channel 零點，排除毫秒級噪聲，並在區段對比時強制使用時間同步，確保兩車同時從起點出發並呈現真實時間差。
+- **最速單圈過濾與 Theoretical Best 對照 (Theoretical Best Filters & Analytics)**：
+  - 加固 Theoretical Best 篩選器，排除 Out/In-lap 以及小於 30s 或是長度異常的短圈，並防止全域 results 殘留髒數據。
+  - 當只有當前圈且放大區段時，Live Telemetry 面板會自動切換為對稱雙欄模式，將 Theoretical Best 最速圈的即時遙測數據作為 reference 對照，游標移動時數值流暢同步更新。
+- **起點 Delta 歸零與雙向 Scan (Time Delta Offset Calibration & Dual Scan)**：
+  - 實作區段 Delta 的 offset 補正，強制確保區段起步時 Delta 數值為 `0.000s`。
+  - 改用雙向（Forward / Backward）掃描第一個非 NaN 的有效 Delta 值作為 offset，修復了因邊界插值精度微小偏差為 NaN 導致 offset 減法被跳過的 Bug。
+- **G-Force Radar 實時雷達與排版 (G-Force Radar Tail & Layout Reorder)**：
+  - 繪製發光雷達圓盤與 8 幀半透明拖尾（Tail Trail），並將 `G Force Lat` 和 `G Force Long` 遙測通道方向對調，修正直線煞車與過彎的方向性。
+  - 支援 G-Force 卡片在 Segment 模式與 Sector 模式下動態重排（若無 Ref 圈或 Segment 模式下堆疊於右側欄下方，否則移至底層中央獨立渲染），完美消除兩側高度落差與留白。
+- **地圖效能著色與左右導航按鍵 (Minimap Performance Coloring & Slide Navigation)**：
+  - 實作微區段模式下 Minimap 行車軌跡的效能著色（快了顯示藍色，慢了顯示橘黃色），並將 Badge 快慢比對顏色與選中區段 diffText 對齊 Reference Lap。
+  - 在地圖框左右邊緣新增浮動導航按鍵，點擊可直接在各微區段間切換並重定位進度，帶有首尾區間自動隱藏保護。
+- **圖表 Y 軸自適應、平滑曲線與雙擊重置 (Y-Axis Auto-Scale, Smooth Trace & Double-Click Restrict)**：
+  - 監聽 `zoomRange` 變動，在 X 軸視窗改變時自動掃描當前區間內的遙測極值，動態為 Y 軸重新調整 scale 邊界，避免曲線被切斷。
+  - 對非電子通道顯式設定 `points: { show: false }`，使小微區段放大時的曲線維持平滑無點陣 Markers 的視覺效果。
+  - 攔截 `setScaleHook` 中的雙擊重置事件，當處於微區段模式時，雙擊圖表將會還原至該區段的全部區間而非退出微區段。
+- **全域 Hover 指針與 Dependency Fix**：
+  - 利用 `:hover` CSS 狀態匹配與游標相對時間換算，徹底修復了 Hover Time Delta 等距離圖表時無法連動地圖點的 Bug。
+  - 將 `selectedSegIdx` 補回巨大 `useEffect` 的依賴陣列中，解決了使用左右按鍵直接切換微區段時圖表數據不重新計算與 offset 歸零失效的問題。
+- **微區段開關雙重化佈局 (Dual Switch Layout for Mini-Sectors)**：
+  - **設定 (Settings) 預設狀態**：在 `SettingsOverlay.tsx` 設定彈窗中新增了 `Default Segment Mode` 首選項，藉由 `localStorage` 持久化，供使用者決定首次載入 stint 時預設是以 Sectors 還是 Mini-Sectors 呈現。
+  - **Navbar 快速即時切換**：在頂部導覽列右側的 2D/3D 切換鍵旁，新增了高科技 Sliding Pill 快速切換按鈕，允許使用者在分析過程中零延遲快速切換顯示狀態，並移除地圖左上角重複的舊 Pill 按鈕以還原清爽視覺。
+- **數字圈自訂偏移方向 (Custom Segment Badge Offsets)**：
+  - 支援在 `track_segments.json` 各區段物件中自訂 `badgeSide: "right" | "left"`（若為 `"right"` 則朝行駛法向量的反方向偏移）。
+  - 將巴林賽道 (Bahrain) 的 **4 號圈**預設設為 `"right"` 以避開直道視覺遮擋，且保留給使用者直接在 json 設定檔中微調個別數字圈位置的控制權。
+- **返回全賽道毛玻璃按鍵 (Back to Full Track Button)**：
+  - 當點擊進入某個 segment 後，在 `TrackMap.tsx` 左上角 `Track Map` 標題下方，主動渲染一個半透明、帶有返回圖示的 `Full Track` 膠囊按鈕，提供更快速且直覺的全局視野重設。
+- **重構拖曳上傳與極致 UI/UX 特效 (Drag and Drop Stability & Interactive UX)**：
+  - 移除了原先依賴 `useRef` 原生事件綁定在掛載初期為 null 的 Bug，改用「全域視窗級監聽」搭配物理坐標 `getBoundingClientRect()` 範圍判定，100% 確保任何瀏覽器及網頁測試環境下的穩定接收。
+  - 當拖曳到非上傳框區域或拖曳非 `.duckdb` 檔案時，鼠標會自動變更為「禁止符號 (`dropEffect = none`)」。
+  - 僅當拖曳有效 `.duckdb` 檔案並懸浮於上傳框上方時，上傳框會呼吸發光，內部 `Upload` 箭頭 icon 觸發往上跳躍（`bounce`）動畫，提供極佳的動態視覺引導。
+  - 點擊上傳多選支援：將後端 Python 的原生檔案選擇器從單選 `askopenfilename` 重構為多選 `askopenfilenames`，並配合前端 `input[multiple]` 屬性與遍歷排隊上傳邏輯，讓點擊打開檔案也能完美支援多選批次上傳。
+
+🟢 2026-07-06 | Brand New Mini-Sector Telemetry Analysis & Real-Time G-Force Radar Launch (v1.5.0)
+
+Introduces the brand new "mini-sector telemetry analysis system" and the high-fidelity "G-Force Radar card" to radically expand the telemetry core capabilities, featuring localized page-zoomed playback constraints, dynamic Y-axis scaling, micro-pagination buttons, and responsive layout reordering.
+
+### Key Changes
+- **Mini-Sector Playback Range & Sync**:
+  - Bound playback range to `[min, max]` of the selected mini-sector, automatically pausing at boundaries and re-mapping timeline progress.
+  - Normalized start times against lap channel zeroes and forced time-alignment for segment playback, allowing cars to leave the line simultaneously.
+- **Theoretical Best Filters & Live Analytics**:
+  - Stiffened filters to exclude out/in-laps, short laps (< 30s), and invalid telemetry noise, while isolating the stint-wide results variable.
+  - Enabled compact dual-column Live Telemetry compare mode against Theoretical Best telemetry values under segment zoom.
+- **Delta Offset Calibration & Dual-Scan**:
+  - Enforced a zero-point offset subtraction to lock starting delta to exactly `0.000s`.
+  - Upgraded single-index offsets to bi-directional scans (forward/backward) to locate the first valid non-NaN value, fixing a bug where boundary NaNs skipped calibration.
+- **G-Force Radar Trails & Layout Reordering**:
+  - Implemented an interactive G-Force card with 8-frame tail fading, and swapped `Lat`/`Long` channels to fix vector directions.
+  - Added smart layout shifts (moving the radar underneath Live Telemetry or rendering it centering at the bottom depending on current views) to eliminate vertical whitespace.
+- **Minimap Performance Coloring & Navigation**:
+  - Ported performance-based coloring (blue for faster, orange/yellow for slower) to the 2D minimap in mini-sector mode.
+  - Anchored floating `ChevronLeft`/`ChevronRight` buttons on map boundaries to paginate through segments, with automatic edge-hiding.
+- **Chart Auto-Scale, Smooth Trace & Double-Click Hook**:
+  - Scanned visible series extrema dynamically during scale shifts to adjust Y-axis mins and maxes, preventing curve clipping.
+  - Explicitly suppressed point markers (`points: { show: false }`) for continuous channels to keep trace lines smooth under deep zoom.
+  - Blocked uPlot's default double-click hook from discarding the current segment view, instead resetting zoom to the full segment window.
+- **Hover Sync & Dependency Alignments**:
+  - Resolved map pointer desync by mapping cursor indexes to segment elapsed offsets.
+  - Added `selectedSegIdx` to the chart's main React hooks array, fixing stale delta arrays during paginated button-swaps.
+- **Dual Switch Layout for Mini-Sectors**:
+  - **Default Preference**: Added `Default Segment Mode` setting in `SettingsOverlay.tsx`, persisted via `localStorage` to choose whether stints initialize with Sectors or Mini-Sectors.
+  - **Navbar Quick Toggle**: Added an high-tech sliding toggle pill in the top header navbar next to the 2D/3D toggle, allowing zero-latency display mode switching while cleaning up the redundant map button.
+- **Custom Segment Badge Offsets**:
+  - Supported configuring `badgeSide: "left" | "right"` inside `track_segments.json` items (flipping position to the opposite side of the track direction).
+  - Set Bahrain's **Seg 4** (Turn 4) to `"right"` to clear direct overlay issues on straight paths.
+- **Back to Full Track Reset Button**:
+  - Rendered a glowing glass-blur reset button beneath the track map title during zoomed segment analysis to offer quick, friction-free resets back to the full circuit.
+- **Drag and Drop Stability & Interactive UX**:
+  - Solved initial-mount Ref null binding issues by routing listeners to a window-level listener combined with local bounding rect coordinate checks, securing 100% drag-and-drop coverage in browser contexts.
+  - Enforced `dropEffect = 'none'` (system block cursor) when files are hovered outside the upload container or when non-`.duckdb` files are dragged.
+  - Enabled `dropEffect = 'copy'` and triggered glowing container styling + bouncing arrow icons when valid files hover over the dropzone.
+  - Multi-Select Click Upload: Upgraded backend Python's native dialog from `askopenfilename` to `askopenfilenames` and combined with frontend `multiple` file input attributes and sequential upload loops to fully enable click-to-upload multi-file import.
+
+---
+
 ## 2026-06-06 | LMU v1.3.3 遊戲更新車輛對齊與安裝精靈 UI/UX 優化 (v1.4.3)
 
 本次更新因應 Le Mans Ultimate 遊戲 v1.3.3 的版本更新，將 2026 新車款與隊伍陣容完整整合至前端與後端，並修正了資料庫的映射錯誤；同時優化了 Electron 桌面端安裝程式的配置，讓使用者在下載安裝或升級時能清晰看見進度百分比以及具體安裝、覆蓋或刪除了哪些檔案。
