@@ -845,6 +845,7 @@ export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleEx
     const setMaximizedSidebarMode = useTelemetryStore(state => state.setMaximizedSidebarMode);
     const singleLapXAxisMode = useTelemetryStore(state => state.singleLapXAxisMode);
     const setSingleLapXAxisMode = useTelemetryStore(state => state.setSingleLapXAxisMode);
+    const showLeftHUDs = useTelemetryStore(state => state.showLeftHUDs);
 
     const [isSpeedOpen, setIsSpeedOpen] = useState(false);
     const [showHudMenu, setShowHudMenu] = useState(false);
@@ -1504,7 +1505,15 @@ export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleEx
                     </div>
                 )}
 
-                <Canvas camera={{ position: [0, -4000, 2500], up: [0, 0, 1], fov: 40, near: 1, far: 200000 }}>
+                <div
+                    className="flex-1 relative w-full h-full"
+                    onDoubleClick={() => {
+                        if (isMapMaximized) {
+                            useTelemetryStore.getState().setShowLeftHUDs(!showLeftHUDs);
+                        }
+                    }}
+                >
+                    <Canvas camera={{ position: [0, -4000, 2500], up: [0, 0, 1], fov: 40, near: 1, far: 200000 }}>
                     <color attach="background" args={['#181a1d']} />
                     <ambientLight intensity={1.2} />
                     <pointLight position={[0, 0, 10000]} intensity={0.5} />
@@ -1596,6 +1605,7 @@ export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleEx
                         enableRotate={true}
                     />
                 </Canvas>
+                </div>
 
                 {/* 1. Telemetry Overlap HUD */}
                 {!isAnimating && (
@@ -1626,7 +1636,11 @@ export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleEx
                 {/* 2. Smart Sidebar */}
                 {isMapMaximized && !isAnimating && (
                     <div 
-                        className={`absolute top-12 left-4 z-[200] w-[320px] flex flex-col gap-0 isolate ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}`}
+                        className={`absolute top-12 left-4 z-[200] w-[320px] flex flex-col gap-0 isolate transition-all duration-300 ${
+                            showLeftHUDs 
+                                ? `opacity-100 translate-x-0 ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}` 
+                                : 'opacity-0 -translate-x-4 pointer-events-none'
+                        }`}
                         onMouseMove={(e) => e.stopPropagation()}
                         onMouseEnter={(e) => e.stopPropagation()}
                     >
@@ -1781,7 +1795,7 @@ export const TrackMap3D = ({ onToggleExpand, isAnimating = false }: { onToggleEx
                             }}
                             exit={{ opacity: 0, x: 40 }}
                             transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-                            className="absolute bottom-4 right-[-12px] z-[2000] pointer-events-none flex flex-col justify-end"
+                            className="absolute bottom-4 right-[-12px] z-[2000] pointer-events-auto flex flex-col justify-end"
                         >
                             <DataChartsOverlay />
                         </motion.div>

@@ -10,6 +10,7 @@ import { CarInfoOverlay } from './CarInfoOverlay';
 import { LapsSelectorOverlay } from './LapsSelectorOverlay';
 import { DataChartsOverlay } from './DataChartsOverlay';
 import { MaximizedDimensionToggle } from './MaximizedDimensionToggle';
+import { MaximizedSectorToggle } from './MaximizedSectorToggle';
 import { FileManager } from './FileManager';
 import trackCorners from '../assets/track_corners.json';
 import trackSegments from '../assets/track_segments.json';
@@ -31,7 +32,7 @@ const findIndexInChannelRange = (
 
     let low = startIdx;
     let high = endIdx;
-    
+
     while (low <= high) {
         const mid = (low + high) >> 1;
         const val = channel[mid];
@@ -42,12 +43,12 @@ const findIndexInChannelRange = (
             high = mid - 1;
         }
     }
-    
+
     const p1 = high;
     const p2 = low;
     const v1 = channel[p1];
     const v2 = channel[p2];
-    
+
     if (v2 === v1 || v1 === undefined || v2 === undefined) return p1;
     return p1 + (targetValue - v1) / (v2 - v1);
 };
@@ -142,7 +143,7 @@ const TopCenterTelemetryHUD = React.memo(() => {
         const currentLapIdx = (lapsChan && lapsChan[idx] !== undefined)
             ? lapsChan[idx]
             : (selectedLapIdx !== null ? selectedLapIdx : (laps.find(l => l.isValid)?.lap ?? laps[0].lap));
-        
+
         if (currentLapIdx !== undefined && lapsChan) {
             let sIdx = -1;
             let eIdx = -1;
@@ -156,7 +157,7 @@ const TopCenterTelemetryHUD = React.memo(() => {
                 const actualLen = dists[eIdx] - dists[sIdx];
                 const refLen = sessionMetadata?.officialTrackLength || actualLen;
                 const stretchRatio = actualLen > 0 ? refLen / actualLen : 1;
-                
+
                 if (idx === eIdx) {
                     dist = refLen;
                 } else {
@@ -230,9 +231,30 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
     const staticTrackBaseData = useTelemetryStore(state => state.staticTrackBaseData);
     const selectedSegIdx = useTelemetryStore(state => state.selectedSegIdx);
     const setSelectedSegIdx = useTelemetryStore(state => state.setSelectedSegIdx);
+    const selectedSectorIdx = useTelemetryStore(state => state.selectedSectorIdx);
+    const setSelectedSectorIdx = useTelemetryStore(state => state.setSelectedSectorIdx);
     const miniSectorState = useTelemetryStore(state => state.miniSectorState);
     const setZoomRange = useTelemetryStore(state => state.setZoomRange);
     const setReferenceLap = useTelemetryStore(state => state.setReferenceLap);
+    const showLeftHUDs = useTelemetryStore(state => state.showLeftHUDs);
+    const show3DLab = useTelemetryStore(state => state.show3DLab);
+
+    const sessionBests = React.useMemo(() => {
+        if (!laps || laps.length === 0) return null;
+        let bestS1 = { val: Infinity, lap: 0 };
+        let bestS2 = { val: Infinity, lap: 0 };
+        let bestS3 = { val: Infinity, lap: 0 };
+        laps.forEach(l => {
+            const lapDur = l.duration !== undefined ? l.duration : (l.endTime - (l.startTime || 0));
+            if (l.isValid && !l.isOutLap && !l.inPit && lapDur > 30) {
+                if (l.s1 > 1.0 && l.s1 < bestS1.val) { bestS1 = { val: l.s1, lap: l.lap }; }
+                if (l.s2 > 1.0 && l.s2 < bestS2.val) { bestS2 = { val: l.s2, lap: l.lap }; }
+                if (l.s3 > 1.0 && l.s3 < bestS3.val) { bestS3 = { val: l.s3, lap: l.lap }; }
+            }
+        });
+        if (bestS1.val === Infinity) return null;
+        return { bestS1, bestS2, bestS3, theoreticalBest: bestS1.val + bestS2.val + bestS3.val };
+    }, [laps]);
 
     // Render-less state updates for high-frequency cursor rendering
     const cursorIndexRef = useRef<number | null>(useTelemetryStore.getState().cursorIndex);
@@ -247,6 +269,10 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
 
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [view, setView] = useState({ x: 0, y: 0, k: 1, rotation: 0 });
+    const viewRef = useRef(view);
+    useEffect(() => {
+        viewRef.current = view;
+    }, [view]);
     const [isDragging, setIsDragging] = useState(false);
     const [isRotating, setIsRotating] = useState(false);
     const [isSpeedOpen, setIsSpeedOpen] = useState(false);
@@ -256,6 +282,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
     const startViewRotation = useRef(0);
     const startViewPos = useRef({ x: 0, y: 0 });
     const badgeClickRegionsRef = useRef<{ index: number; x: number; y: number; r: number }[]>([]);
+    const sectorBadgeClickRegionsRef = useRef<{ index: number; x: number; y: number; r: number }[]>([]);
     const clickStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
     const [flagImage, setFlagImage] = useState<HTMLImageElement | null>(null);
     const [isBarHovered, setIsBarHovered] = useState(false);
@@ -559,104 +586,236 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
     }, [telemetryData, referenceTelemetryData, referenceLap, referenceLapIdx, laps, sessionBase, baseTrack, processGeometry]);
 
     // 1e2. Auto Compare Line Geometry for Implicit Mini-sector Comparison when Ref is None
+    // 1e2. Auto Compare Line Geometry for Implicit Mini-sector/Sector Comparison when Ref is None
     const autoCompareLineData = useMemo(() => {
-        if (!sessionBase || !baseTrack || !telemetryData || !miniSectorState?.sessionMiniSectorBests || selectedSegIdx === null || (referenceTelemetryData && referenceLap) || referenceLapIdx !== null) {
+        if (!sessionBase || !baseTrack || !telemetryData || (referenceTelemetryData && referenceLap) || referenceLapIdx !== null) {
             return null;
         }
 
-        const best = miniSectorState.sessionMiniSectorBests.bests[selectedSegIdx];
-        if (!best) return null;
+        const timeChan = telemetryData['Time'] || telemetryData['GPS Time'];
+        if (!timeChan) return null;
 
-        const bestLapNum = best.lap;
-        const bestLapTimes = miniSectorState.allLapsMiniSectorTimes?.[bestLapNum];
-        const bestLapSegTime = bestLapTimes?.[selectedSegIdx];
-        if (!bestLapSegTime) return null;
+        if (selectedSegIdx !== null && miniSectorState?.sessionMiniSectorBests) {
+            const best = miniSectorState.sessionMiniSectorBests.bests[selectedSegIdx];
+            if (!best) return null;
 
-        const startIdx = Math.max(0, bestLapSegTime.startIdx);
-        const time = telemetryData['Time'] || telemetryData['GPS Time'];
-        const endIdx = Math.min((time?.length || 1) - 1, bestLapSegTime.endIdx);
+            const bestLapNum = best.lap;
+            const bestLapTimes = miniSectorState.allLapsMiniSectorTimes?.[bestLapNum];
+            const bestLapSegTime = bestLapTimes?.[selectedSegIdx];
+            if (!bestLapSegTime) return null;
 
-        if (startIdx >= endIdx || endIdx < 0) return null;
+            const startIdx = Math.max(0, bestLapSegTime.startIdx);
+            const endIdx = Math.min(timeChan.length - 1, bestLapSegTime.endIdx);
 
-        return processGeometry(
-            startIdx,
-            endIdx,
-            false,
-            telemetryData['GPS Latitude'],
-            telemetryData['GPS Longitude'],
-            telemetryData['In Pits']
-        );
-    }, [telemetryData, miniSectorState, selectedSegIdx, referenceTelemetryData, referenceLap, referenceLapIdx, sessionBase, baseTrack, processGeometry]);
+            if (startIdx >= endIdx || endIdx < 0) return null;
+
+            return processGeometry(
+                startIdx,
+                endIdx,
+                false,
+                telemetryData['GPS Latitude'],
+                telemetryData['GPS Longitude'],
+                telemetryData['In Pits']
+            );
+        } else if (selectedSectorIdx !== null && sessionBests && laps) {
+            const bestLapNum = selectedSectorIdx === 0
+                ? sessionBests.bestS1?.lap
+                : selectedSectorIdx === 1
+                ? sessionBests.bestS2?.lap
+                : selectedSectorIdx === 2
+                ? sessionBests.bestS3?.lap
+                : undefined;
+
+            if (bestLapNum === undefined) return null;
+
+            const bestLap = laps.find(l => l.lap === bestLapNum);
+            if (!bestLap || bestLap.s1 === undefined || bestLap.s2 === undefined || bestLap.s3 === undefined) return null;
+
+            let startElapsed = 0;
+            let endElapsed = 0;
+            if (selectedSectorIdx === 0) {
+                startElapsed = 0;
+                endElapsed = bestLap.s1;
+            } else if (selectedSectorIdx === 1) {
+                startElapsed = bestLap.s1;
+                endElapsed = bestLap.s1 + bestLap.s2;
+            } else if (selectedSectorIdx === 2) {
+                startElapsed = bestLap.s1 + bestLap.s2;
+                endElapsed = bestLap.duration;
+            }
+
+            const absStart = bestLap.startTime + startElapsed;
+            const absEnd = bestLap.startTime + endElapsed;
+
+            let refLineS = -1;
+            for (let i = 0; i < timeChan.length; i++) {
+                if (telemetryData['Lap']?.[i] === bestLapNum) {
+                    refLineS = i;
+                    break;
+                }
+            }
+            if (refLineS === -1) return null;
+
+            const startIdx = findIndexInChannelRange(timeChan, refLineS, timeChan.length - 1, absStart);
+            const endIdx = findIndexInChannelRange(timeChan, refLineS, timeChan.length - 1, absEnd);
+
+            if (startIdx >= endIdx || endIdx < 0) return null;
+
+            return processGeometry(
+                startIdx,
+                endIdx,
+                false,
+                telemetryData['GPS Latitude'],
+                telemetryData['GPS Longitude'],
+                telemetryData['In Pits']
+            );
+        }
+
+        return null;
+    }, [telemetryData, miniSectorState, selectedSegIdx, selectedSectorIdx, sessionBests, laps, selectedLapIdx, referenceTelemetryData, referenceLap, referenceLapIdx, sessionBase, baseTrack, processGeometry]);
 
     // 1e3. Synchronized index for autoCompare ghost car (Implicit comparison when reference is None)
     const getAutoCompareSyncIdx = useCallback(() => {
-        if (!telemetryData || selectedSegIdx === null || !miniSectorState?.sessionMiniSectorBests) return null;
-        const best = miniSectorState.sessionMiniSectorBests.bests[selectedSegIdx];
-        if (!best) return null;
-
-        const bestLapNum = best.lap;
-        const bestLapTimes = miniSectorState.allLapsMiniSectorTimes?.[bestLapNum];
-        const bestLapSegTime = bestLapTimes?.[selectedSegIdx];
-        if (!bestLapSegTime) return null;
-
-        const currentLapIdx = selectedLapIdx !== null ? selectedLapIdx : (laps.find(l => l.isValid)?.lap ?? laps[0].lap);
-        const currentLap = laps.find(l => l.lap === currentLapIdx);
-        const bestLap = laps.find(l => l.lap === bestLapNum);
-        if (!currentLap || !bestLap) return null;
-
+        if (!telemetryData || !laps) return null;
         const times = telemetryData['Time'] || telemetryData['GPS Time'];
         const lapChan = telemetryData['Lap'];
         const activeCursorIdx = isPlayingRef.current ? (smoothCursorIndexRef.current ?? cursorIndexRef.current) : cursorIndexRef.current;
         if (activeCursorIdx === null || !times || !lapChan) return null;
 
-        // Helper for fractional array interpolation
-        const getInterpolatedVal = (arr: number[] | Float64Array) => {
-            const base = Math.floor(activeCursorIdx);
-            const frac = activeCursorIdx - base;
-            const v1 = arr[base];
-            if (v1 === undefined) return 0;
-            const v2 = arr[base + 1] ?? v1;
-            return v1 + (v2 - v1) * frac;
-        };
+        const currentLapIdx = selectedLapIdx !== null ? selectedLapIdx : (laps.find(l => l.isValid)?.lap ?? laps[0].lap);
+        const currentLap = laps.find(l => l.lap === currentLapIdx);
+        if (!currentLap) return null;
 
-        // Find curLineS and refLineS from Lap channel to align times precisely
-        let curLineS = -1;
-        for (let i = 0; i < lapChan.length; i++) {
-            if (lapChan[i] === currentLapIdx) { curLineS = i; break; }
-        }
-        if (curLineS === -1) return null;
+        if (selectedSegIdx !== null && miniSectorState?.sessionMiniSectorBests) {
+            const best = miniSectorState.sessionMiniSectorBests.bests[selectedSegIdx];
+            if (!best) return null;
 
-        let refLineS = -1;
-        let refLineE = -1;
-        for (let i = 0; i < lapChan.length; i++) {
-            if (lapChan[i] === bestLapNum) {
-                if (refLineS === -1) refLineS = i;
-                refLineE = i;
-            } else if (refLineS !== -1 && lapChan[i] > bestLapNum) {
-                break;
+            const bestLapNum = best.lap;
+            const bestLapTimes = miniSectorState.allLapsMiniSectorTimes?.[bestLapNum];
+            const bestLapSegTime = bestLapTimes?.[selectedSegIdx];
+            if (!bestLapSegTime) return null;
+
+            const bestLap = laps.find(l => l.lap === bestLapNum);
+            if (!bestLap) return null;
+
+            // Helper for fractional array interpolation
+            const getInterpolatedVal = (arr: number[] | Float64Array) => {
+                const base = Math.floor(activeCursorIdx);
+                const frac = activeCursorIdx - base;
+                const v1 = arr[base];
+                if (v1 === undefined) return 0;
+                const v2 = arr[base + 1] ?? v1;
+                return v1 + (v2 - v1) * frac;
+            };
+
+            let curLineS = -1;
+            for (let i = 0; i < lapChan.length; i++) {
+                if (lapChan[i] === currentLapIdx) { curLineS = i; break; }
             }
-        }
-        if (refLineS === -1) return null;
-        if (refLineE === -1) refLineE = times.length - 1;
+            if (curLineS === -1) return null;
 
-        const currentLapTimes = miniSectorState.currentLapMiniSectorTimes;
-        const currentLapSegTime = currentLapTimes?.[selectedSegIdx];
+            let refLineS = -1;
+            let refLineE = -1;
+            for (let i = 0; i < lapChan.length; i++) {
+                if (lapChan[i] === bestLapNum) {
+                    if (refLineS === -1) refLineS = i;
+                    refLineE = i;
+                } else if (refLineS !== -1 && lapChan[i] > bestLapNum) {
+                    break;
+                }
+            }
+            if (refLineS === -1) return null;
+            if (refLineE === -1) refLineE = times.length - 1;
 
-        const curTime = getInterpolatedVal(times);
+            const currentLapTimes = miniSectorState.currentLapMiniSectorTimes;
+            const currentLapSegTime = currentLapTimes?.[selectedSegIdx];
 
-        if (currentLapSegTime && bestLapSegTime) {
-            const curSegStartTime = times[currentLapSegTime.startIdx] || 0;
+            const curTime = getInterpolatedVal(times);
+
+            if (currentLapSegTime && bestLapSegTime) {
+                const curSegStartTime = times[currentLapSegTime.startIdx] || 0;
+                const curSegPassedTime = curTime - curSegStartTime;
+
+                const refSegStartTime = times[bestLapSegTime.startIdx] || 0;
+                const targetRefTime = refSegStartTime + curSegPassedTime;
+                return findIndexInChannelRange(times, bestLapSegTime.startIdx, bestLapSegTime.endIdx, targetRefTime);
+            } else {
+                const curTimeOffset = curTime - times[curLineS];
+                const targetRefTime = times[refLineS] + curTimeOffset;
+                return findIndexInChannelRange(times, refLineS, refLineE, targetRefTime);
+            }
+        } else if (selectedSectorIdx !== null && sessionBests) {
+            const bestLapNum = selectedSectorIdx === 0
+                ? sessionBests.bestS1?.lap
+                : selectedSectorIdx === 1
+                ? sessionBests.bestS2?.lap
+                : selectedSectorIdx === 2
+                ? sessionBests.bestS3?.lap
+                : undefined;
+
+            if (bestLapNum === undefined) return null;
+            const bestLap = laps.find(l => l.lap === bestLapNum);
+            if (!bestLap || bestLap.s1 === undefined || bestLap.s2 === undefined || bestLap.s3 === undefined) return null;
+            if (currentLap.s1 === undefined || currentLap.s2 === undefined || currentLap.s3 === undefined) return null;
+
+            // Helper for fractional array interpolation
+            const getInterpolatedVal = (arr: number[] | Float64Array) => {
+                const base = Math.floor(activeCursorIdx);
+                const frac = activeCursorIdx - base;
+                const v1 = arr[base];
+                if (v1 === undefined) return 0;
+                const v2 = arr[base + 1] ?? v1;
+                return v1 + (v2 - v1) * frac;
+            };
+
+            let curLineS = -1;
+            for (let i = 0; i < lapChan.length; i++) {
+                if (lapChan[i] === currentLapIdx) { curLineS = i; break; }
+            }
+            if (curLineS === -1) return null;
+
+            let refLineS = -1;
+            for (let i = 0; i < lapChan.length; i++) {
+                if (lapChan[i] === bestLapNum) { refLineS = i; break; }
+            }
+            if (refLineS === -1) return null;
+
+            let curSegStartIdx = 0;
+            let curSegEndIdx = 0;
+            let refSegStartIdx = 0;
+            let refSegEndIdx = 0;
+
+            if (selectedSectorIdx === 0) {
+                curSegStartIdx = curLineS;
+                curSegEndIdx = findIndexInChannelRange(times, curLineS, times.length - 1, currentLap.startTime + currentLap.s1);
+                
+                refSegStartIdx = refLineS;
+                refSegEndIdx = findIndexInChannelRange(times, refLineS, times.length - 1, bestLap.startTime + bestLap.s1);
+            } else if (selectedSectorIdx === 1) {
+                curSegStartIdx = findIndexInChannelRange(times, curLineS, times.length - 1, currentLap.startTime + currentLap.s1);
+                curSegEndIdx = findIndexInChannelRange(times, curLineS, times.length - 1, currentLap.startTime + currentLap.s1 + currentLap.s2);
+                
+                refSegStartIdx = findIndexInChannelRange(times, refLineS, times.length - 1, bestLap.startTime + bestLap.s1);
+                refSegEndIdx = findIndexInChannelRange(times, refLineS, times.length - 1, bestLap.startTime + bestLap.s1 + bestLap.s2);
+            } else if (selectedSectorIdx === 2) {
+                curSegStartIdx = findIndexInChannelRange(times, curLineS, times.length - 1, currentLap.startTime + currentLap.s1 + currentLap.s2);
+                curSegEndIdx = findIndexInChannelRange(times, curLineS, times.length - 1, currentLap.startTime + currentLap.duration);
+                
+                refSegStartIdx = findIndexInChannelRange(times, refLineS, times.length - 1, bestLap.startTime + bestLap.s1 + bestLap.s2);
+                refSegEndIdx = findIndexInChannelRange(times, refLineS, times.length - 1, bestLap.startTime + bestLap.duration);
+            }
+
+            const curTime = getInterpolatedVal(times);
+            const curSegStartTime = times[curSegStartIdx] || 0;
             const curSegPassedTime = curTime - curSegStartTime;
 
-            const refSegStartTime = times[bestLapSegTime.startIdx] || 0;
+            const refSegStartTime = times[refSegStartIdx] || 0;
             const targetRefTime = refSegStartTime + curSegPassedTime;
-            return findIndexInChannelRange(times, bestLapSegTime.startIdx, bestLapSegTime.endIdx, targetRefTime);
-        } else {
-            const curTimeOffset = curTime - times[curLineS];
-            const targetRefTime = times[refLineS] + curTimeOffset;
-            return findIndexInChannelRange(times, refLineS, refLineE, targetRefTime);
+            return findIndexInChannelRange(times, refSegStartIdx, refSegEndIdx, targetRefTime);
         }
-    }, [telemetryData, selectedSegIdx, miniSectorState, selectedLapIdx, laps]);
+
+        return null;
+    }, [telemetryData, selectedSegIdx, selectedSectorIdx, sessionBests, miniSectorState, selectedLapIdx, laps]);
 
     // 1f. Consolidated Track Data
     const trackData = useMemo(() => {
@@ -705,7 +864,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
             console.log("[TrackMap] No trackName or trackCorners available");
             return [];
         }
-        
+
         // Helper to normalize and strip accents & punctuation from track names for comparison
         const cleanTrackName = (name: string) => {
             return name
@@ -744,10 +903,10 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         console.log(`[TrackMap] Matching trackName: "${trackName}" -> Key: "${trackKey}"`);
 
         if (!trackKey) return [];
-        
+
         const layouts = (trackCorners as any)[trackKey];
         if (!layouts) return [];
-        
+
         // Helper to normalize layout names by stripping track name words and non-alphanumeric characters
         const normalize = (lName: string) => {
             let clean = cleanTrackName(lName);
@@ -790,9 +949,9 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         // Fallback to first layout
         const fallbackUsed = !layoutKey;
         layoutKey = layoutKey || Object.keys(layouts)[0];
-        
+
         console.log(`[TrackMap] Matching layoutName: "${layoutName}" -> Key: "${layoutKey}" (Fallback used: ${fallbackUsed})`);
-        
+
         const resultCorners = layouts[layoutKey] || [];
         console.log(`[TrackMap] Found ${resultCorners.length} corners for ${trackKey} [${layoutKey}]`);
         return resultCorners;
@@ -803,7 +962,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
             console.log("[TrackMap] No trackName or trackSegments available");
             return [];
         }
-        
+
         const cleanTrackName = (name: string) => {
             return name
                 .normalize("NFD")
@@ -839,10 +998,10 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         console.log(`[TrackMap] Matching trackName for segments: "${trackName}" -> Key: "${trackKey}"`);
 
         if (!trackKey) return [];
-        
+
         const layouts = (trackSegments as any)[trackKey];
         if (!layouts) return [];
-        
+
         const normalize = (lName: string) => {
             let clean = cleanTrackName(lName);
             const trackWords = cleanTrackName(trackName).split(/\s+/);
@@ -879,9 +1038,9 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
 
         const fallbackUsed = !layoutKey;
         layoutKey = layoutKey || Object.keys(layouts)[0];
-        
+
         console.log(`[TrackMap] Matching layoutName for segments: "${layoutName}" -> Key: "${layoutKey}" (Fallback used: ${fallbackUsed})`);
-        
+
         const layoutData = layouts[layoutKey];
         const resultSegments = layoutData ? (layoutData.segments || []) : [];
         console.log(`[TrackMap] Found ${resultSegments.length} segments for ${trackKey} [${layoutKey}]`);
@@ -892,32 +1051,41 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
     const sectorsSource = (track3DData || staticTrackBaseData)?.trackSectors;
 
     const sectorColors = useMemo(() => {
-        // Must have both a selected lap and a reference lap (either cross-session or same-session)
-        const hasReference = referenceLap !== null || referenceLapIdx !== null;
-        if (!hasReference || selectedLapIdx === null || !laps) return null;
+        if (selectedLapIdx === null || !laps) return null;
 
         const currentLap = laps.find(l => l.lap === selectedLapIdx);
         if (!currentLap) return null;
 
-        // Determine reference lap object
+        const hasReference = referenceLap !== null || referenceLapIdx !== null;
         const refLapObj = referenceLap || laps.find(l => l.lap === referenceLapIdx);
-        if (!refLapObj) return null;
 
         const colors: Record<number, string> = {};
         [1, 2, 3].forEach(s => {
             const cur = currentLap[`s${s}` as keyof Lap] as number;
-            const ref = refLapObj[`s${s}` as keyof Lap] as number;
-            
-            if (typeof cur === 'number' && typeof ref === 'number' && cur > 0 && ref > 0) {
-                if (cur < ref - 0.001) colors[s - 1] = '#3b82f6'; // Blue
-                else if (cur > ref + 0.001) colors[s - 1] = '#fbbf24'; // Orange
-                else colors[s - 1] = '#ffffff'; // White
+
+            if (hasReference && refLapObj) {
+                const ref = refLapObj[`s${s}` as keyof Lap] as number;
+                if (typeof cur === 'number' && typeof ref === 'number' && cur > 0 && ref > 0) {
+                    if (cur < ref - 0.001) colors[s - 1] = '#3b82f6'; // Blue
+                    else if (cur > ref + 0.001) colors[s - 1] = '#fbbf24'; // Yellow
+                    else colors[s - 1] = '#ffffff'; // White
+                } else {
+                    colors[s - 1] = 'rgba(150, 150, 150, 0.8)';
+                }
+            } else if (!hasReference && sessionBests) {
+                const bestVal = s === 1 ? sessionBests.bestS1?.val : s === 2 ? sessionBests.bestS2?.val : sessionBests.bestS3?.val;
+                if (typeof cur === 'number' && typeof bestVal === 'number' && cur > 0 && bestVal > 0) {
+                    if (cur <= bestVal + 0.001) colors[s - 1] = '#ffffff'; // White
+                    else colors[s - 1] = '#fb923c'; // Orange
+                } else {
+                    colors[s - 1] = 'rgba(150, 150, 150, 0.8)';
+                }
             } else {
                 colors[s - 1] = 'rgba(150, 150, 150, 0.8)';
             }
         });
         return colors;
-    }, [laps, selectedLapIdx, referenceLap, referenceLapIdx]);
+    }, [laps, selectedLapIdx, referenceLap, referenceLapIdx, sessionBests]);
 
     const sectorBreakpoints = useMemo(() => {
         if (!trackData?.racingLine || !sectorsSource || sectorsSource.length === 0) return null;
@@ -1042,7 +1210,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         return Math.max(0.6, Math.min(1.6, ratio));
     }, [trackData, optimalRotation]);
 
-    const fitTrack = useCallback(() => {
+    const fitTrack = useCallback((animated = false) => {
         if (!trackData || dimensions.width === 0) return;
 
         // Reset follow zoom if in follow modes
@@ -1081,19 +1249,59 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         const offsetX = (pLeft - pRight) / 2;
         const offsetY = (pTop - pBottom) / 2;
 
-        setView(v => ({
-            ...v,
-            x: -(((minRX + maxRX) / 2) * finalK) + offsetX,
-            y: -(((minRY + maxRY) / 2) * finalK) + offsetY,
-            k: finalK,
-            rotation: activeRotation
-        }));
-    }, [trackData, dimensions, optimalRotation, forcedRotation, isExpanded, isMiniMap]);
+        const targetX = -(((minRX + maxRX) / 2) * finalK) + offsetX;
+        const targetY = -(((minRY + maxRY) / 2) * finalK) + offsetY;
+        const targetK = finalK;
+
+        if (animated && viewRef.current) {
+            const startX = viewRef.current.x;
+            const startY = viewRef.current.y;
+            const startK = viewRef.current.k;
+            const startRotation = viewRef.current.rotation ?? activeRotation;
+
+            const duration = 400; // ms
+            const startTime = performance.now();
+
+            const step = (currentTime: number) => {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease out cubic
+                const ease = 1 - Math.pow(1 - progress, 3);
+
+                setView({
+                    x: startX + (targetX - startX) * ease,
+                    y: startY + (targetY - startY) * ease,
+                    k: startK + (targetK - startK) * ease,
+                    rotation: startRotation + (activeRotation - startRotation) * ease
+                });
+
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                }
+            };
+            requestAnimationFrame(step);
+        } else {
+            setView({
+                x: targetX,
+                y: targetY,
+                k: targetK,
+                rotation: activeRotation
+            });
+        }
+    }, [trackData, dimensions, optimalRotation, forcedRotation, isExpanded, isMiniMap, cameraMode]);
 
     useEffect(() => {
         if (isAnimating) return; // Skip fitting during animation
         fitTrack();
     }, [fitTrack, selectedLapIdx, dimensions.width, dimensions.height, isExpanded, isMiniMap, forcedRotation, isAnimating]); // Re-fit on resize, mode, or forced rotation change
+
+    // Reset view to full track when no segment/sector is selected (e.g. on mode switches)
+    useEffect(() => {
+        if (selectedSegIdx === null && selectedSectorIdx === null) {
+            fitTrack(true);
+        }
+    }, [selectedSegIdx, selectedSectorIdx, fitTrack]);
 
     // 3. Main Track Rendering (Render-heavy, cached to canvas)
     const drawTrack = useCallback(() => {
@@ -1261,6 +1469,38 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         ctx.rotate(activeRotation * Math.PI / 180);
         ctx.scale(k, -k);
 
+        // Helper to determine sector index for a given point index `i` (downsampled)
+        const getSectorIdxForPoint = (i: number, totalLen: number) => {
+            if (!sectorBreakpoints || sectorBreakpoints.length < 2) {
+                if (i < totalLen / 3) return 0;
+                if (i < totalLen * 2 / 3) return 1;
+                return 2;
+            }
+            const sortedBreakpoints = [...sectorBreakpoints].sort((a, b) => a.id - b.id);
+            const bpFinish = sortedBreakpoints.find(b => b.id === 0);
+            const bpS1 = sortedBreakpoints.find(b => b.id === 1);
+            const bpS2 = sortedBreakpoints.find(b => b.id === 2);
+
+            const s1Start = bpFinish ? bpFinish.index : 0;
+            const s1End = bpS1 ? bpS1.index : Math.floor(totalLen / 3);
+            const s2Start = s1End;
+            const s2End = bpS2 ? bpS2.index : Math.floor(totalLen * 2 / 3);
+
+            // Sector 1 check
+            const inS1 = s1Start <= s1End
+                ? (i >= s1Start && i <= s1End)
+                : (i >= s1Start || i <= s1End);
+            if (inS1) return 0;
+
+            // Sector 2 check
+            const inS2 = s2Start <= s2End
+                ? (i >= s2Start && i <= s2End)
+                : (i >= s2Start || i <= s2End);
+            if (inS2) return 1;
+
+            return 2; // Sector 3
+        };
+
         // --- 1. Draw Reference Track Surface (Filled Area) ---
         if (referenceTrack.leftEdges.length > 1) {
             ctx.fillStyle = '#0a0a0c'; // Much darker track surface
@@ -1281,6 +1521,11 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                         if (idx < baseTrackSegTime.startIdx || idx > baseTrackSegTime.endIdx) {
                             isFaded = true;
                         }
+                    }
+                } else if (selectedSectorIdx !== null && sectorBreakpoints && sectorBreakpoints.length >= 2) {
+                    const ptSectorIdx = getSectorIdxForPoint(i, referenceTrack.leftEdges.length);
+                    if (ptSectorIdx !== selectedSectorIdx) {
+                        isFaded = true;
                     }
                 }
 
@@ -1339,6 +1584,11 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                         isFaded = true;
                     }
                 }
+            } else if (selectedSectorIdx !== null && sectorBreakpoints && sectorBreakpoints.length >= 2) {
+                const ptSectorIdx = getSectorIdxForPoint(i, racingLine.points.length);
+                if (ptSectorIdx !== selectedSectorIdx) {
+                    isFaded = true;
+                }
             }
 
             // Safety: Skip extreme teleportation jumps (> 200m)
@@ -1358,7 +1608,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                     const curTimes = miniSectorState?.currentLapMiniSectorTimes;
                     const refTimes = miniSectorState?.refLapMiniSectorTimes;
                     const hasReference = referenceLapIdx !== null || referenceLap !== null;
-                    
+
                     if (curTimes && curTimes.length > 0) {
                         let miniSectorId = -1;
                         for (let s = 0; s < curTimes.length; s++) {
@@ -1368,7 +1618,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                                 break;
                             }
                         }
-                        
+
                         if (miniSectorId !== -1) {
                             if (hasReference && refTimes && refTimes[miniSectorId]) {
                                 const curDur = curTimes[miniSectorId].duration;
@@ -1392,18 +1642,9 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                         }
                     }
                 } else {
-                    if (sectorColors && sectorBreakpoints) {
-                        let sectorId = 0;
-                        for (let b = 0; b < sectorBreakpoints.length; b++) {
-                            if (i <= sectorBreakpoints[b].index) {
-                                sectorId = sectorBreakpoints[b].id;
-                                break;
-                            }
-                            if (b === sectorBreakpoints.length - 1) {
-                                sectorId = sectorBreakpoints[b].id;
-                            }
-                        }
-                        color = sectorColors[sectorId] || color;
+                    if (sectorColors && sectorBreakpoints && sectorBreakpoints.length >= 2) {
+                        const sectorIdx = getSectorIdxForPoint(i, racingLine.points.length);
+                        color = sectorColors[sectorIdx] || color;
                     }
                 }
                 ctx.strokeStyle = color;
@@ -1446,7 +1687,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
             for (let i = 0; i < trackData.referenceRacingLine.points.length; i++) {
                 const p = trackData.referenceRacingLine.points[i];
                 const idx = trackData.referenceRacingLine.originalIndices[i];
-                
+
                 let draw = true;
                 let isFaded = false;
 
@@ -1471,6 +1712,11 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                                 }
                             }
                         }
+                    }
+                } else if (selectedSectorIdx !== null && sectorBreakpoints && sectorBreakpoints.length >= 2) {
+                    const ptSectorIdx = getSectorIdxForPoint(i, trackData.referenceRacingLine.points.length);
+                    if (ptSectorIdx !== selectedSectorIdx) {
+                        isFaded = true;
                     }
                 }
 
@@ -1586,18 +1832,18 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                 }
             };
 
-            const drawSegmentBadge = (leftPt: { x: number; y: number }, nx: number, ny: number, label: string, isLast?: boolean, color?: string, diffText?: string, isSelected?: boolean) => {
+            const drawSegmentBadge = (leftPt: { x: number; y: number }, nx: number, ny: number, label: string, isLast?: boolean, color?: string, diffText?: string, isSelected?: boolean, isSector: boolean = false) => {
                 if (isMiniMap) return;
 
                 const labelColor = color || '#ffffff';
                 const labelBg = 'rgba(26, 26, 30, 0.95)';
-                
+
                 const baseRadius = isMapMaximized ? 15 : 11;
                 const radius = isSelected ? baseRadius * 1.5 : baseRadius;
-                
+
                 const baseFontSize = isMapMaximized ? 14 : 11;
                 const fontSize = isSelected ? baseFontSize * 1.5 : baseFontSize;
-                
+
                 const offsetInDeg = ((isMapMaximized ? 24 : 18) * (isSelected ? 1.5 : 1)) / effK;
 
                 const bx = leftPt.x + nx * offsetInDeg;
@@ -1607,10 +1853,10 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                 ctx.translate(bx, by);
 
                 const matrix = ctx.getTransform();
-                
-                // Record the click region
-                badgeClickRegionsRef.current.push({
-                    index: parseInt(label, 10) - 1,
+
+                const targetRef = isSector ? sectorBadgeClickRegionsRef : badgeClickRegionsRef;
+                targetRef.current.push({
+                    index: parseInt(label.replace('S', ''), 10) - 1,
                     x: matrix.e,
                     y: matrix.f,
                     r: radius
@@ -1642,7 +1888,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                     ctx.font = `bold ${fontSize - 1}px Inter, "Segoe UI", sans-serif`;
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'middle';
-                    
+
                     const textWidth = ctx.measureText(diffText).width;
                     const capHeight = radiusVal * 1.5;
                     const capPadding = isSelected ? 16 : 12;
@@ -1655,13 +1901,13 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                     const normalX = screenNx / len;
 
                     const placeOnRight = normalX >= 0;
-                    
-                    const capX = placeOnRight 
+
+                    const capX = placeOnRight
                         ? radiusVal + (isSelected ? 8 : 6)
                         : -(radiusVal + (isSelected ? 8 : 6) + capWidth);
-                        
+
                     const capY = -capHeight / 2;
-                    
+
                     ctx.beginPath();
                     const r = 4;
                     ctx.moveTo(capX + r, capY);
@@ -1674,14 +1920,14 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                     ctx.lineTo(capX, capY + r);
                     ctx.quadraticCurveTo(capX, capY, capX + r, capY);
                     ctx.closePath();
-                    
+
                     ctx.fillStyle = 'rgba(26, 26, 30, 0.95)';
                     ctx.fill();
-                    
+
                     ctx.lineWidth = isSelected ? 1.5 : 1;
                     ctx.strokeStyle = labelColor;
                     ctx.stroke();
-                    
+
                     ctx.fillStyle = labelColor;
                     ctx.fillText(diffText, capX + (isSelected ? 8 : 6), 0);
                 }
@@ -1693,16 +1939,16 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
             if (showMiniSectors) {
                 const referenceTrack = trackData.referenceTrack;
                 const dists = telemetryData ? (telemetryData['Lap Dist'] || telemetryData['Distance']) : null;
-                
+
                 if (miniSectors && miniSectors.length > 0 && dists && referenceTrack.points.length > 0) {
                     const len = referenceTrack.points.length;
                     const distStart = dists[referenceTrack.originalIndices[0]] || 0;
                     const distEnd = dists[referenceTrack.originalIndices[len - 1]] || distStart;
                     const actualLen = distEnd - distStart;
-                    
+
                     const refLen = miniSectors[miniSectors.length - 1].end;
                     const stretchRatio = actualLen > 0 ? refLen / actualLen : 1;
-                    
+
                     // 1. Draw segment boundary splitting lines (without text label on line)
                     miniSectors.forEach((seg: any, idx: number) => {
                         if (selectedSegIdx !== null) {
@@ -1711,10 +1957,10 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                         }
 
                         const targetDist = seg.end;
-                        
+
                         let bestI = 0;
                         let minDist = Infinity;
-                        
+
                         for (let i = 0; i < len; i++) {
                             const rawDist = dists[referenceTrack.originalIndices[i]];
                             if (rawDist === undefined) continue;
@@ -1725,10 +1971,10 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                                 bestI = i;
                             }
                         }
-                        
+
                         const leftPt = referenceTrack.leftEdges[bestI];
                         const rightPt = referenceTrack.rightEdges[bestI];
-                        
+
                         const sampleRange = 20;
                         const p1 = referenceTrack.points[Math.max(0, bestI - sampleRange)];
                         const p2 = referenceTrack.points[Math.min(len - 1, bestI + sampleRange)];
@@ -1736,7 +1982,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                         const dx = (p2.x - p1.x) / lineLen;
                         const dy = (p2.y - p1.y) / lineLen;
                         const nx = -dy, ny = dx;
-                        
+
                         const isFinish = idx === miniSectors.length - 1;
                         drawBoundary(leftPt, rightPt, dx, dy, nx, ny, "", isFinish);
                     });
@@ -1825,7 +2071,17 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                     });
                 }
             } else if (sectorsSource) {
+                const currentLap = laps.find(l => l.lap === selectedLapIdx);
+                const hasSectors = currentLap?.s1 !== undefined && currentLap?.s2 !== undefined && currentLap?.s3 !== undefined;
+                
+                sectorBadgeClickRegionsRef.current = [];
+
                 sectorsSource.forEach(sector => {
+                    if (selectedSectorIdx !== null) {
+                        if (selectedSectorIdx === 0 && sector.id !== 0 && sector.id !== 1) return;
+                        if (selectedSectorIdx === 1 && sector.id !== 1 && sector.id !== 2) return;
+                        if (selectedSectorIdx === 2 && sector.id !== 2 && sector.id !== 0) return;
+                    }
                     const proj = project(sector.lat, sector.lon);
                     const px = proj.x, py = proj.y;
 
@@ -1863,6 +2119,80 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
 
                     drawBoundary(leftPt, rightPt, dx, dy, nx, ny, `S${sector.id + 1}`);
                 });
+
+                if (hasSectors && sectorBreakpoints && sectorBreakpoints.length >= 2) {
+                    const sortedBreakpoints = [...sectorBreakpoints].sort((a,b) => a.id - b.id);
+                    const bpFinish = sortedBreakpoints.find(b => b.id === 0);
+                    const bpS1 = sortedBreakpoints.find(b => b.id === 1);
+                    const bpS2 = sortedBreakpoints.find(b => b.id === 2);
+
+                    const len = trackData.referenceTrack.points.length;
+                    
+                    const drawSectorBadgeHelper = (startI: number, endI: number, sectorIdx: number, label: string) => {
+                        let midI = Math.floor((startI + endI) / 2);
+                        if (startI > endI) { // wraps around finish line
+                            midI = Math.floor((startI + endI + len) / 2) % len;
+                        }
+                        if (midI >= len) midI = len - 1;
+                        if (midI < 0) midI = 0;
+
+                        const edgePt = trackData.referenceTrack.rightEdges[midI];
+                        const p1 = trackData.referenceTrack.points[Math.max(0, midI - 10)];
+                        const p2 = trackData.referenceTrack.points[Math.min(len - 1, midI + 10)];
+                        const lineLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2) || 1;
+                        const dx = (p2.x - p1.x) / lineLen;
+                        const dy = (p2.y - p1.y) / lineLen;
+                        const nx = -dy, ny = dx;
+
+                        let badgeColor = '#ffffff';
+                        const isSelected = selectedSectorIdx === sectorIdx;
+                        let diffText: string | undefined = undefined;
+
+                        const hasReference = referenceLapIdx !== null || referenceLap !== null;
+                        const val = sectorIdx === 0 ? currentLap.s1 : sectorIdx === 1 ? currentLap.s2 : currentLap.s3;
+
+                        if (hasReference) {
+                            const refLapData = referenceLap || laps.find(l => l.lap === referenceLapIdx);
+                            const refVal = sectorIdx === 0 ? refLapData?.s1 : sectorIdx === 1 ? refLapData?.s2 : refLapData?.s3;
+                            if (val && refVal) {
+                                if (val <= refVal) badgeColor = '#3b82f6'; // Blue
+                                else badgeColor = '#fb923c'; // Orange
+                                
+                                if (isSelected) {
+                                    const diff = val - refVal;
+                                    diffText = diff >= 0 ? `+${diff.toFixed(3)}` : diff.toFixed(3);
+                                }
+                            }
+                        } else {
+                            const bestVal = sectorIdx === 0 ? sessionBests?.bestS1?.val : sectorIdx === 1 ? sessionBests?.bestS2?.val : sectorIdx === 2 ? sessionBests?.bestS3?.val : undefined;
+                            if (val && bestVal) {
+                                if (val <= bestVal) badgeColor = '#ffffff'; // White
+                                else badgeColor = '#fb923c'; // Orange
+
+                                if (isSelected) {
+                                    const diff = Math.max(0, val - bestVal);
+                                    diffText = `+${diff.toFixed(3)}`;
+                                }
+                            }
+                        }
+
+                        drawSegmentBadge(edgePt, nx, ny, label, false, badgeColor, diffText, isSelected, true);
+                    };
+
+                    const bpStartIdx = bpFinish ? bpFinish.index : 0;
+                    const bpS1Idx = bpS1 ? bpS1.index : Math.floor(len / 3);
+                    const bpS2Idx = bpS2 ? bpS2.index : Math.floor(len * 2 / 3);
+
+                    if (selectedSectorIdx !== null) {
+                        if (selectedSectorIdx === 0) drawSectorBadgeHelper(bpStartIdx, bpS1Idx, 0, 'S1');
+                        else if (selectedSectorIdx === 1) drawSectorBadgeHelper(bpS1Idx, bpS2Idx, 1, 'S2');
+                        else if (selectedSectorIdx === 2) drawSectorBadgeHelper(bpS2Idx, bpFinish ? bpFinish.index : len - 1, 2, 'S3');
+                    } else {
+                        drawSectorBadgeHelper(bpStartIdx, bpS1Idx, 0, 'S1');
+                        drawSectorBadgeHelper(bpS1Idx, bpS2Idx, 1, 'S2');
+                        drawSectorBadgeHelper(bpS2Idx, bpFinish ? bpFinish.index : len - 1, 2, 'S3');
+                    }
+                }
             }
 
             ctx.restore();
@@ -2050,7 +2380,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         }
 
         ctx.restore();
-    }, [trackData, dimensions, view, telemetryData, referenceLapIdx, referenceLap, referenceTelemetryData, dashboardSyncMode, mapMarkerType, isMiniMap, cameraMode, followZoom, forcedRotation, isExpanded, selectedSegIdx, miniSectorState, getAutoCompareSyncIdx, getHeadingAtIdx, isAnimating]);
+    }, [trackData, dimensions, view, telemetryData, referenceLapIdx, referenceLap, referenceTelemetryData, dashboardSyncMode, mapMarkerType, isMiniMap, cameraMode, followZoom, forcedRotation, isExpanded, selectedSegIdx, selectedSectorIdx, sessionBests, laps, selectedLapIdx, miniSectorState, getAutoCompareSyncIdx, getHeadingAtIdx, isAnimating]);
 
     useEffect(() => {
         drawCursors();
@@ -2060,14 +2390,16 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         const unsubscribe = useTelemetryStore.subscribe((state) => {
             const prevCursor = cursorIndexRef.current;
             const prevSmooth = smoothCursorIndexRef.current;
+            const prevElapsed = playbackElapsedRef.current;
             cursorIndexRef.current = state.cursorIndex;
             smoothCursorIndexRef.current = state.smoothCursorIndex;
             playbackElapsedRef.current = state.playbackElapsed;
             isPlayingRef.current = state.isPlaying;
 
-            // Only schedule a rAF draw if cursor actually changed
+            // Only schedule a rAF draw if cursor or elapsed actually changed
             const cursorChanged = state.cursorIndex !== prevCursor || state.smoothCursorIndex !== prevSmooth;
-            if (!cursorChanged) return;
+            const elapsedChanged = state.playbackElapsed !== prevElapsed;
+            if (!cursorChanged && !elapsedChanged) return;
 
             if (cursorRafRef.current) return; // already scheduled this frame
             cursorRafRef.current = requestAnimationFrame(() => {
@@ -2082,7 +2414,10 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         });
         return () => {
             unsubscribe();
-            if (cursorRafRef.current) cancelAnimationFrame(cursorRafRef.current);
+            if (cursorRafRef.current) {
+                cancelAnimationFrame(cursorRafRef.current);
+                cursorRafRef.current = 0;
+            }
         };
     }, [drawCursors, drawTrack, isMiniMap, isExpanded]);
 
@@ -2122,6 +2457,171 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
             x: nextX,
             y: nextY
         }));
+    };
+
+    const handleSectorNavigation = (idx: number) => {
+        const currentLap = laps.find(l => l.lap === selectedLapIdx);
+        const timeChan = telemetryData?.['Time'] || telemetryData?.['GPS Time'];
+        if (!currentLap || !timeChan || currentLap.s1 === undefined || currentLap.s2 === undefined || currentLap.s3 === undefined) return;
+
+        setIsSegmentLoading(true);
+        if (isPlaying) {
+            togglePlayback();
+        }
+
+        let startIdx = 0;
+        let endIdx = 0;
+        let startElapsed = 0;
+
+        if (sectorBreakpoints && sectorBreakpoints.length >= 2 && racingLineData) {
+            const sortedBreakpoints = [...sectorBreakpoints].sort((a, b) => a.id - b.id);
+            const bpFinish = sortedBreakpoints.find(b => b.id === 0);
+            const bpS1 = sortedBreakpoints.find(b => b.id === 1);
+            const bpS2 = sortedBreakpoints.find(b => b.id === 2);
+
+            const len = racingLineData.points.length;
+            const bpStartIdx = bpFinish ? bpFinish.index : 0;
+            const bpS1Idx = bpS1 ? bpS1.index : Math.floor(len / 3);
+            const bpS2Idx = bpS2 ? bpS2.index : Math.floor(len * 2 / 3);
+
+            let startIdxInRacingLine = 0;
+            let endIdxInRacingLine = 0;
+
+            if (idx === 0) {
+                startIdxInRacingLine = bpStartIdx;
+                endIdxInRacingLine = bpS1Idx;
+            } else if (idx === 1) {
+                startIdxInRacingLine = bpS1Idx;
+                endIdxInRacingLine = bpS2Idx;
+            } else if (idx === 2) {
+                startIdxInRacingLine = bpS2Idx;
+                endIdxInRacingLine = len - 1;
+            }
+
+            startIdx = racingLineData.originalIndices[startIdxInRacingLine];
+            endIdx = racingLineData.originalIndices[endIdxInRacingLine];
+            startElapsed = timeChan[startIdx] - timeChan[racingLineData.originalIndices[bpStartIdx]];
+        } else {
+            let endElapsed = 0;
+            if (idx === 0) {
+                startElapsed = 0;
+                endElapsed = currentLap.s1;
+            } else if (idx === 1) {
+                startElapsed = currentLap.s1;
+                endElapsed = currentLap.s1 + currentLap.s2;
+            } else if (idx === 2) {
+                startElapsed = currentLap.s1 + currentLap.s2;
+                endElapsed = currentLap.duration;
+            }
+
+            const absStart = currentLap.startTime + startElapsed;
+            const absEnd = currentLap.startTime + endElapsed;
+
+            startIdx = findIndexInChannelRange(timeChan, 0, timeChan.length - 1, absStart);
+            endIdx = findIndexInChannelRange(timeChan, 0, timeChan.length - 1, absEnd);
+        }
+
+        setTimeout(() => {
+            setSelectedSectorIdx(idx);
+            setZoomRange([Math.floor(startIdx), Math.floor(endIdx)]);
+            setPlaybackTime(startElapsed);
+            setIsSegmentLoading(false);
+        }, 500);
+    };
+
+    const handleSectorBadgeClick = (clickX: number, clickY: number) => {
+        const region = sectorBadgeClickRegionsRef.current.find(r => {
+            const dx = clickX - r.x;
+            const dy = clickY - r.y;
+            return dx * dx + dy * dy <= r.r * r.r;
+        });
+
+        if (!region) return;
+
+        const idx = region.index;
+        const currentLap = laps.find(l => l.lap === selectedLapIdx);
+        const timeChan = telemetryData?.['Time'] || telemetryData?.['GPS Time'];
+
+        if (selectedSectorIdx === idx) {
+            // Deselecting: pause and reset to start of lap
+            setIsSegmentLoading(true);
+            if (isPlaying) {
+                togglePlayback();
+            }
+            setTimeout(() => {
+                setSelectedSectorIdx(null);
+                setZoomRange(null);
+                setPlaybackTime(0);
+                setIsSegmentLoading(false);
+            }, 500);
+            return;
+        }
+
+        if (!currentLap || !timeChan || currentLap.s1 === undefined || currentLap.s2 === undefined || currentLap.s3 === undefined) return;
+
+        setIsSegmentLoading(true);
+        if (isPlaying) {
+            togglePlayback();
+        }
+
+        let startIdx = 0;
+        let endIdx = 0;
+        let startElapsed = 0;
+
+        if (sectorBreakpoints && sectorBreakpoints.length >= 2 && racingLineData) {
+            const sortedBreakpoints = [...sectorBreakpoints].sort((a, b) => a.id - b.id);
+            const bpFinish = sortedBreakpoints.find(b => b.id === 0);
+            const bpS1 = sortedBreakpoints.find(b => b.id === 1);
+            const bpS2 = sortedBreakpoints.find(b => b.id === 2);
+
+            const len = racingLineData.points.length;
+            const bpStartIdx = bpFinish ? bpFinish.index : 0;
+            const bpS1Idx = bpS1 ? bpS1.index : Math.floor(len / 3);
+            const bpS2Idx = bpS2 ? bpS2.index : Math.floor(len * 2 / 3);
+
+            let startIdxInRacingLine = 0;
+            let endIdxInRacingLine = 0;
+
+            if (idx === 0) {
+                startIdxInRacingLine = bpStartIdx;
+                endIdxInRacingLine = bpS1Idx;
+            } else if (idx === 1) {
+                startIdxInRacingLine = bpS1Idx;
+                endIdxInRacingLine = bpS2Idx;
+            } else if (idx === 2) {
+                startIdxInRacingLine = bpS2Idx;
+                endIdxInRacingLine = len - 1;
+            }
+
+            startIdx = racingLineData.originalIndices[startIdxInRacingLine];
+            endIdx = racingLineData.originalIndices[endIdxInRacingLine];
+            startElapsed = timeChan[startIdx] - timeChan[racingLineData.originalIndices[bpStartIdx]];
+        } else {
+            let endElapsed = 0;
+            if (idx === 0) {
+                startElapsed = 0;
+                endElapsed = currentLap.s1;
+            } else if (idx === 1) {
+                startElapsed = currentLap.s1;
+                endElapsed = currentLap.s1 + currentLap.s2;
+            } else if (idx === 2) {
+                startElapsed = currentLap.s1 + currentLap.s2;
+                endElapsed = currentLap.duration;
+            }
+
+            const absStart = currentLap.startTime + startElapsed;
+            const absEnd = currentLap.startTime + endElapsed;
+
+            startIdx = findIndexInChannelRange(timeChan, 0, timeChan.length - 1, absStart);
+            endIdx = findIndexInChannelRange(timeChan, 0, timeChan.length - 1, absEnd);
+        }
+
+        setTimeout(() => {
+            setSelectedSectorIdx(idx);
+            setZoomRange([Math.floor(startIdx), Math.floor(endIdx)]);
+            setPlaybackTime(startElapsed);
+            setIsSegmentLoading(false);
+        }, 500);
     };
 
     const handleBadgeClick = (clickX: number, clickY: number) => {
@@ -2264,11 +2764,21 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
             if (rect) {
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
-                const insideBadge = badgeClickRegionsRef.current.some(r => {
-                    const dx = mouseX - r.x;
-                    const dy = mouseY - r.y;
-                    return dx * dx + dy * dy <= r.r * r.r;
-                });
+                let insideBadge = false;
+                
+                if (showMiniSectors) {
+                    insideBadge = badgeClickRegionsRef.current.some(r => {
+                        const dx = mouseX - r.x;
+                        const dy = mouseY - r.y;
+                        return dx * dx + dy * dy <= r.r * r.r;
+                    });
+                } else {
+                    insideBadge = sectorBadgeClickRegionsRef.current.some(r => {
+                        const dx = mouseX - r.x;
+                        const dy = mouseY - r.y;
+                        return dx * dx + dy * dy <= r.r * r.r;
+                    });
+                }
 
                 const target = e.currentTarget as HTMLElement;
                 if (target) {
@@ -2297,7 +2807,11 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                 const dt = Date.now() - clickStartRef.current.time;
 
                 if (dist < 5 && dt < 250) {
-                    handleBadgeClick(clickX, clickY);
+                    if (showMiniSectors) {
+                        handleBadgeClick(clickX, clickY);
+                    } else {
+                        handleSectorBadgeClick(clickX, clickY);
+                    }
                 }
             }
         }
@@ -2349,6 +2863,41 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                     isSegmentActive = true;
                 }
             }
+        } else if (selectedSectorIdx !== null) {
+            const timeChan = telemetryData['Time'] || telemetryData['GPS Time'];
+            const lapChan = telemetryData['Lap'] || telemetryData['lap'];
+            let curLineS = -1;
+            if (lapChan) {
+                for (let i = 0; i < lapChan.length; i++) {
+                    if (lapChan[i] === selectedLapIdx) {
+                        curLineS = i;
+                        break;
+                    }
+                }
+            }
+            if (timeChan && curLineS !== -1) {
+                if (zoomRange) {
+                    const absStart = timeChan[zoomRange[0]];
+                    const absEnd = timeChan[zoomRange[1]];
+                    if (absStart !== undefined && absEnd !== undefined) {
+                        minPlayTime = Math.max(0, absStart - timeChan[curLineS]);
+                        maxPlayTime = Math.max(0, absEnd - timeChan[curLineS]);
+                        isSegmentActive = true;
+                    }
+                } else if (currentLap.s1 !== undefined && currentLap.s2 !== undefined && currentLap.s3 !== undefined) {
+                    if (selectedSectorIdx === 0) {
+                        minPlayTime = 0;
+                        maxPlayTime = currentLap.s1;
+                    } else if (selectedSectorIdx === 1) {
+                        minPlayTime = currentLap.s1;
+                        maxPlayTime = currentLap.s1 + currentLap.s2;
+                    } else if (selectedSectorIdx === 2) {
+                        minPlayTime = currentLap.s1 + currentLap.s2;
+                        maxPlayTime = currentLap.duration;
+                    }
+                    isSegmentActive = true;
+                }
+            }
         }
 
         if (isSegmentActive) {
@@ -2368,7 +2917,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
             const progress = Math.min(1, Math.max(0, playbackElapsed / maxDur));
             return { progress, currentTime: formatLapTime(playbackElapsed) };
         }
-    }, [telemetryData, referenceTelemetryData, referenceLap, referenceLapIdx, laps, selectedLapIdx, playbackElapsed, selectedSegIdx, miniSectorState]);
+    }, [telemetryData, referenceTelemetryData, referenceLap, referenceLapIdx, laps, selectedLapIdx, playbackElapsed, selectedSegIdx, selectedSectorIdx, zoomRange, miniSectorState]);
 
     if (!telemetryData) {
         return (
@@ -2523,7 +3072,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                                                     </div>
                                                 </div>
                                                 <Tooltip text="RESET VIEW" position="top">
-                                                    <button onClick={fitTrack} className="transition-all rounded-lg glass-container hover:scale-110 active:scale-90 text-slate-500 hover:text-white border border-transparent hover:bg-white/5" onMouseMove={handleGlassMouseMove}><div className="glass-content px-2.5 py-1.5 flex items-center justify-center"><RotateCcw size={16} /></div></button>
+                                                    <button onClick={() => fitTrack(true)} className="transition-all rounded-lg glass-container hover:scale-110 active:scale-90 text-slate-500 hover:text-white border border-transparent hover:bg-white/5" onMouseMove={handleGlassMouseMove}><div className="glass-content px-2.5 py-1.5 flex items-center justify-center"><RotateCcw size={16} /></div></button>
                                                 </Tooltip>
                                                 <div className="glass-container rounded-lg border border-transparent hover:bg-white/5 transition-all">
                                                     <div className="glass-content h-7 px-1 gap-0.5 flex items-center">
@@ -2552,7 +3101,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                                 </>
                             ) : (
                                 <div className="flex items-center gap-2">
-                                    <button onClick={fitTrack} className="text-gray-400 hover:text-white rounded-xl transition-all border border-transparent hover:bg-white/5 active:scale-90 glass-container" onMouseMove={handleGlassMouseMove}><div className="glass-content p-1.5"><RotateCcw size={14} /></div></button>
+                                    <button onClick={() => fitTrack(true)} className="text-gray-400 hover:text-white rounded-xl transition-all border border-transparent hover:bg-white/5 active:scale-90 glass-container" onMouseMove={handleGlassMouseMove}><div className="glass-content p-1.5"><RotateCcw size={14} /></div></button>
                                     <div className="w-px h-3 bg-white/5 mx-0.5" />
                                     {onToggleExpand && (
                                         <button onClick={onToggleExpand} className="text-gray-500 hover:text-white rounded-xl transition-all border border-transparent hover:bg-white/5 active:scale-90 glass-container" onMouseMove={handleGlassMouseMove}><div className="glass-content p-1.5"><Maximize2 size={14} /></div></button>
@@ -2570,44 +3119,16 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
         <div ref={containerRef}
             onMouseMove={handleGlassMouseMove}
             className={`h-full flex flex-col min-h-[inherit] relative group/map transition-all duration-300 ${isMiniMap ? '' : 'glass-container-flat map-bg-unified'} hover:scale-100 overflow-hidden ${isMiniMap ? 'rounded-xl' : (isMapMaximized ? 'rounded-none glass-no-blur' : 'rounded-2xl')}`}
-            style={{ 
-                '--glass-hover-scale': '1', 
+            style={{
+                '--glass-hover-scale': '1',
                 '--glass-content-scale': '1'
             } as any}>
             <div className="glass-content flex-1 flex flex-col relative z-10 w-full h-full">
-                {/* Segment Navigation Buttons */}
-                {!isMiniMap && !isAnimating && selectedSegIdx !== null && (
-                    <>
-                        {selectedSegIdx > 0 && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSegmentNavigation(selectedSegIdx - 1);
-                                }}
-                                className="absolute left-4 top-1/2 -translate-y-1/2 z-[2000] pointer-events-auto w-10 h-10 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 hover:border-white/20 active:scale-95 transition-all text-gray-300 hover:text-white shadow-2xl flex items-center justify-center cursor-pointer hover:scale-110 group/nav-left"
-                            >
-                                <ChevronLeft size={22} className="transition-transform group-hover/nav-left:-translate-x-0.5" />
-                            </button>
-                        )}
-                        {selectedSegIdx < miniSectors.length - 1 && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSegmentNavigation(selectedSegIdx + 1);
-                                }}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 z-[2000] pointer-events-auto w-10 h-10 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 hover:border-white/20 active:scale-95 transition-all text-gray-300 hover:text-white shadow-2xl flex items-center justify-center cursor-pointer hover:scale-110 group/nav-right"
-                            >
-                                <ChevronRight size={22} className="transition-transform group-hover/nav-right:translate-x-0.5" />
-                            </button>
-                        )}
-                    </>
-                )}
-
                 {/* Title Overlay */}
                 {!isMiniMap && !isAnimating && (
-                    <div className="absolute top-4 left-4 z-20 pointer-events-auto flex flex-col items-start gap-2 select-none">
+                    <div className="absolute top-4 left-4 z-20 pointer-events-auto flex flex-row items-center gap-3 select-none">
                         <h3 className="text-gray-500 text-[12px] font-black uppercase tracking-[0.2em] drop-shadow-md transition-all duration-300 group-hover/map:text-white group-hover/map:drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] cursor-default">Track Map</h3>
-                        {selectedSegIdx !== null && (
+                        {(selectedSegIdx !== null || selectedSectorIdx !== null) && (
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -2617,6 +3138,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                                     }
                                     setTimeout(() => {
                                         setSelectedSegIdx(null);
+                                        setSelectedSectorIdx(null);
                                         setZoomRange(null);
                                         setPlaybackTime(0);
                                         setIsSegmentLoading(false);
@@ -2634,11 +3156,44 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                 {/* HUD: Top Center Telemetry (Refined Alignment) */}
                 {isExpanded && !isMiniMap && !isAnimating && (
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto flex flex-col items-center gap-1">
-                        <TopCenterTelemetryHUD />
+                        <div className="flex flex-row items-center gap-4">
+                            {/* Segment/Sector Navigation Left */}
+                            {((showMiniSectors && selectedSegIdx !== null && selectedSegIdx > 0 && miniSectors.length > 0) || (!showMiniSectors && selectedSectorIdx !== null && selectedSectorIdx > 0)) && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (showMiniSectors && selectedSegIdx !== null) handleSegmentNavigation(selectedSegIdx - 1);
+                                        else if (!showMiniSectors && selectedSectorIdx !== null) handleSectorNavigation(selectedSectorIdx - 1);
+                                    }}
+                                    className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 hover:border-white/20 active:scale-95 transition-all text-gray-300 hover:text-white shadow-2xl flex items-center justify-center cursor-pointer hover:scale-110 group/nav-left"
+                                >
+                                    <ChevronLeft size={18} className="transition-transform group-hover/nav-left:-translate-x-0.5" />
+                                </button>
+                            )}
 
-                        {/* Maximized Dimension Toggle */}
+                            <TopCenterTelemetryHUD />
+
+                            {/* Segment/Sector Navigation Right */}
+                            {((showMiniSectors && selectedSegIdx !== null && selectedSegIdx < miniSectors.length - 1 && miniSectors.length > 0) || (!showMiniSectors && selectedSectorIdx !== null && selectedSectorIdx < 2)) && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (showMiniSectors && selectedSegIdx !== null) handleSegmentNavigation(selectedSegIdx + 1);
+                                        else if (!showMiniSectors && selectedSectorIdx !== null) handleSectorNavigation(selectedSectorIdx + 1);
+                                    }}
+                                    className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 hover:border-white/20 active:scale-95 transition-all text-gray-300 hover:text-white shadow-2xl flex items-center justify-center cursor-pointer hover:scale-110 group/nav-right"
+                                >
+                                    <ChevronRight size={18} className="transition-transform group-hover/nav-right:translate-x-0.5" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Maximized Dimension & Sector Toggles */}
                         {isMapMaximized && (
-                            <MaximizedDimensionToggle />
+                            <div className="flex flex-row items-center gap-1.5">
+                                <MaximizedDimensionToggle />
+                                {!show3DLab && <MaximizedSectorToggle />}
+                            </div>
                         )}
                     </div>
                 )}
@@ -2688,6 +3243,11 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                     onMouseUp={handleMouseUp}
                     onMouseLeave={handleMouseLeave}
                     onContextMenu={handleContextMenu}
+                    onDoubleClick={() => {
+                        if (isMapMaximized) {
+                            useTelemetryStore.getState().setShowLeftHUDs(!showLeftHUDs);
+                        }
+                    }}
                 >
                     <canvas ref={trackCanvasRef} className="absolute inset-0 block" />
                     <canvas ref={cursorCanvasRef} className="absolute inset-0 block pointer-events-none" />
@@ -2745,8 +3305,12 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
 
                         {/* 2. Smart Sidebar */}
                         {isMapMaximized && (
-                            <div 
-                                className={`absolute top-10 left-4 z-[200] w-[320px] flex flex-col gap-0 isolate ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}`}
+                            <div
+                                className={`absolute top-12 left-4 z-[200] w-[320px] flex flex-col gap-0 isolate transition-all duration-300 ${
+                                    showLeftHUDs
+                                        ? `opacity-100 translate-x-0 ${maximizedSidebarMode === 'data_sources' ? 'bottom-4' : 'pointer-events-none'}`
+                                        : 'opacity-0 -translate-x-4 pointer-events-none'
+                                }`}
                                 onMouseMove={(e) => e.stopPropagation()}
                                 onMouseEnter={(e) => e.stopPropagation()}
                             >
@@ -2760,7 +3324,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                                             transition={{ type: 'spring', stiffness: 120, damping: 20 }}
                                             className="pointer-events-auto flex flex-col gap-2 h-full w-full"
                                         >
-                                            <div 
+                                            <div
                                                 className="flex-1 flex flex-col overflow-hidden rounded-2xl glass-container-static"
                                                 onMouseMove={(e) => {
                                                     e.stopPropagation();
@@ -2898,7 +3462,7 @@ export const TrackMap = React.memo(({ isExpanded = false, onToggleExpand, isMini
                                     }}
                                     exit={{ opacity: 0, x: 40 }}
                                     transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-                                    className="absolute bottom-4 right-[-12px] z-[2000] pointer-events-none flex flex-col justify-end"
+                                    className="absolute bottom-4 right-[-12px] z-[2000] pointer-events-auto flex flex-col justify-end"
                                 >
                                     <DataChartsOverlay />
                                 </motion.div>

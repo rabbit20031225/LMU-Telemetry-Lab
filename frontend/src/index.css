@@ -563,3 +563,71 @@ body,
 .telemetry-dropzone.drag-active svg {
   color: rgba(96, 165, 250, 1) !important;
 }
+
+/* ==========================================================================
+   ACTIVE SESSION PREMIUM ANIMATIONS
+   ========================================================================== */
+
+@keyframes activeShimmer {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(150%) skewX(-20deg);
+  }
+}
+
+.active-session-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.active-session-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.02) 20%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.02) 80%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: activeShimmer 4s ease-in-out infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+@keyframes activeSessionGlowBlue {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.15), inset 0 0 6px rgba(59, 130, 246, 0.05);
+    border-color: rgba(59, 130, 246, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(59, 130, 246, 0.45), inset 0 0 12px rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.7);
+  }
+}
+
+@keyframes activeSessionGlowCyan {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.15), inset 0 0 6px rgba(6, 182, 212, 0.05);
+    border-color: rgba(6, 182, 212, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(6, 182, 212, 0.45), inset 0 0 12px rgba(6, 182, 212, 0.2);
+    border-color: rgba(6, 182, 212, 0.7);
+  }
+}
+
+.active-session-blue {
+  animation: activeSessionGlowBlue 3s ease-in-out infinite !important;
+}
+
+.active-session-cyan {
+  animation: activeSessionGlowCyan 3s ease-in-out infinite !important;
+}

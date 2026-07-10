@@ -120,6 +120,7 @@ function App() {
   const setMiniSectorState = useTelemetryStore(state => state.setMiniSectorState);
   const isListLoading = useTelemetryStore(state => state.isListLoading);
   const selectedSegIdx = useTelemetryStore(state => state.selectedSegIdx);
+  const selectedSectorIdx = useTelemetryStore(state => state.selectedSectorIdx);
 
   const trackName = sessionMetadata?.trackName;
   const layoutName = sessionMetadata?.layoutKey || sessionMetadata?.trackLayout || 'Default';
@@ -484,12 +485,23 @@ function App() {
         if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
           e.preventDefault();
           handleReload();
+          return;
         }
-        
+
+        // Avoid triggering shortcuts when typing in inputs
+        if (
+          document.activeElement?.tagName === 'INPUT' ||
+          document.activeElement?.tagName === 'TEXTAREA' ||
+          document.activeElement?.getAttribute('contenteditable') === 'true'
+        ) {
+          return;
+        }
+
+        const state = useTelemetryStore.getState();
+
         // 'M' for Minimap Toggle (Only in maximized mode)
-        if (e.key.toLowerCase() === 'm' && useTelemetryStore.getState().isMapMaximized) {
-          const current = useTelemetryStore.getState().showMiniMap;
-          useTelemetryStore.getState().setShowMiniMap(!current);
+        if (e.key.toLowerCase() === 'm' && state.isMapMaximized) {
+          state.setShowMiniMap(!state.showMiniMap);
         }
       };
       window.addEventListener('keydown', handleKeyDown);
@@ -1387,7 +1399,13 @@ function App() {
                         {chartConfigs
                           .filter(c => {
                             if (!c.visible) return false;
-                            if (c.id === 'Time Delta' && referenceLapIdx === null && referenceLap === null && selectedSegIdx === null) return false;
+                            if (c.id === 'Time Delta') {
+                              const hasRef = referenceLapIdx !== null || referenceLap !== null;
+                              if (!hasRef) {
+                                if (selectedSectorIdx !== null) return false;
+                                if (selectedSegIdx === null) return false;
+                              }
+                            }
                             
                             // Class-based visibility
                             if (c.id === 'SoC' && sessionMetadata?.carClass !== 'Hyper') return false;

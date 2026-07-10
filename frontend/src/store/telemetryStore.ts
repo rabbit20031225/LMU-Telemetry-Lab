@@ -37,37 +37,87 @@ export const findMappedCarModel = (rawName: string | undefined, mappings: Record
 };
 
 export const getPlaybackTimeRange = (state: any) => {
-    const { selectedSegIdx, miniSectorState, telemetryData, laps, selectedLapIdx } = state;
-    if (selectedSegIdx === null || !miniSectorState || !miniSectorState.currentLapMiniSectorTimes || !telemetryData || selectedLapIdx === null) {
-        return null;
-    }
-    const curTimes = miniSectorState.currentLapMiniSectorTimes;
-    const segTime = curTimes[selectedSegIdx];
-    if (!segTime) return null;
-
-    const timeChan = telemetryData['Time'];
-    const lapChan = telemetryData['Lap'];
-    const currentLap = laps.find((l: any) => l.lap === selectedLapIdx);
-    if (!timeChan || !currentLap || !lapChan) return null;
-
-    let curLineS = -1;
-    for (let i = 0; i < lapChan.length; i++) {
-        if (lapChan[i] === selectedLapIdx) {
-            curLineS = i;
-            break;
-        }
-    }
-    if (curLineS === -1) return null;
-
-    const absStart = timeChan[segTime.startIdx];
-    const absEnd = timeChan[segTime.endIdx];
+    const { selectedSegIdx, selectedSectorIdx, miniSectorState, telemetryData, laps, selectedLapIdx } = state;
     
-    if (absStart === undefined || absEnd === undefined) return null;
+    // Original Segment Logic
+    if (selectedSegIdx !== null && miniSectorState?.currentLapMiniSectorTimes && telemetryData && selectedLapIdx !== null) {
+        const curTimes = miniSectorState.currentLapMiniSectorTimes;
+        const segTime = curTimes[selectedSegIdx];
+        if (!segTime) return null;
 
-    const startElapsed = Math.max(0, absStart - timeChan[curLineS]);
-    const endElapsed = Math.max(0, absEnd - timeChan[curLineS]);
+        const timeChan = telemetryData['Time'];
+        const lapChan = telemetryData['Lap'];
+        const currentLap = laps.find((l: any) => l.lap === selectedLapIdx);
+        if (!timeChan || !currentLap || !lapChan) return null;
 
-    return { min: startElapsed, max: endElapsed };
+        let curLineS = -1;
+        for (let i = 0; i < lapChan.length; i++) {
+            if (lapChan[i] === selectedLapIdx) {
+                curLineS = i;
+                break;
+            }
+        }
+        if (curLineS === -1) return null;
+
+        const absStart = timeChan[segTime.startIdx];
+        const absEnd = timeChan[segTime.endIdx];
+        
+        if (absStart === undefined || absEnd === undefined) return null;
+
+        const startElapsed = Math.max(0, absStart - timeChan[curLineS]);
+        const endElapsed = Math.max(0, absEnd - timeChan[curLineS]);
+
+        return { min: startElapsed, max: endElapsed };
+    }
+
+    // New Sector Logic
+    if (selectedSectorIdx !== null && telemetryData && selectedLapIdx !== null) {
+        const timeChan = telemetryData['Time'] || telemetryData['GPS Time'];
+        const lapChan = telemetryData['Lap'] || telemetryData['lap'];
+        const currentLap = laps.find((l: any) => l.lap === selectedLapIdx);
+        if (!timeChan || !currentLap) return null;
+
+        let curLineS = -1;
+        if (lapChan) {
+            for (let i = 0; i < lapChan.length; i++) {
+                if (lapChan[i] === selectedLapIdx) {
+                    curLineS = i;
+                    break;
+                }
+            }
+        }
+
+        const zoomRange = state.zoomRange;
+        if (zoomRange && timeChan && curLineS !== -1) {
+            const absStart = timeChan[zoomRange[0]];
+            const absEnd = timeChan[zoomRange[1]];
+            if (absStart !== undefined && absEnd !== undefined) {
+                const startElapsed = Math.max(0, absStart - timeChan[curLineS]);
+                const endElapsed = Math.max(0, absEnd - timeChan[curLineS]);
+                return { min: startElapsed, max: endElapsed };
+            }
+        }
+
+        if (currentLap.s1 === undefined || currentLap.s2 === undefined || currentLap.s3 === undefined) return null;
+
+        let sectorStartElapsed = 0;
+        let sectorEndElapsed = 0;
+
+        if (selectedSectorIdx === 0) { // S1
+            sectorStartElapsed = 0;
+            sectorEndElapsed = currentLap.s1;
+        } else if (selectedSectorIdx === 1) { // S2
+            sectorStartElapsed = currentLap.s1;
+            sectorEndElapsed = currentLap.s1 + currentLap.s2;
+        } else if (selectedSectorIdx === 2) { // S3
+            sectorStartElapsed = currentLap.s1 + currentLap.s2;
+            sectorEndElapsed = currentLap.duration;
+        }
+
+        return { min: sectorStartElapsed, max: sectorEndElapsed };
+    }
+
+    return null;
 };
 
 export interface TelemetryState {
@@ -208,6 +258,7 @@ export interface TelemetryState {
     singleLapXAxisMode: 'distance' | 'time'; // NEW: Independent X-axis mode for single lap
     mapMarkerType: 'arrow' | 'dot'; // NEW: Phase 2 marker selection
     showMiniSectors: boolean; // NEW: Mini sector view mode
+    showLeftHUDs: boolean; // NEW: Toggle left HUD panels visibility
     setShowMiniSectors: (show: boolean) => void; // NEW
     defaultShowMiniSectors: boolean; // NEW: Default mini sector view preference
     setDefaultShowMiniSectors: (show: boolean) => void; // NEW
@@ -222,8 +273,10 @@ export interface TelemetryState {
         } | null;
     } | null;
     selectedSegIdx: number | null; // NEW: Currently selected mini-sector index for clipping & focus
+    selectedSectorIdx: number | null; // NEW: Currently selected sector index (0=S1, 1=S2, 2=S3)
     setMiniSectorState: (state: any) => void;
     setSelectedSegIdx: (idx: number | null) => void;
+    setSelectedSectorIdx: (idx: number | null) => void;
 
     // Car Setup
     carSetupData: CarSetupData | null;
@@ -273,6 +326,7 @@ export interface TelemetryState {
     setIsMapMaximized: (is: boolean) => void;
     setMaximizedSidebarMode: (mode: 'hud' | 'data_sources') => void; // NEW
     setShowMiniMap: (show: boolean) => void; // NEW
+    setShowLeftHUDs: (show: boolean) => void; // NEW
     setActiveChartCategory: (category: ChartCategory) => void;
     setIsMapTransitioning: (is: boolean) => void;
     setIsGlobalTransitioning: (is: boolean) => void;
@@ -630,6 +684,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     parentDimensions: { width: 1920, height: 1080 },
     maximizedSidebarMode: 'hud',
     showMiniMap: localStorage.getItem('show_minimap') !== 'false',
+    showLeftHUDs: true,
     isUserInteractingWithCharts: false,
     isHudAnimating: false,
     isMapTransitioning: false,
@@ -637,7 +692,13 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     singleLapXAxisMode: (localStorage.getItem('singleLapXAxisMode') as 'distance' | 'time') || 'distance',
     mapMarkerType: (localStorage.getItem('map_marker_type') as 'arrow' | 'dot') || 'arrow',
     showMiniSectors: localStorage.getItem('defaultShowMiniSectors') === 'true',
-    setShowMiniSectors: (show) => set({ showMiniSectors: show }),
+    setShowMiniSectors: (show) => set({
+        showMiniSectors: show,
+        selectedSegIdx: null,
+        selectedSectorIdx: null,
+        zoomRange: null,
+        playbackElapsed: 0
+    }),
     defaultShowMiniSectors: localStorage.getItem('defaultShowMiniSectors') === 'true',
     setDefaultShowMiniSectors: (show) => {
         localStorage.setItem('defaultShowMiniSectors', String(show));
@@ -645,8 +706,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     },
     miniSectorState: null,
     selectedSegIdx: null,
+    selectedSectorIdx: null,
     setMiniSectorState: (state) => set({ miniSectorState: state }),
     setSelectedSegIdx: (idx) => set({ selectedSegIdx: idx }),
+    setSelectedSectorIdx: (idx) => set({ selectedSectorIdx: idx }),
     suspensionViewMode: (localStorage.getItem('suspension_view_mode') as 'split' | 'merged') || 'split',
     thirdDeflectionViewMode: (localStorage.getItem('third_deflection_view_mode') as 'split' | 'merged') || 'split',
     handlingViewMode: (localStorage.getItem('handling_view_mode') as 'split' | 'merged') || 'split',
@@ -933,7 +996,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         get().validateHudLayout();
     },
     setIsMapMaximized: (is) => {
-        const updates: any = { isMapMaximized: is, isHudAnimating: true, isMapTransitioning: true };
+        const updates: any = { isMapMaximized: is, isHudAnimating: true, isMapTransitioning: true, showLeftHUDs: true };
 
         // When entering maximized mode, default all HUDs to open
         if (is) {
@@ -967,6 +1030,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         localStorage.setItem('show_minimap', String(show));
         set({ showMiniMap: show });
     },
+    setShowLeftHUDs: (show) => set({ showLeftHUDs: show }),
     setIsMapTransitioning: (is) => set({ isMapTransitioning: is }),
     setIsGlobalTransitioning: (is) => set({ isGlobalTransitioning: is }),
     setActiveChartCategory: (category) => {
@@ -1064,6 +1128,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             isPlaying: false,
             cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
             smoothCursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
+            selectedSegIdx: null,
+            selectedSectorIdx: null,
+            zoomRange: null,
+            playbackElapsed: 0,
             isHudAnimating: true // Trigger animation lock
         });
 
@@ -1500,8 +1568,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             referenceTelemetryData: null,
             playbackElapsed: 0,
             zoomRange: null,
-            staticTrackBaseData: null,
-            showMiniSectors: get().defaultShowMiniSectors
+            staticTrackBaseData: null
         });
         try {
             // 1. Get Laps & Metadata
@@ -1649,6 +1716,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             selectedLapIdx: lapIdx,
             zoomRange: null,
             selectedSegIdx: null, // Reset mini sector focus
+            selectedSectorIdx: null, // Reset sector focus
             cursorIndex: startIdx,
             smoothCursorIndex: startIdx,
             playbackElapsed: 0
@@ -1683,6 +1751,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
             referenceSessionMetadata: null,
             isPlaying: false,
             selectedSegIdx: null, // Reset mini sector focus
+            selectedSectorIdx: null, // Reset sector focus
             cursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
             smoothCursorIndex: startIdx !== null ? startIdx : get().cursorIndex,
             playbackElapsed: 0
@@ -1796,6 +1865,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const updates: any = { zoomRange: range };
         if (range === null) {
             updates.selectedSegIdx = null;
+            updates.selectedSectorIdx = null;
         }
         set(updates);
     },

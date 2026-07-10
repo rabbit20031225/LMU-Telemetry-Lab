@@ -323,6 +323,7 @@ export const LapDetailsPanel = React.memo(({
   const dashboardSyncMode = useTelemetryStore(state => state.dashboardSyncMode);
   const setDashboardSyncMode = useTelemetryStore(state => state.setDashboardSyncMode);
   const selectedSegIdx = useTelemetryStore(state => state.selectedSegIdx);
+  const selectedSectorIdx = useTelemetryStore(state => state.selectedSectorIdx);
   const showMiniSectors = useTelemetryStore(state => state.showMiniSectors);
   const chartConfigs = useTelemetryStore(state => state.chartConfigs);
   const speedUnit = useTelemetryStore(state => state.speedUnit);
@@ -442,9 +443,11 @@ export const LapDetailsPanel = React.memo(({
               ) : (
                 <div className="flex flex-col gap-1.5">
                   <ComparisonRow label={<img src="/finish-flag.png" width={12} height={12} className="opacity-70" alt="Flag" />} val={currentLap?.duration} refVal={(refLap as any)?.duration} compact={true} />
-                  <ComparisonRow label="S1" val={currentLap?.s1} refVal={(refLap as any)?.s1} valColorClass="text-gray-300" compact={true} />
-                  <ComparisonRow label="S2" val={currentLap?.s2} refVal={(refLap as any)?.s2} valColorClass="text-gray-300" compact={true} />
-                  <ComparisonRow label="S3" val={currentLap?.s3} refVal={(refLap as any)?.s3} valColorClass="text-gray-300" compact={true} />
+                  {[0, 1, 2].map((idx) => {
+                    const sectorTimes = [currentLap?.s1, currentLap?.s2, currentLap?.s3];
+                    const refSectorTimes = hasRef && refLap ? [refLap.s1, refLap.s2, refLap.s3] : [sessionBests?.bestS1?.val, sessionBests?.bestS2?.val, sessionBests?.bestS3?.val];
+                    return <ComparisonRow key={idx} label={`S${idx + 1}`} val={sectorTimes[idx]} refVal={refSectorTimes[idx]} valColorClass="text-gray-300" compact={true} highlighted={selectedSectorIdx === idx} />;
+                  })}
                 </div>
               )
             ) : (
@@ -455,15 +458,15 @@ export const LapDetailsPanel = React.memo(({
                       <div className="flex justify-between items-baseline border-b border-white/5 pb-1.5 px-1">
                         <div className="flex items-center gap-2">
                           <span className={`text-[10px] font-black uppercase tracking-widest ${refLap ? 'text-yellow-500' : 'text-gray-300'}`}>
-                            {refLap ? (selectedSegIdx !== null ? `Reference Lap (SEG ${selectedSegIdx + 1})` : 'Reference Lap') : (selectedSegIdx !== null ? `Theoretical Best (SEG ${selectedSegIdx + 1})` : 'Theoretical Best')}
+                            {refLap ? (selectedSegIdx !== null ? `Reference Lap (SEG ${selectedSegIdx + 1})` : selectedSectorIdx !== null ? `Reference Lap (S${selectedSectorIdx + 1})` : 'Reference Lap') : (selectedSegIdx !== null ? `Theoretical Best (SEG ${selectedSegIdx + 1})` : selectedSectorIdx !== null ? `Session Best (S${selectedSectorIdx + 1})` : 'Theoretical Best')}
                           </span>
                           {refLap && <span className="px-1.5 py-0.5 rounded-sm bg-yellow-500/20 text-white text-[7px] font-black border border-yellow-500/20 leading-none">L{refLap.lap}</span>}
                         </div>
                         <span className={`text-[17px] font-black font-mono tracking-tighter ${refLap ? 'text-yellow-500' : 'text-purple-400'}`}>
-                          {formatTime(refLap ? (selectedSegIdx !== null ? refLapMiniSectorTimes?.[selectedSegIdx]?.duration || 0 : refLap.duration || 0) : (selectedSegIdx !== null ? sessionMiniSectorBests?.bests[selectedSegIdx]?.val || 0 : showMiniSectors ? sessionMiniSectorBests?.theoreticalBest || 0 : sessionBests?.theoreticalBest || 0))}
+                          {formatTime(refLap ? (selectedSegIdx !== null ? refLapMiniSectorTimes?.[selectedSegIdx]?.duration || 0 : selectedSectorIdx !== null ? [refLap.s1, refLap.s2, refLap.s3][selectedSectorIdx] || 0 : refLap.duration || 0) : (selectedSegIdx !== null ? sessionMiniSectorBests?.bests[selectedSegIdx]?.val || 0 : selectedSectorIdx !== null ? [sessionBests?.bestS1, sessionBests?.bestS2, sessionBests?.bestS3][selectedSectorIdx]?.val || 0 : showMiniSectors ? sessionMiniSectorBests?.theoreticalBest || 0 : sessionBests?.theoreticalBest || 0))}
                         </span>
                       </div>
-                      {selectedSegIdx === null && (
+                      {selectedSegIdx === null && selectedSectorIdx === null && (
                         <div className="grid grid-cols-3 gap-2 px-1">
                           {refLap ? (
                             showMiniSectors ? (
@@ -473,11 +476,17 @@ export const LapDetailsPanel = React.memo(({
                                 return (<div key={idx} className="flex flex-col p-1 transition-all rounded-lg duration-300"><span className="text-[8px] font-black text-gray-500 uppercase tracking-[0.15em] mb-0.5">R{idx + 1}</span><div className="flex items-baseline gap-1.5"><span className="text-[12px] font-black text-white font-mono tracking-tighter">{displayTime}</span></div></div>);
                               })
                             ) : (
-                              [{ label: 'RS1', val: refLap.s1 }, { label: 'RS2', val: refLap.s2 }, { label: 'RS3', val: refLap.s3 }].map((item, i) => {
-                                const formatted = formatTime(item.val);
-                                const displayTime = formatted.startsWith('0:') ? formatted.slice(2) : formatted;
-                                return (<div key={i} className="flex flex-col"><span className="text-[8px] font-black text-gray-500 uppercase tracking-[0.15em] mb-0.5">{item.label}</span><div className="flex items-baseline gap-1.5"><span className="text-[12px] font-black text-white font-mono tracking-tighter">{displayTime}</span></div></div>);
-                              })
+                              <div className="grid grid-cols-3 gap-2 px-1">
+                                {[
+                                  { label: 'RS1', val: refLap?.s1, isBest: refLap?.s1 > 0 && refLap?.s1 <= (sessionBests?.bestS1.val || 0), lap: sessionBests?.bestS1.lap || 0 },
+                                  { label: 'RS2', val: refLap?.s2, isBest: refLap?.s2 > 0 && refLap?.s2 <= (sessionBests?.bestS2.val || 0), lap: sessionBests?.bestS2.lap || 0 },
+                                  { label: 'RS3', val: refLap?.s3, isBest: refLap?.s3 > 0 && refLap?.s3 <= (sessionBests?.bestS3.val || 0), lap: sessionBests?.bestS3.lap || 0 }
+                                ].map((item, idx) => {
+                                  const formatted = formatTime(item.val);
+                                  const displayTime = formatted.startsWith('0:') ? formatted.slice(2) : formatted;
+                                  return (<div key={idx} className={`flex flex-col p-1 transition-all rounded-lg duration-300 ${selectedSectorIdx === idx ? 'bg-purple-500/10 ring-1 ring-purple-500/30' : ''}`}><span className="text-[8px] font-black text-gray-500 uppercase tracking-[0.15em] mb-0.5">{item.label}</span><div className="flex items-baseline gap-1.5"><span className="text-[12px] font-black text-white font-mono tracking-tighter">{displayTime}</span>{item.lap > 0 && <span className="px-1.5 py-0.5 rounded-sm bg-purple-500/20 text-white text-[7px] font-black border border-purple-500/20 leading-none">L{item.lap}</span>}</div></div>);
+                                })}
+                              </div>
                             )
                           ) : (
                             showMiniSectors ? (
@@ -490,7 +499,7 @@ export const LapDetailsPanel = React.memo(({
                               [{ label: 'BS1', val: sessionBests?.bestS1.val, lap: sessionBests?.bestS1.lap }, { label: 'BS2', val: sessionBests?.bestS2.val, lap: sessionBests?.bestS2.lap }, { label: 'BS3', val: sessionBests?.bestS3.val, lap: sessionBests?.bestS3.lap }].map((item, i) => {
                                 const formatted = formatTime(item.val);
                                 const displayTime = formatted.startsWith('0:') ? formatted.slice(2) : formatted;
-                                return (<div key={i} className="flex flex-col"><span className="text-[8px] font-black text-gray-500 uppercase tracking-[0.15em] mb-0.5">{item.label}</span><div className="flex items-baseline gap-1.5"><span className="text-[12px] font-black text-white font-mono tracking-tighter">{displayTime}</span>{item.lap && <span className="px-1.5 py-0.5 rounded-sm bg-purple-500/20 text-white text-[7px] font-black border border-purple-500/20 leading-none">L{item.lap}</span>}</div></div>);
+                                return (<div key={i} className={`flex flex-col p-1 transition-all rounded-lg duration-300 ${selectedSectorIdx === i ? 'bg-purple-500/10 ring-1 ring-purple-500/30' : ''}`}><span className="text-[8px] font-black text-gray-500 uppercase tracking-[0.15em] mb-0.5">{item.label}</span><div className="flex items-baseline gap-1.5"><span className="text-[12px] font-black text-white font-mono tracking-tighter">{displayTime}</span>{item.lap && <span className="px-1.5 py-0.5 rounded-sm bg-purple-500/20 text-white text-[7px] font-black border border-purple-500/20 leading-none">L{item.lap}</span>}</div></div>);
                               })
                             )
                           )}
@@ -503,12 +512,12 @@ export const LapDetailsPanel = React.memo(({
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between items-baseline border-b border-white/5 pb-1.5 px-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{selectedSegIdx !== null ? `Current Lap (SEG ${selectedSegIdx + 1})` : 'Current Lap'}</span>
+                      <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{selectedSegIdx !== null ? `Current Lap (SEG ${selectedSegIdx + 1})` : selectedSectorIdx !== null ? `Current Lap (S${selectedSectorIdx + 1})` : 'Current Lap'}</span>
                       {currentLap && <span className="px-1.5 py-0.5 rounded-sm bg-blue-500/20 text-white text-[7px] font-black border border-blue-500/20 leading-none">L{currentLap.lap}</span>}
                     </div>
-                    <span className="text-[20px] font-black text-white font-mono tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">{formatTime(selectedSegIdx !== null ? currentLapMiniSectorTimes?.[selectedSegIdx]?.duration || 0 : currentLap?.duration)}</span>
+                    <span className="text-[20px] font-black text-white font-mono tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">{formatTime(selectedSegIdx !== null ? currentLapMiniSectorTimes?.[selectedSegIdx]?.duration || 0 : selectedSectorIdx !== null ? [currentLap?.s1, currentLap?.s2, currentLap?.s3][selectedSectorIdx] || 0 : currentLap?.duration)}</span>
                   </div>
-                  {selectedSegIdx === null && (
+                  {selectedSegIdx === null && selectedSectorIdx === null && (
                     showMiniSectors ? (
                       <div className="grid grid-cols-3 gap-2 px-1">
                         {miniSectors.map((seg: any, idx: number) => {
@@ -529,7 +538,7 @@ export const LapDetailsPanel = React.memo(({
                         ].map((item, i) => {
                           const formatted = formatTime(item.val);
                           const displayTime = formatted.startsWith('0:') ? formatted.slice(2) : formatted;
-                          return (<div key={i} className="flex flex-col"><span className="text-[8px] font-black text-gray-400 uppercase tracking-[0.15em] mb-0.5">{item.label}</span><span className={`text-[13px] font-black font-mono tracking-tighter ${item.isBest ? 'text-purple-400' : 'text-yellow-500'}`}>{displayTime}</span></div>);
+                          return (<div key={i} className={`flex flex-col p-1 transition-all rounded-lg duration-300 ${selectedSectorIdx === i ? 'bg-purple-500/10 ring-1 ring-purple-500/30' : ''}`}><span className="text-[8px] font-black text-gray-400 uppercase tracking-[0.15em] mb-0.5">{item.label}</span><span className={`text-[13px] font-black font-mono tracking-tighter ${item.isBest ? 'text-purple-400' : 'text-yellow-500'}`}>{displayTime}</span></div>);
                         })}
                       </div>
                     )

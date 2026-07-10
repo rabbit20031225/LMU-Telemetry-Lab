@@ -806,7 +806,7 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
                                             key={s.id}
                                             data-session-id={s.id}
                                             className={`group relative rounded-xl p-3 flex items-center justify-between transition-[transform,background-color,border-color] duration-300 border ring-1 ring-inset glass-container scroll-mt-20 min-w-0 w-full overflow-hidden ${isSelected
-                                                ? (isExport ? 'bg-cyan-600/20 border-cyan-500/40 ring-cyan-500/20' : 'bg-blue-600/20 border-blue-500/30 ring-blue-500/20')
+                                                ? (isExport ? 'active-session-shimmer active-session-cyan bg-cyan-600/20' : 'active-session-shimmer active-session-blue bg-blue-600/20')
                                                 : (newlyUploadedIds.has(s.id)
                                                     ? 'new-upload-highlight'
                                                     : isExport
@@ -815,6 +815,14 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
                                                 }`}
                                             onMouseMove={handleGlassMouseMove}
                                         >
+                                            {/* Neon vertical indicator strip */}
+                                            {isSelected && (
+                                                <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-r-full z-20 ${
+                                                    isExport 
+                                                        ? 'bg-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.8)]' 
+                                                        : 'bg-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.8)]'
+                                                } animate-pulse`} />
+                                            )}
                                             <div className="glass-content w-full flex items-center justify-between min-w-0">
                                                 <div
                                                     className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"

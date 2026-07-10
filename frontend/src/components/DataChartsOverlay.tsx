@@ -11,6 +11,7 @@ export const DataChartsOverlay = React.memo(() => {
     const referenceLapIdx = useTelemetryStore(state => state.referenceLapIdx);
     const referenceLap = useTelemetryStore(state => state.referenceLap);
     const selectedSegIdx = useTelemetryStore(state => state.selectedSegIdx);
+    const selectedSectorIdx = useTelemetryStore(state => state.selectedSectorIdx);
 
     React.useEffect(() => {
         setActiveChartCategory('Driver');
@@ -18,7 +19,7 @@ export const DataChartsOverlay = React.memo(() => {
 
     const activeCharts = chartConfigs.filter(c => 
         c.visible && 
-        (c.id !== 'Time Delta' || referenceLapIdx !== null || referenceLap !== null || selectedSegIdx !== null) &&
+        (c.id !== 'Time Delta' || referenceLapIdx !== null || referenceLap !== null || (selectedSectorIdx === null && selectedSegIdx !== null)) &&
         // In this overlay (maximized HUD), we only show Driver charts per user request
         useTelemetryStore.getState().activeChartCategory === 'Driver'
     );
