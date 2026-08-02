@@ -334,12 +334,14 @@ class DiscordService:
             else:
                 logger.error(f"Failed to fetch archived channel threads: {archived_r.status_code} - {archived_r.text}")
                 
-            # Remove duplicates by thread id
+            # Remove duplicates by thread id and filter out locked threads
             seen_ids = set()
             unique_threads = []
             for t in target_threads:
                 tid = t.get("id")
-                if tid and tid not in seen_ids:
+                meta = t.get("thread_metadata", {}) or {}
+                is_locked = t.get("locked", False) or meta.get("locked", False)
+                if tid and tid not in seen_ids and not is_locked:
                     seen_ids.add(tid)
                     unique_threads.append(t)
             target_threads = unique_threads
