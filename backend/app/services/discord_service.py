@@ -2,11 +2,15 @@ import os
 import json
 import logging
 import requests
+import time
+import threading
 
 logger = logging.getLogger("discord_service")
 
 class DiscordService:
     CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "discord_config.json")
+    _shares_cache = {}  # key: channel_id -> (timestamp, data_list)
+    _shares_cache_lock = threading.Lock()
 
     @classmethod
     def get_config(cls):
@@ -90,6 +94,7 @@ class DiscordService:
                 "fuji": ["fuji"],
                 "bahrain": ["bahrain"],
                 "interlagos": ["interlagos"],
+                "pace": ["interlagos"],
                 "imola": ["imola"],
                 "silverstone": ["silverstone"],
                 "barcelona": ["barcelona"]
@@ -259,4 +264,255 @@ class DiscordService:
         except Exception as e:
             logger.error(f"Error searching guild members: {e}")
         return None
+
+    @classmethod
+    def get_guild_member(cls, user_id: str) -> dict:
+        config = cls.get_config()
+        if not config or not config.get("bot_token") or not config.get("guild_id"):
+            return None
+            
+        bot_token = config["bot_token"]
+        guild_id = config["guild_id"]
+        
+        url = f"https://discord.com/api/v10/guilds/{guild_id}/members/{user_id}"
+        headers = {
+            "Authorization": f"Bot {bot_token}"
+        }
+        try:
+            r = requests.get(url, headers=headers, timeout=5)
+            if r.status_code == 200:
+                return r.json()
+        except Exception as e:
+            logger.error(f"Failed to fetch guild member {user_id}: {e}")
+        return None
+
+    @classmethod
+    def list_shared_laps(cls, car_class: str) -> list:
+        config = cls.get_config()
+        if not config or not config.get("bot_token") or not config.get("guild_id"):
+            logger.error("Discord bot config is incomplete.")
+            return []
+            
+        bot_token = config["bot_token"]
+        guild_id = config["guild_id"]
+        channel_id = config.get("channels", {}).get(car_class)
+        if not channel_id:
+            logger.error(f"Channel ID not found for car class: {car_class}")
+            return []
+            
+        now = time.time()
+        # Check cache
+        with cls._shares_cache_lock:
+            if channel_id in cls._shares_cache:
+                timestamp, cached_data = cls._shares_cache[channel_id]
+                if now - timestamp < 60: # 60 seconds TTL
+                    logger.info(f"Returning cached shares for {car_class}")
+                    return cached_data
+                    
+        headers = {
+            "Authorization": f"Bot {bot_token}"
+        }
+        
+        try:
+            target_threads = []
+            
+            # A. Fetch active threads in guild and filter by parent_id (since channel-level active threads API doesn't exist in Discord)
+            guild_active_url = f"https://discord.com/api/v10/guilds/{guild_id}/threads/active"
+            active_r = requests.get(guild_active_url, headers=headers, timeout=10)
+            if active_r.status_code == 200:
+                all_active = active_r.json().get("threads", [])
+                active_threads = [t for t in all_active if str(t.get("parent_id")) == str(channel_id)]
+                target_threads.extend(active_threads)
+            else:
+                logger.error(f"Failed to fetch active guild threads: {active_r.status_code} - {active_r.text}")
+                
+            # B. Fetch public archived threads for this channel
+            archived_url = f"https://discord.com/api/v10/channels/{channel_id}/threads/archived/public"
+            archived_r = requests.get(archived_url, headers=headers, timeout=10)
+            if archived_r.status_code == 200:
+                target_threads.extend(archived_r.json().get("threads", []))
+            else:
+                logger.error(f"Failed to fetch archived channel threads: {archived_r.status_code} - {archived_r.text}")
+                
+            # Remove duplicates by thread id
+            seen_ids = set()
+            unique_threads = []
+            for t in target_threads:
+                tid = t.get("id")
+                if tid and tid not in seen_ids:
+                    seen_ids.add(tid)
+                    unique_threads.append(t)
+            target_threads = unique_threads
+            
+            # Sort target threads by id descending (latest threads first)
+            target_threads.sort(key=lambda t: t.get("id", ""), reverse=True)
+            
+            shared_laps = []
+            # For each thread (limit to latest 20 to avoid rate limits), fetch the starter message
+            # The starter message ID is the thread ID
+            for t in target_threads[:20]:
+                thread_id = t["id"]
+                thread_name = t["name"]
+                
+                # Fetch message with ID = thread_id
+                msg_url = f"https://discord.com/api/v10/channels/{thread_id}/messages/{thread_id}"
+                msg_r = requests.get(msg_url, headers=headers, timeout=10)
+                if msg_r.status_code == 200:
+                    msg = msg_r.json()
+                    content = msg.get("content", "")
+                    cleaned_content = content
+                    if "---" in content:
+                        parts = content.split("---", 1)
+                        cleaned_content = parts[1].strip()
+                    
+                    # Try to extract actual author from mention in content e.g. "Telemetry Shared by <@12345>"
+                    import re
+                    mention_match = re.search(r"<@(\d+)>", content)
+                    resolved_author = False
+                    
+                    if mention_match:
+                        real_user_id = mention_match.group(1)
+                        member_info = cls.get_guild_member(real_user_id)
+                        if member_info:
+                            user_data = member_info.get("user", {})
+                            author_id = user_data.get("id", real_user_id)
+                            author_name = user_data.get("username", "Unknown")
+                            author_global_name = user_data.get("global_name", "")
+                            nick = member_info.get("nick", "")
+                            author_display = nick or author_global_name or author_name
+                            
+                            # Resolve avatar URL
+                            avatar_hash = user_data.get("avatar")
+                            if avatar_hash:
+                                avatar_url = f"https://cdn.discordapp.com/avatars/{author_id}/{avatar_hash}.png"
+                            else:
+                                default_avatar_index = (int(author_id) >> 22) % 6
+                                avatar_url = f"https://cdn.discordapp.com/embed/avatars/{default_avatar_index}.png"
+                            resolved_author = True
+
+                    if not resolved_author:
+                        author_data = msg.get("author", {})
+                        author_name = author_data.get("username", "Unknown")
+                        author_global_name = author_data.get("global_name", "")
+                        author_display = author_global_name or author_name
+                        
+                        # Resolve avatar URL
+                        avatar_hash = author_data.get("avatar")
+                        author_id = author_data.get("id")
+                        if avatar_hash:
+                            avatar_url = f"https://cdn.discordapp.com/avatars/{author_id}/{avatar_hash}.png"
+                        else:
+                            default_avatar_index = (int(author_id) >> 22) % 6
+                            avatar_url = f"https://cdn.discordapp.com/embed/avatars/{default_avatar_index}.png"
+                    attachments = msg.get("attachments", [])
+                    
+                    # Look for telemetry (.duckdb) and setup (.svm) attachments
+                    telemetry_att = None
+                    setup_att = None
+                    for att in attachments:
+                        fn = att.get("filename", "").lower()
+                        if fn.endswith(".duckdb"):
+                            telemetry_att = {
+                                "filename": att.get("filename"),
+                                "url": att.get("url"),
+                                "size": att.get("size")
+                            }
+                        elif fn.endswith(".svm"):
+                            setup_att = {
+                                "filename": att.get("filename"),
+                                "url": att.get("url"),
+                                "size": att.get("size")
+                            }
+                            
+                    # Only include in lists if it has a telemetry attachment
+                    if telemetry_att:
+                        shared_laps.append({
+                            "thread_id": thread_id,
+                            "title": thread_name,
+                            "author": {
+                                "id": author_id,
+                                "username": author_name,
+                                "display_name": author_display,
+                                "avatar_url": avatar_url
+                            },
+                            "content": cleaned_content,
+                            "telemetry": telemetry_att,
+                            "setup": setup_att,
+                            "created_at": msg.get("timestamp", "")
+                        })
+                else:
+                    logger.error(f"Failed to fetch starter message for thread {thread_id}: {msg_r.status_code}")
+                    
+            # Cache the result
+            with cls._shares_cache_lock:
+                cls._shares_cache[channel_id] = (time.time(), shared_laps)
+                
+            return shared_laps
+            
+        except Exception as e:
+            logger.error(f"Error fetching shared laps from Discord: {e}", exc_info=True)
+            return []
+
+    @classmethod
+    def download_discord_file(cls, url: str, dest_path: str):
+        """Stream download file from Discord CDN and write to dest_path."""
+        try:
+            r = requests.get(url, stream=True, timeout=30)
+            r.raise_for_status()
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            # Write atomically to prevent partial files on error
+            temp_path = dest_path + ".tmp"
+            with open(temp_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            os.replace(temp_path, dest_path)
+            logger.info(f"Downloaded Discord file successfully to {dest_path}")
+        except Exception as e:
+            logger.error(f"Failed to download Discord file from {url} to {dest_path}: {e}")
+            if os.path.exists(dest_path + ".tmp"):
+                try:
+                    os.remove(dest_path + ".tmp")
+                except:
+                    pass
+            raise
+
+    @classmethod
+    def get_thread_attachments(cls, thread_id: str) -> dict:
+        """Fetch starter message for a thread and return its telemetry/setup attachments."""
+        config = cls.get_config()
+        if not config or not config.get("bot_token"):
+            return None
+        bot_token = config["bot_token"]
+        headers = {"Authorization": f"Bot {bot_token}"}
+        # The starter message ID in forum threads is the thread ID itself
+        url = f"https://discord.com/api/v10/channels/{thread_id}/messages/{thread_id}"
+        try:
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code == 200:
+                msg = r.json()
+                attachments = msg.get("attachments", [])
+                telemetry_att = None
+                setup_att = None
+                for att in attachments:
+                    fn = att.get("filename", "").lower()
+                    if fn.endswith(".duckdb"):
+                        telemetry_att = {
+                            "filename": att.get("filename"),
+                            "url": att.get("url"),
+                            "size": att.get("size")
+                        }
+                    elif fn.endswith(".svm"):
+                        setup_att = {
+                            "filename": att.get("filename"),
+                            "url": att.get("url"),
+                            "size": att.get("size")
+                        }
+                return {"telemetry": telemetry_att, "setup": setup_att}
+            else:
+                logger.error(f"Failed to fetch starter message for thread {thread_id}: {r.status_code} - {r.text}")
+        except Exception as e:
+            logger.error(f"Failed to fetch attachments for thread {thread_id}: {e}")
+        return None
+
 
