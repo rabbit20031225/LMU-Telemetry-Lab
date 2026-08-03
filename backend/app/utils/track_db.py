@@ -1,4 +1,6 @@
+import re
 import difflib
+import unicodedata
 
 def find_track_in_registry(search_name: str):
     """
@@ -10,8 +12,6 @@ def find_track_in_registry(search_name: str):
 
     # 1. Normalization
     def normalize(s):
-        import re
-        import unicodedata
         # Normalize to NFD (decomposed) and filter out non-spacing marks (accents)
         s = "".join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
         s = s.lower().strip()
@@ -36,7 +36,6 @@ def find_track_in_registry(search_name: str):
                 return key, data
 
     # 4. Fuzzy Match
-    # Gather all searchable names (keys + aliases)
     all_names_map = {} # norm_name -> key
     for key, data in TRACK_REGISTRY.items():
         all_names_map[normalize(key)] = key
@@ -53,14 +52,11 @@ def find_track_in_registry(search_name: str):
     return None, None
 
 
-def find_layout_in_track(track_data, raw_layout: str, raw_track: str):
+def find_layout_in_track(track_data, raw_layout: str, raw_track: str = ""):
     """
     Finds layout data within a matched track data using various layout naming forms.
     Returns (layout_name, layout_data) or (None, None).
     """
-    import re
-    import unicodedata
-    
     if not track_data or not raw_layout:
         return None, None
         
@@ -69,14 +65,13 @@ def find_layout_in_track(track_data, raw_layout: str, raw_track: str):
         return None, None
 
     def normalize(s):
-        # Normalize to NFD (decomposed) and filter out non-spacing marks (accents)
         s = "".join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
         s = s.lower().strip()
         s = re.sub(r'[-_]', ' ', s)
         return " ".join(s.split())
 
     norm_layout = normalize(raw_layout)
-    norm_track = normalize(raw_track)
+    norm_track = normalize(raw_track) if raw_track else ""
 
     # 1. Exact match on layout key
     for key, data in layouts_dict.items():
@@ -91,33 +86,26 @@ def find_layout_in_track(track_data, raw_layout: str, raw_track: str):
                 return key, data
 
     # 3. Strip track name prefix and match
-    # e.g., raw_layout = "Paul Ricard - 3A", norm_layout = "paul ricard 3a", norm_track = "paul ricard"
-    # stripped = "3a"
     stripped_layout = norm_layout
-    if norm_track in norm_layout:
+    if norm_track and norm_track in norm_layout:
         stripped_layout = norm_layout.replace(norm_track, "").strip()
-        # Clean up leading/trailing non-alphanumeric chars
         stripped_layout = re.sub(r'^[^a-z0-9]+', '', stripped_layout).strip()
 
     if stripped_layout:
-        # Step 3.1: Exact match on stripped key
         for key, data in layouts_dict.items():
             norm_key = normalize(key)
-            # Remove "layout" prefix from key for better matching, e.g. "layout 3a" -> "3a"
             norm_key_stripped = norm_key.replace("layout", "").strip()
             norm_key_stripped = re.sub(r'^[^a-z0-9]+', '', norm_key_stripped).strip()
             
             if norm_key_stripped == stripped_layout:
                 return key, data
                 
-            # Check aliases
             aliases = data.get("aliases", [])
             for alias in aliases:
                 norm_alias = normalize(alias)
                 if norm_alias == stripped_layout:
                     return key, data
                     
-        # Step 3.2: Partial match (stripped input is contained in key)
         for key, data in layouts_dict.items():
             norm_key = normalize(key)
             norm_key_stripped = norm_key.replace("layout", "").strip()
@@ -126,7 +114,6 @@ def find_layout_in_track(track_data, raw_layout: str, raw_track: str):
             if stripped_layout in norm_key_stripped:
                 return key, data
                 
-            # Check aliases
             aliases = data.get("aliases", [])
             for alias in aliases:
                 norm_alias = normalize(alias)
@@ -146,6 +133,7 @@ def find_layout_in_track(track_data, raw_layout: str, raw_track: str):
         
     return None, None
 
+
 TRACK_REGISTRY = {
     "Bahrain International Circuit": {
         "display_name": "Bahrain",
@@ -158,21 +146,22 @@ TRACK_REGISTRY = {
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish" },
                     { "dist": 450, "alt": 7.0, "corner": "T1 Braking (Downhill)" },
                     { "dist": 600, "alt": 8.5, "corner": "T2 Exit" },
-                    { "dist": 850, "alt": 12.5, "corner": "T3 Apex (Climb)" },
+                    { "dist": 740, "alt": 9.5, "corner": "T1 Apex" },
+                    { "dist": 830, "alt": 11.0, "corner": "T2 Apex" },
+                    { "dist": 960, "alt": 12.5, "corner": "T3 Apex (Climb)" },
                     { "dist": 1150, "alt": 17.5, "corner": "T4 Approach" },
-                    { "dist": 1400, "alt": 21.2, "corner": "T4 Apex (Summit)" },
-                    { "dist": 1650, "alt": 18.0, "corner": "T5 (Descend Start)" },
-                    { "dist": 1850, "alt": 14.5, "corner": "T6/T7 Esses (Continuing Downhill)" },
-                    { "dist": 2050, "alt": 11.5, "corner": "T8 Hairpin (Descending)" },
-                    { "dist": 2250, "alt": 10.2, "corner": "Straight to T9 (Lowering)" },
-                    { "dist": 2400, "alt": 9.5, "corner": "T9 Braking (Lowest point of this sector)" },
-                    { "dist": 2550, "alt": 8.8, "corner": "T10 Apex (下坡鎖死區 - 全場次低點)" },
-                    { "dist": 2750, "alt": 14.0, "corner": "Back Straight Start (Begin Steep Climb)" },
-                    { "dist": 3100, "alt": 22.8, "corner": "T11 Apex (Second Summit)" },
-                    { "dist": 3500, "alt": 19.5, "corner": "T12 (Slight Downhill)" },
-                    { "dist": 3900, "alt": 17.0, "corner": "T13 High Speed" },
-                    { "dist": 4500, "alt": 11.5, "corner": "T14 Heavy Braking" },
-                    { "dist": 4850, "alt": 10.5, "corner": "T15 Exit" },
+                    { "dist": 1540, "alt": 21.2, "corner": "T4 Apex (Summit 21.2m)" },
+                    { "dist": 1790, "alt": 18.0, "corner": "T5 Apex (Descend Start)" },
+                    { "dist": 1880, "alt": 16.0, "corner": "T6 Apex" },
+                    { "dist": 1995, "alt": 14.5, "corner": "T7 Apex" },
+                    { "dist": 2260, "alt": 11.5, "corner": "T8 Hairpin Apex" },
+                    { "dist": 2630, "alt": 9.5, "corner": "T9 Apex" },
+                    { "dist": 2730, "alt": 8.8, "corner": "T10 Apex (Lowest Point)" },
+                    { "dist": 3450, "alt": 22.8, "corner": "T11 Apex (Second Summit)" },
+                    { "dist": 3820, "alt": 19.5, "corner": "T12 Apex" },
+                    { "dist": 4130, "alt": 17.0, "corner": "T13 Apex" },
+                    { "dist": 4930, "alt": 11.5, "corner": "T14 Apex" },
+                    { "dist": 5020, "alt": 10.5, "corner": "T15 Apex" },
                     { "dist": 5412, "alt": 10.0, "corner": "Start/Finish" },
                 ]
             },
@@ -180,18 +169,21 @@ TRACK_REGISTRY = {
                 "aliases": ["Bahrain Endurance Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish Line" },
-                    { "dist": 450, "alt": 6.8, "corner": "T1 Apex" },
-                    { "dist": 1400, "alt": 21.2, "corner": "T4 Apex (進入 Endurance 段)" },
-                    { "dist": 1650, "alt": 19.0, "corner": "Endurance T5 (下坡)" },
-                    { "dist": 1850, "alt": 17.5, "corner": "Endurance T6/T7" },
-                    { "dist": 2100, "alt": 18.8, "corner": "Endurance T8 (回爬)" },
-                    { "dist": 2350, "alt": 20.2, "corner": "Endurance T10 (高點)" },
-                    { "dist": 2650, "alt": 18.5, "corner": "Re-joining GP Track (原本的 T5)" },
-                    { "dist": 2850, "alt": 16.0, "corner": "T6 GP" },
-                    { "dist": 3200, "alt": 12.2, "corner": "T8 Hairpin (Low Point)" },
+                    { "dist": 450, "alt": 6.8, "corner": "T1 Braking" },
+                    { "dist": 750, "alt": 8.5, "corner": "T1 Apex" },
+                    { "dist": 843, "alt": 10.0, "corner": "T2 Apex" },
+                    { "dist": 965, "alt": 12.0, "corner": "T3 Apex" },
+                    { "dist": 1540, "alt": 21.2, "corner": "T4 Apex (Endurance Entry)" },
+                    { "dist": 1670, "alt": 19.0, "corner": "Endurance T5" },
+                    { "dist": 1900, "alt": 17.5, "corner": "Endurance T6" },
+                    { "dist": 2040, "alt": 18.0, "corner": "Endurance T7" },
+                    { "dist": 2105, "alt": 18.8, "corner": "Endurance T8" },
+                    { "dist": 2240, "alt": 20.2, "corner": "Endurance T10 (High Point)" },
+                    { "dist": 2650, "alt": 18.5, "corner": "Re-joining GP Track" },
+                    { "dist": 3140, "alt": 12.2, "corner": "T8 Hairpin (Low Point)" },
                     { "dist": 3600, "alt": 16.2, "corner": "T10 Apex" },
-                    { "dist": 3950, "alt": 22.5, "corner": "T11 (Highest Point)" },
-                    { "dist": 5250, "alt": 11.5, "corner": "T14 Braking" },
+                    { "dist": 4340, "alt": 22.5, "corner": "T11 Apex (Highest Point)" },
+                    { "dist": 5820, "alt": 11.5, "corner": "T14 Apex" },
                     { "dist": 6299, "alt": 10.0, "corner": "Start/Finish Line" },
                 ]
             },
@@ -200,15 +192,15 @@ TRACK_REGISTRY = {
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish Line" },
                     { "dist": 250, "alt": 9.2, "corner": "T1 Braking" },
-                    { "dist": 450, "alt": 6.8, "corner": "T1 Apex (Low)" },
-                    { "dist": 1100, "alt": 16.5, "corner": "T4 Approach" },
-                    { "dist": 1400, "alt": 21.2, "corner": "T4 Apex (High Point)" },
-                    { "dist": 1550, "alt": 19.5, "corner": "Outer Link Entry (開始切徑)" },
-                    { "dist": 1750, "alt": 20.8, "corner": "Outer Link Crest (小緩坡)" },
-                    { "dist": 2000, "alt": 17.5, "corner": "Re-joining Back Straight (匯入後直道)" },
-                    { "dist": 2400, "alt": 16.2, "corner": "T13 High Speed" },
-                    { "dist": 2800, "alt": 12.0, "corner": "T14 Braking" },
-                    { "dist": 3100, "alt": 10.8, "corner": "T15 Exit" },
+                    { "dist": 745, "alt": 8.5, "corner": "T1 Apex" },
+                    { "dist": 840, "alt": 10.0, "corner": "T2 Apex" },
+                    { "dist": 965, "alt": 12.5, "corner": "T3 Apex" },
+                    { "dist": 1540, "alt": 21.2, "corner": "T4 Apex (High Point)" },
+                    { "dist": 1670, "alt": 19.5, "corner": "Outer Link Entry" },
+                    { "dist": 1900, "alt": 20.8, "corner": "Outer Link Crest" },
+                    { "dist": 2300, "alt": 17.5, "corner": "Re-joining Back Straight" },
+                    { "dist": 3060, "alt": 12.0, "corner": "T14 Braking" },
+                    { "dist": 3150, "alt": 10.8, "corner": "T15 Apex" },
                     { "dist": 3543, "alt": 10.0, "corner": "Start/Finish Line" },
                 ]
             },
@@ -216,11 +208,14 @@ TRACK_REGISTRY = {
                 "aliases": ["Bahrain Paddock Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 10.0, "corner": "Start/Finish Line" },
-                    { "dist": 1400, "alt": 21.2, "corner": "T4 Apex" },
-                    { "dist": 1650, "alt": 19.0, "corner": "Entering Paddock Link" },
-                    { "dist": 1950, "alt": 15.5, "corner": "Paddock Link Mid (下坡)" },
-                    { "dist": 2300, "alt": 12.0, "corner": "Re-joining GP T14" },
-                    { "dist": 2700, "alt": 10.8, "corner": "T15 Exit" },
+                    { "dist": 725, "alt": 8.5, "corner": "T1 Apex" },
+                    { "dist": 810, "alt": 10.0, "corner": "T2 Apex" },
+                    { "dist": 920, "alt": 12.0, "corner": "T3 Apex" },
+                    { "dist": 980, "alt": 13.5, "corner": "T4 Apex" },
+                    { "dist": 1120, "alt": 15.5, "corner": "T5 Apex" },
+                    { "dist": 1820, "alt": 21.2, "corner": "Paddock Link Mid" },
+                    { "dist": 2460, "alt": 12.0, "corner": "Re-joining GP T14" },
+                    { "dist": 3240, "alt": 10.8, "corner": "T15 Apex" },
                     { "dist": 3705, "alt": 10.0, "corner": "Start/Finish Line" },
                 ]
             },
@@ -228,69 +223,49 @@ TRACK_REGISTRY = {
     },
     "Circuit de La Sarthe": {
         "display_name": "Le Mans",
-        "aliases": ["Le Mans", "Circuit de la Sarthe", "Sarthe", "Le Mans"],
+        "aliases": ["Le Mans", "Circuit de la Sarthe", "Sarthe"],
         "country": "France",
         "layouts": {
             "Default": {
                 "aliases": ["Circuit de la Sarthe"],
                 "ref_points": [
-                    { "dist": 0, "alt": 51.0, "corner": "Start/Finish Line" },
-                    { "dist": 400, "alt": 62.0, "corner": "Dunlop Curve Entry" },
-                    { "dist": 650, "alt": 74.5, "corner": "Dunlop Bridge (Highest Point)" },
-                    { "dist": 850, "alt": 68.0, "corner": "Dunlop Chicane Exit" },
-                    { "dist": 1350, "alt": 61.5, "corner": "Tertre Rouge Entry" },
-                    { "dist": 1600, "alt": 59.0, "corner": "Mulsanne Straight Start" },
-                    { "dist": 3500, "alt": 55.0, "corner": "First Sector Mid" },
-                    { "dist": 4250, "alt": 53.5, "corner": "Chicane 1 Braking" },
-                    { "dist": 4450, "alt": 53.0, "corner": "Chicane 1 (Daytona)" },
-                    { "dist": 5500, "alt": 51.5, "corner": "Second Sector Mid" },
-                    { "dist": 6650, "alt": 49.0, "corner": "Chicane 2 Braking" },
-                    { "dist": 6850, "alt": 48.5, "corner": "Chicane 2 (Michelin)" },
-                    { "dist": 8000, "alt": 46.0, "corner": "Approaching Mulsanne Corner" },
-                    { "dist": 9150, "alt": 38.5, "corner": "Mulsanne Corner Braking" },
-                    { "dist": 9300, "alt": 37.0, "corner": "Mulsanne Corner (Lowest Point)" },
-                    { "dist": 10600, "alt": 42.5, "corner": "Indianapolis" },
-                    { "dist": 11100, "alt": 42.0, "corner": "Arnage" },
-                    { "dist": 11800, "alt": 45.0, "corner": "Porsche Curves Entry (Start Climb)" },
-                    { "dist": 12100, "alt": 48.5, "corner": "Virage du Pont" },
-                    { "dist": 12400, "alt": 52.0, "corner": "Virage S" },
-                    { "dist": 12700, "alt": 54.5, "corner": "Maison Blanche" },
-                    { "dist": 13200, "alt": 53.0, "corner": "Ford Chicane 1" },
-                    { "dist": 13450, "alt": 51.5, "corner": "Ford Chicane 2" },
-                    { "dist": 13626, "alt": 51.0, "corner": "Start/Finish Line" },
+                    { "dist": 0, "alt": 55.0, "corner": "Start/Finish Line" },
+                    { "dist": 650, "alt": 60.0, "corner": "T1 Apex (Dunlop Curve)" },
+                    { "dist": 950, "alt": 79.3, "corner": "Dunlop Chicane Summit (Peak 79.3m)" },
+                    { "dist": 1250, "alt": 78.0, "corner": "Dunlop Bridge Crest" },
+                    { "dist": 1600, "alt": 68.0, "corner": "Forest Esses" },
+                    { "dist": 2100, "alt": 60.0, "corner": "Tertre Rouge Apex" },
+                    { "dist": 3500, "alt": 55.0, "corner": "Mulsanne Straight - Sector 1" },
+                    { "dist": 4300, "alt": 53.0, "corner": "Daytona Chicane" },
+                    { "dist": 5500, "alt": 50.0, "corner": "Mulsanne Straight - Sector 2" },
+                    { "dist": 6700, "alt": 48.0, "corner": "Michelin Chicane" },
+                    { "dist": 6800, "alt": 42.0, "corner": "Mulsanne Corner (Lowest Point 42m)" },
+                    { "dist": 10600, "alt": 52.0, "corner": "Indianapolis Apex" },
+                    { "dist": 11100, "alt": 46.0, "corner": "Arnage Apex" },
+                    { "dist": 11800, "alt": 50.0, "corner": "Porsche Curves Entry" },
+                    { "dist": 12500, "alt": 62.0, "corner": "Porsche Curves Apex" },
+                    { "dist": 13200, "alt": 58.0, "corner": "Ford Chicane 1" },
+                    { "dist": 13440, "alt": 55.0, "corner": "T38 Apex (Ford Chicane 2)" },
+                    { "dist": 13626, "alt": 55.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Mulsanne Circuit": {
                 "aliases": ["Circuit de la Sarthe Mulsanne"],
                 "ref_points": [
-                    { "dist": 0, "alt": 51.0, "corner": "Start/Finish Line" },
-                    { "dist": 250, "alt": 52.5, "corner": "Dunlop Curve Entry" },
-                    { "dist": 450, "alt": 65.0, "corner": "Dunlop Curve Climb" },
-                    { "dist": 650, "alt": 74.5, "corner": "Dunlop Bridge (Highest Point)" },
-                    { "dist": 850, "alt": 68.0, "corner": "Dunlop Chicane Exit" },
-                    { "dist": 1100, "alt": 64.0, "corner": "Forest Esses" },
-                    { "dist": 1350, "alt": 61.5, "corner": "Tertre Rouge Entry" },
-                    { "dist": 1600, "alt": 59.0, "corner": "Tertre Rouge Exit (Start of Mulsanne)" },
-                    { "dist": 2500, "alt": 56.5, "corner": "Mulsanne Straight - Sector 1" },
-                    { "dist": 3500, "alt": 55.0, "corner": "Mulsanne Straight - First Kink (Mild Descent)" },
-                    { "dist": 4500, "alt": 53.5, "corner": "Mulsanne Straight - Sector 2" },
-                    { "dist": 5500, "alt": 52.0, "corner": "Mulsanne Straight - Sector 3" },
-                    { "dist": 6500, "alt": 50.5, "corner": "Mulsanne Straight - Approaching Kink" },
-                    { "dist": 7500, "alt": 49.0, "corner": "Mulsanne Kink Area (Crest)" },
-                    { "dist": 8300, "alt": 44.5, "corner": "Mulsanne Kink Apex (High Speed Drop)" },
-                    { "dist": 8800, "alt": 42.0, "corner": "Descent to Mulsanne Corner" },
-                    { "dist": 9100, "alt": 38.5, "corner": "Mulsanne Corner Braking (Heavy G)" },
-                    { "dist": 9200, "alt": 37.0, "corner": "Mulsanne Corner (Lowest Point)" },
-                    { "dist": 10500, "alt": 42.5, "corner": "Indianapolis" },
-                    { "dist": 11000, "alt": 42.0, "corner": "Arnage" },
-                    { "dist": 11700, "alt": 45.0, "corner": "Porsche Curves Entry" },
-                    { "dist": 12100, "alt": 51.0, "corner": "Porsche Curves Bridge" },
-                    { "dist": 12500, "alt": 54.0, "corner": "Corvette Corner" },
-                    { "dist": 13000, "alt": 53.5, "corner": "Maison Blanche" },
-                    { "dist": 13350, "alt": 51.5, "corner": "Ford Chicanes" },
-                    { "dist": 13554, "alt": 51.0, "corner": "Start/Finish Line" },
+                    { "dist": 0, "alt": 55.0, "corner": "Start/Finish Line" },
+                    { "dist": 650, "alt": 60.0, "corner": "T1 Apex (Dunlop Curve)" },
+                    { "dist": 950, "alt": 79.3, "corner": "Dunlop Chicane Summit" },
+                    { "dist": 1600, "alt": 68.0, "corner": "Forest Esses" },
+                    { "dist": 2100, "alt": 60.0, "corner": "Tertre Rouge Exit" },
+                    { "dist": 5500, "alt": 50.0, "corner": "Full Mulsanne Straight" },
+                    { "dist": 9200, "alt": 42.0, "corner": "Mulsanne Corner (Lowest 42m)" },
+                    { "dist": 10500, "alt": 52.0, "corner": "Indianapolis" },
+                    { "dist": 11000, "alt": 46.0, "corner": "Arnage" },
+                    { "dist": 11700, "alt": 50.0, "corner": "Porsche Curves" },
+                    { "dist": 13370, "alt": 55.0, "corner": "T32 Apex (Ford Chicane)" },
+                    { "dist": 13554, "alt": 55.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Paul Ricard": {
@@ -301,75 +276,82 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Paul Ricard - ELMS"],
                 "ref_points": [
-                    { "dist": 0, "alt": 438.0, "corner": "Start/Finish Line" },
-                    { "dist": 400, "alt": 435.0, "corner": "T1 (Verrerie) - 微幅下坡" },
-                    { "dist": 1100, "alt": 439.0, "corner": "T3/T4 (Hotel)" },
-                    { "dist": 1800, "alt": 442.0, "corner": "Mistral Straight Entry (爬升至最高點附近)" },
-                    { "dist": 2800, "alt": 444.0, "corner": "Mistral Straight Mid (全場最高點)" },
-                    { "dist": 3300, "alt": 436.0, "corner": "North Chicane Braking (下坡煞車)" },
-                    { "dist": 4100, "alt": 432.0, "corner": "Signes (最快的高速右彎 - 最低點)" },
-                    { "dist": 4600, "alt": 434.0, "corner": "Double Droite du Beausset" },
-                    { "dist": 5200, "alt": 437.0, "corner": "Bendor / Village" },
-                    { "dist": 5842, "alt": 438.0, "corner": "Start/Finish Line" },
+                    { "dist": 0, "alt": 428.0, "corner": "Start/Finish Line" },
+                    { "dist": 650, "alt": 426.0, "corner": "T1 Apex (Verrerie Left)" },
+                    { "dist": 754, "alt": 426.0, "corner": "T2 Apex (Verrerie Right)" },
+                    { "dist": 1330, "alt": 425.0, "corner": "T3 Apex (Sainte-Beaume)" },
+                    { "dist": 1400, "alt": 424.0, "corner": "T4 Apex" },
+                    { "dist": 1520, "alt": 424.0, "corner": "T5 Apex" },
+                    { "dist": 1640, "alt": 425.0, "corner": "T6 Apex" },
+                    { "dist": 1880, "alt": 424.0, "corner": "T7 Apex (Hotel)" },
+                    { "dist": 2975, "alt": 420.0, "corner": "T8 Apex (Mistral Chicane - Lowest 420m)" },
+                    { "dist": 3060, "alt": 420.0, "corner": "T9 Apex" },
+                    { "dist": 3950, "alt": 432.0, "corner": "T10 Apex (Signes - Peak 432m)" },
+                    { "dist": 4440, "alt": 430.0, "corner": "T11 Apex (Beausset)" },
+                    { "dist": 4830, "alt": 427.0, "corner": "T12 Apex (Bendor)" },
+                    { "dist": 5075, "alt": 426.0, "corner": "T13 Apex" },
+                    { "dist": 5350, "alt": 426.0, "corner": "T14 Apex (Virage du Pont)" },
+                    { "dist": 5515, "alt": 427.0, "corner": "T15 Apex" },
+                    { "dist": 5842, "alt": 428.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Layout 1A": {
                 "aliases": ["Paul Ricard - 1A"],
                 "ref_points": [
-                    { "dist": 0, "alt": 438.0, "corner": "Start of Lap (Main Straight)" },
-                    { "dist": 250, "alt": 437.0, "corner": "T1 Braking Zone" },
-                    { "dist": 380, "alt": 435.5, "corner": "T1 Apex (Verrerie - 對齊你的計時邏輯)" },
-                    { "dist": 600, "alt": 434.0, "corner": "T2 Apex" },
-                    { "dist": 1100, "alt": 440.0, "corner": "T3/T4 (Hotel/Camp)" },
-                    { "dist": 1600, "alt": 442.5, "corner": "T5 (Start of Mistral Straight)" },
-                    { "dist": 2500, "alt": 444.0, "corner": "Mistral Mid (High Point)" },
-                    { "dist": 3500, "alt": 438.0, "corner": "Approaching Signes" },
-                    { "dist": 4100, "alt": 432.0, "corner": "Signes Apex (Lowest Point)" },
-                    { "dist": 4600, "alt": 434.5, "corner": "Double Droite du Beausset" },
-                    { "dist": 5100, "alt": 436.0, "corner": "Bendor" },
-                    { "dist": 5450, "alt": 437.5, "corner": "T14 (Final Corner)" },
-                    { "dist": 5752, "alt": 438.0, "corner": "Lap End" },
+                    { "dist": 0, "alt": 428.0, "corner": "Start/Finish Line" },
+                    { "dist": 685, "alt": 426.0, "corner": "T1 Apex" },
+                    { "dist": 835, "alt": 425.5, "corner": "T2 Apex" },
+                    { "dist": 1290, "alt": 425.0, "corner": "T3 Apex" },
+                    { "dist": 1370, "alt": 424.0, "corner": "T4 Apex" },
+                    { "dist": 1485, "alt": 424.0, "corner": "T5 Apex" },
+                    { "dist": 1615, "alt": 425.0, "corner": "T6 Apex" },
+                    { "dist": 1860, "alt": 424.0, "corner": "T7 Apex" },
+                    { "dist": 3845, "alt": 432.0, "corner": "T8 Apex (Signes - Peak 432m)" },
+                    { "dist": 4350, "alt": 430.0, "corner": "T9 Apex (Beausset)" },
+                    { "dist": 4750, "alt": 427.0, "corner": "T10 Apex" },
+                    { "dist": 4990, "alt": 426.0, "corner": "T11 Apex" },
+                    { "dist": 5260, "alt": 426.0, "corner": "T12 Apex (Virage du Pont)" },
+                    { "dist": 5425, "alt": 427.0, "corner": "T13 Apex" },
+                    { "dist": 5752, "alt": 428.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Layout 1A-V2": {
                 "aliases": ["Paul Ricard - 1A-V2"],
                 "ref_points": [
-                    { "dist": 0, "alt": 438.0, "corner": "Start Line" },
-                    { "dist": 650, "alt": 435.5, "corner": "T1/T2 (Verrerie)" },
-                    { "dist": 1200, "alt": 440.0, "corner": "T3/T4" },
-                    { "dist": 1800, "alt": 442.5, "corner": "Mistral Entry" },
-                    { "dist": 2800, "alt": 444.0, "corner": "Mistral Chicane Approach" },
-                    { "dist": 3100, "alt": 438.0, "corner": "Chicane Apex (Downhill)" },
-                    { "dist": 4200, "alt": 432.0, "corner": "Signes (Lowest Point)" },
-                    { "dist": 4800, "alt": 434.5, "corner": "Beausset" },
-                    { "dist": 5842, "alt": 438.0, "corner": "Finish" },
+                    { "dist": 0, "alt": 428.0, "corner": "Start/Finish Line" },
+                    { "dist": 650, "alt": 426.0, "corner": "T1 Apex" },
+                    { "dist": 755, "alt": 426.0, "corner": "T2 Apex" },
+                    { "dist": 1355, "alt": 425.0, "corner": "T3 Apex" },
+                    { "dist": 1410, "alt": 424.0, "corner": "T4 Apex" },
+                    { "dist": 1530, "alt": 424.0, "corner": "T5 Apex" },
+                    { "dist": 1660, "alt": 425.0, "corner": "T6 Apex" },
+                    { "dist": 3100, "alt": 420.0, "corner": "Mistral Chicane (Lowest 420m)" },
+                    { "dist": 4200, "alt": 432.0, "corner": "Signes Apex (Peak 432m)" },
+                    { "dist": 4800, "alt": 430.0, "corner": "Beausset Apex" },
+                    { "dist": 5842, "alt": 428.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Layout 1A-V2-Short": {
                 "aliases": ["Paul Ricard - 1A-V2-Short"],
                 "ref_points": [
-                    { "dist": 0, "alt": 438.0, "corner": "Start of Lap" },
-                    { "dist": 380, "alt": 435.5, "corner": "T1 Apex" },
-                    { "dist": 1100, "alt": 440.0, "corner": "T3/T4" },
-                    { "dist": 2000, "alt": 444.5, "corner": "Mistral Straight (Short Version)" },
-                    { "dist": 2800, "alt": 440.0, "corner": "Short Cut Link Entry" },
-                    { "dist": 3200, "alt": 435.0, "corner": "Link Transition (Descent)" },
-                    { "dist": 3650, "alt": 433.0, "corner": "Re-joining Beausset (Lowest Point)" },
-                    { "dist": 4200, "alt": 435.5, "corner": "Bendor" },
-                    { "dist": 4800, "alt": 437.0, "corner": "T14/T15" },
-                    { "dist": 5227, "alt": 438.0, "corner": "Lap End" },
+                    { "dist": 0, "alt": 428.0, "corner": "Start/Finish Line" },
+                    { "dist": 640, "alt": 426.0, "corner": "T1 Apex" },
+                    { "dist": 2000, "alt": 425.0, "corner": "Short Link Entry" },
+                    { "dist": 3200, "alt": 422.0, "corner": "Short Link Transition" },
+                    { "dist": 4200, "alt": 427.0, "corner": "Rejoining Beausset" },
+                    { "dist": 5227, "alt": 428.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Layout 3A": {
                 "aliases": ["Paul Ricard - 3A"],
                 "ref_points": [
-                    { "dist": 0, "alt": 438.0, "corner": "Start Line" },
-                    { "dist": 650, "alt": 435.0, "corner": "T1" },
-                    { "dist": 1200, "alt": 442.0, "corner": "Short Cut Link (T4 to T11)" },
-                    { "dist": 2000, "alt": 434.0, "corner": "Re-joining Beausset" },
-                    { "dist": 3793, "alt": 438.0, "corner": "Finish" },
+                    { "dist": 0, "alt": 428.0, "corner": "Start/Finish Line" },
+                    { "dist": 515, "alt": 426.5, "corner": "T1 Apex" },
+                    { "dist": 650, "alt": 426.0, "corner": "T2 Apex" },
+                    { "dist": 2000, "alt": 427.0, "corner": "Short Cut Rejoin" },
+                    { "dist": 3793, "alt": 428.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Circuit of the Americas": {
@@ -380,39 +362,54 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Circuit of the Americas"],
                 "ref_points": [
-                    { "dist": 0, "alt": 131.0, "corner": "Start of Lap (Post-T20)" },
-                    { "dist": 200, "alt": 132.0, "corner": "Start/Finish Line" },
-                    { "dist": 400, "alt": 135.0, "corner": "Begin Massive Climb" },
-                    { "dist": 650, "alt": 155.0, "corner": "T1 Apex (Highest Point)" },
-                    { "dist": 1000, "alt": 142.0, "corner": "T2 (Downhill Start)" },
-                    { "dist": 1600, "alt": 130.0, "corner": "T5 (S-Curves Low)" },
-                    { "dist": 2200, "alt": 135.0, "corner": "T9 (Slight Climb)" },
-                    { "dist": 2500, "alt": 128.0, "corner": "T11 Hairpin" },
-                    { "dist": 3200, "alt": 122.0, "corner": "Back Straight Mid (Lowest Point)" },
-                    { "dist": 3700, "alt": 127.0, "corner": "T12 Braking" },
-                    { "dist": 4600, "alt": 130.0, "corner": "T16-T18 Carousel" },
-                    { "dist": 5100, "alt": 131.5, "corner": "T19" },
-                    { "dist": 5400, "alt": 131.0, "corner": "T20 Entry" },
-                    { "dist": 5513, "alt": 131.0, "corner": "Lap End" },
+                    { "dist": 0, "alt": 158.0, "corner": "Start/Finish Line" },
+                    { "dist": 660, "alt": 189.9, "corner": "T1 Apex (Turn 1 Crest - Peak 189.9m)" },
+                    { "dist": 890, "alt": 182.0, "corner": "T2 Apex" },
+                    { "dist": 1175, "alt": 172.0, "corner": "T3 Apex (Esses)" },
+                    { "dist": 1255, "alt": 166.0, "corner": "T4 Apex" },
+                    { "dist": 1350, "alt": 162.0, "corner": "T5 Apex" },
+                    { "dist": 1520, "alt": 158.0, "corner": "T6 Apex" },
+                    { "dist": 1710, "alt": 156.0, "corner": "T7 Apex" },
+                    { "dist": 1880, "alt": 154.0, "corner": "T8 Apex" },
+                    { "dist": 1970, "alt": 152.0, "corner": "T9 Apex" },
+                    { "dist": 2175, "alt": 150.0, "corner": "T10 Apex" },
+                    { "dist": 2575, "alt": 149.0, "corner": "T11 Apex (Hairpin - Lowest 149m)" },
+                    { "dist": 3790, "alt": 154.0, "corner": "T12 Apex (Back Straight End)" },
+                    { "dist": 4005, "alt": 156.0, "corner": "T13 Apex (Stadium)" },
+                    { "dist": 4110, "alt": 157.0, "corner": "T14 Apex" },
+                    { "dist": 4300, "alt": 158.0, "corner": "T15 Apex" },
+                    { "dist": 4540, "alt": 162.0, "corner": "T16 Apex (Carousel)" },
+                    { "dist": 4620, "alt": 161.0, "corner": "T17 Apex" },
+                    { "dist": 4720, "alt": 160.0, "corner": "T18 Apex" },
+                    { "dist": 5060, "alt": 156.0, "corner": "T19 Apex" },
+                    { "dist": 5370, "alt": 158.0, "corner": "T20 Apex (Final Hairpin)" },
+                    { "dist": 5513, "alt": 158.0, "corner": "Start/Finish Line" },
                 ]
             },
             "National Circuit": {
                 "aliases": ["COTA National Circuit"],
                 "ref_points": [
-                    { "dist": 0, "alt": 131.0, "corner": "Start of Lap (Post-T20)" },
-                    { "dist": 200, "alt": 132.0, "corner": "Start/Finish Line" },
-                    { "dist": 400, "alt": 135.5, "corner": "Begin Steep Climb" },
-                    { "dist": 650, "alt": 155.0, "corner": "T1 Apex (Highest Point)" },
-                    { "dist": 1000, "alt": 140.5, "corner": "T2-T3 Descent" },
-                    { "dist": 1400, "alt": 132.0, "corner": "T5 Apex" },
-                    { "dist": 1700, "alt": 130.2, "corner": "T6 (National Link Entry)" },
-                    { "dist": 1950, "alt": 128.8, "corner": "National Link Mid (Lowest Point)" },
-                    { "dist": 2200, "alt": 129.5, "corner": "Re-joining Stadium Section" },
-                    { "dist": 2700, "alt": 130.5, "corner": "T16-T18 Carousel" },
-                    { "dist": 3300, "alt": 131.5, "corner": "T20 Apex" },
-                    { "dist": 3702, "alt": 131.0, "corner": "Lap End" },
+                    { "dist": 0, "alt": 158.0, "corner": "Start/Finish Line" },
+                    { "dist": 660, "alt": 189.9, "corner": "T1 Apex (Peak 189.9m)" },
+                    { "dist": 910, "alt": 181.0, "corner": "T2 Apex" },
+                    { "dist": 1170, "alt": 172.0, "corner": "T3 Apex" },
+                    { "dist": 1260, "alt": 166.0, "corner": "T4 Apex" },
+                    { "dist": 1350, "alt": 162.0, "corner": "T5 Apex" },
+                    { "dist": 1440, "alt": 158.0, "corner": "T6 Apex" },
+                    { "dist": 1530, "alt": 156.0, "corner": "T7 Apex" },
+                    { "dist": 1625, "alt": 153.0, "corner": "T8 Apex (National Link)" },
+                    { "dist": 1990, "alt": 150.0, "corner": "T9 Apex" },
+                    { "dist": 2210, "alt": 152.0, "corner": "T10 Apex" },
+                    { "dist": 2300, "alt": 153.0, "corner": "T11 Apex" },
+                    { "dist": 2490, "alt": 154.0, "corner": "T12 Apex" },
+                    { "dist": 2730, "alt": 157.0, "corner": "T13 Apex" },
+                    { "dist": 2800, "alt": 158.0, "corner": "T14 Apex" },
+                    { "dist": 2975, "alt": 161.0, "corner": "T15 Apex" },
+                    { "dist": 3255, "alt": 156.0, "corner": "T16 Apex" },
+                    { "dist": 3550, "alt": 158.0, "corner": "T17 Apex" },
+                    { "dist": 3702, "alt": 158.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Fuji Speedway": {
@@ -423,35 +420,34 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Fuji Speedway"],
                 "ref_points": [
-                    { "dist": 0, "alt": 582.0, "corner": "Start/Finish Line" },
-                    { "dist": 400, "alt": 575.0, "corner": "T1 (First Corner)" },
-                    { "dist": 1100, "alt": 560.0, "corner": "Coca-Cola Corner (最低點)" },
-                    { "dist": 1600, "alt": 568.0, "corner": "100R (持續爬升)" },
-                    { "dist": 2200, "alt": 585.0, "corner": "Advan Hairpin (T6)" },
-                    { "dist": 2500, "alt": 588.0, "corner": "300R" },
-                    { "dist": 2850, "alt": 592.5, "corner": "Dunlop Chicane (T10)" },
-                    { "dist": 3100, "alt": 598.0, "corner": "T11 / T12" },
-                    { "dist": 3500, "alt": 606.0, "corner": "T13 (全場最高點)" },
-                    { "dist": 3800, "alt": 602.0, "corner": "T15" },
-                    { "dist": 4250, "alt": 594.0, "corner": "Panasonic Corner (T16)" },
-                    { "dist": 4563, "alt": 582.0, "corner": "Start/Finish Line" },
+                    { "dist": 0, "alt": 552.0, "corner": "Start/Finish Line" },
+                    { "dist": 770, "alt": 550.0, "corner": "T1 Apex (TGR Corner - Lowest 550m)" },
+                    { "dist": 930, "alt": 554.0, "corner": "T2 Apex (75R)" },
+                    { "dist": 1300, "alt": 558.0, "corner": "T3 Apex (Coca-Cola Corner)" },
+                    { "dist": 1600, "alt": 562.0, "corner": "T4/T5 Apex (100R)" },
+                    { "dist": 2000, "alt": 566.0, "corner": "T6 Apex (Hairpin Corner)" },
+                    { "dist": 2400, "alt": 570.0, "corner": "T7/T8 Apex (300R)" },
+                    { "dist": 2800, "alt": 576.0, "corner": "T9/T10 Apex (Dunlop Chicane)" },
+                    { "dist": 3100, "alt": 580.0, "corner": "T11/T12 Apex" },
+                    { "dist": 3500, "alt": 585.0, "corner": "T13 Apex (Sector 3 Climb - Peak 585m)" },
+                    { "dist": 3680, "alt": 578.0, "corner": "T16 Apex (Panasonic Corner)" },
+                    { "dist": 4563, "alt": 552.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Classic Circuit": {
                 "aliases": ["Fuji Speedway Classic"],
                 "ref_points": [
-                    { "dist": 0, "alt": 582.0, "corner": "Start/Finish Line" },
-                    { "dist": 400, "alt": 575.0, "corner": "T1" },
-                    { "dist": 1100, "alt": 560.0, "corner": "Coca-Cola Corner" },
-                    { "dist": 2200, "alt": 585.0, "corner": "Hairpin" },
-                    { "dist": 2800, "alt": 592.0, "corner": "Approach to Classic Sector 3" },
-                    { "dist": 3100, "alt": 597.5, "corner": "High Speed Link Entry" },
-                    { "dist": 3400, "alt": 604.0, "corner": "Link Section Crest (最高點)" },
-                    { "dist": 3800, "alt": 601.5, "corner": "Sweep into Final Straight" },
-                    { "dist": 4200, "alt": 593.0, "corner": "Final Turn Exit" },
-                    { "dist": 4526, "alt": 582.0, "corner": "Start/Finish Line" },
+                    { "dist": 0, "alt": 552.0, "corner": "Start/Finish Line" },
+                    { "dist": 660, "alt": 550.0, "corner": "T1 Apex" },
+                    { "dist": 920, "alt": 554.0, "corner": "T2 Apex" },
+                    { "dist": 1300, "alt": 558.0, "corner": "Coca-Cola Corner" },
+                    { "dist": 2000, "alt": 566.0, "corner": "Hairpin" },
+                    { "dist": 2800, "alt": 576.0, "corner": "Classic Sector 3 Approach" },
+                    { "dist": 3400, "alt": 585.0, "corner": "Classic Link (Peak 585m)" },
+                    { "dist": 3660, "alt": 578.0, "corner": "T14 Apex (Final Corner)" },
+                    { "dist": 4526, "alt": 552.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Autodromo Internazionale Enzo e Dino Ferrari": {
@@ -462,24 +458,30 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Autodromo Enzo e Dino Ferrari"],
                 "ref_points": [
-                    { "dist": 0, "alt": 42.0, "corner": "Start/Finish Line" },
-                    { "dist": 350, "alt": 40.5, "corner": "Variante del Tamburello Entry" },
-                    { "dist": 600, "alt": 38.5, "corner": "Tamburello Exit (最低點 1)" },
-                    { "dist": 1100, "alt": 42.0, "corner": "Variante Villeneuve" },
-                    { "dist": 1450, "alt": 48.0, "corner": "Tosa Braking (開始劇烈爬升)" },
-                    { "dist": 1700, "alt": 58.5, "corner": "Tosa Apex" },
-                    { "dist": 1950, "alt": 65.0, "corner": "Piratella Approach (持續爬坡)" },
-                    { "dist": 2200, "alt": 72.5, "corner": "Piratella Apex (全場最高點)" },
-                    { "dist": 2450, "alt": 62.0, "corner": "Acque Minerali Descent (急下坡)" },
-                    { "dist": 2700, "alt": 54.0, "corner": "Acque Minerali First Apex (最低點 2)" },
-                    { "dist": 2900, "alt": 58.0, "corner": "Acque Minerali Second Apex (回爬)" },
-                    { "dist": 3450, "alt": 69.5, "corner": "Variante Alta (山脊減速彎)" },
-                    { "dist": 3900, "alt": 58.0, "corner": "Rivazza Entry (下坡開始)" },
-                    { "dist": 4250, "alt": 46.5, "corner": "Rivazza 1 (陡降煞車區)" },
-                    { "dist": 4500, "alt": 43.5, "corner": "Rivazza 2" },
-                    { "dist": 4909, "alt": 42.0, "corner": "Start/Finish Line" },
+                    { "dist": 0, "alt": 44.0, "corner": "Start/Finish Line" },
+                    { "dist": 310, "alt": 38.0, "corner": "T1 Apex (Tamburello 1 - Lowest 38m)" },
+                    { "dist": 690, "alt": 38.5, "corner": "T2 Apex (Tamburello 2)" },
+                    { "dist": 750, "alt": 39.0, "corner": "T3 Apex (Tamburello 3)" },
+                    { "dist": 890, "alt": 40.0, "corner": "T4 Apex (Villeneuve 1)" },
+                    { "dist": 1330, "alt": 46.0, "corner": "T5 Apex (Villeneuve 2)" },
+                    { "dist": 1415, "alt": 54.0, "corner": "T6 Apex (Tosa Hairpin - Begin Steep Climb)" },
+                    { "dist": 1710, "alt": 72.0, "corner": "T7 Apex (Piratella - Peak 72m)" },
+                    { "dist": 2120, "alt": 58.0, "corner": "T8 Apex (Acque Minerali 1)" },
+                    { "dist": 2320, "alt": 52.0, "corner": "T9 Apex (Acque Minerali 2)" },
+                    { "dist": 2500, "alt": 56.0, "corner": "T10 Apex" },
+                    { "dist": 2740, "alt": 60.0, "corner": "T11 Apex" },
+                    { "dist": 2850, "alt": 62.0, "corner": "T12 Apex" },
+                    { "dist": 2920, "alt": 64.0, "corner": "T13 Apex" },
+                    { "dist": 3350, "alt": 66.0, "corner": "T14 Apex (Variante Alta Left)" },
+                    { "dist": 3380, "alt": 66.0, "corner": "T15 Apex (Variante Alta Right)" },
+                    { "dist": 3700, "alt": 62.0, "corner": "T16 Apex" },
+                    { "dist": 3950, "alt": 54.0, "corner": "T17 Apex (Rivazza 1)" },
+                    { "dist": 4130, "alt": 46.0, "corner": "T18 Apex (Rivazza 2)" },
+                    { "dist": 4260, "alt": 44.5, "corner": "T19 Apex" },
+                    { "dist": 4620, "alt": 44.0, "corner": "T20 Apex (Variante Bassa)" },
+                    { "dist": 4909, "alt": 44.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Autodromo Jose Carlos Pace": {
@@ -490,22 +492,25 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Autódromo José Carlos Pace"],
                 "ref_points": [
-                    { "dist": 0, "alt": 780.0, "corner": "Start/Finish Line" },
-                    { "dist": 250, "alt": 776.0, "corner": "Senna S Entry (開始下墜)" },
-                    { "dist": 450, "alt": 752.0, "corner": "Senna S Exit (陡降段)" },
-                    { "dist": 1200, "alt": 741.0, "corner": "Curva do Sol" },
-                    { "dist": 1500, "alt": 738.5, "corner": "Reta Oposta (平整段)" },
-                    { "dist": 1850, "alt": 735.0, "corner": "Descida do Lago (全場最低點)" },
-                    { "dist": 2200, "alt": 739.0, "corner": "Ferradura (開始進入技術區爬升)" },
-                    { "dist": 2550, "alt": 746.5, "corner": "Laranjinha" },
-                    { "dist": 2900, "alt": 743.0, "corner": "Pinheirinho (微幅下壓)" },
-                    { "dist": 3250, "alt": 752.5, "corner": "Bico de Pato (再次爬升)" },
-                    { "dist": 3550, "alt": 750.0, "corner": "Mergulho (最後的小谷底)" },
-                    { "dist": 3800, "alt": 768.5, "corner": "Junção (關鍵爬坡起點)" },
-                    { "dist": 4100, "alt": 776.5, "corner": "Subida dos Boxes (全油門爬坡)" },
-                    { "dist": 4309, "alt": 780.0, "corner": "Start/Finish Line" },
+                    { "dist": 0, "alt": 785.0, "corner": "Start/Finish Line" },
+                    { "dist": 380, "alt": 780.0, "corner": "T1 Apex (Senna S Left)" },
+                    { "dist": 480, "alt": 768.0, "corner": "T2 Apex (Senna S Right)" },
+                    { "dist": 660, "alt": 755.0, "corner": "T3 Apex (Curva do Sol Exit)" },
+                    { "dist": 1450, "alt": 745.0, "corner": "T4 Apex (Descida do Lago - Lowest 745m)" },
+                    { "dist": 1640, "alt": 748.0, "corner": "T5 Apex" },
+                    { "dist": 2080, "alt": 758.0, "corner": "T6 Apex (Ferradura Climb)" },
+                    { "dist": 2200, "alt": 762.0, "corner": "T7 Apex" },
+                    { "dist": 2380, "alt": 768.0, "corner": "T8 Apex (Laranjinha)" },
+                    { "dist": 2500, "alt": 772.0, "corner": "T9 Apex (Pinheirinho)" },
+                    { "dist": 2780, "alt": 762.0, "corner": "T10 Apex (Bico de Pato)" },
+                    { "dist": 3000, "alt": 755.0, "corner": "T11 Apex (Mergulho)" },
+                    { "dist": 3280, "alt": 747.0, "corner": "T12 Apex (Junção - Begin Massive Climb)" },
+                    { "dist": 3430, "alt": 755.0, "corner": "T13 Apex (Subida dos Boxes)" },
+                    { "dist": 3670, "alt": 772.0, "corner": "T14 Apex (Arquibancadas)" },
+                    { "dist": 4060, "alt": 788.1, "corner": "T15 Apex (Pit Straight - Peak 788.1m)" },
+                    { "dist": 4309, "alt": 785.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Lusail International Circuit": {
@@ -516,37 +521,44 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Lusail International Circuit"],
                 "ref_points": [
-                    { "dist": 0, "alt": 11.0, "corner": "Start/Finish" },
-                    { "dist": 450, "alt": 10.3, "corner": "T1 Apex" },
-                    { "dist": 900, "alt": 10.8, "corner": "T2/T3" },
-                    { "dist": 1250, "alt": 11.6, "corner": "T4/T5" },
-                    { "dist": 1800, "alt": 11.1, "corner": "T6 Hairpin" },
-                    { "dist": 2250, "alt": 10.7, "corner": "T7-T9" },
-                    { "dist": 2700, "alt": 11.5, "corner": "T10" },
-                    { "dist": 3150, "alt": 12.6, "corner": "T11 Apex (Highest)" },
-                    { "dist": 3600, "alt": 11.8, "corner": "T12" },
-                    { "dist": 4100, "alt": 11.2, "corner": "T14" },
-                    { "dist": 4700, "alt": 10.5, "corner": "T16 Apex" },
-                    { "dist": 5100, "alt": 10.8, "corner": "T16 Exit" },
-                    { "dist": 5400, "alt": 11.0, "corner": "Start/Finish" },
+                    { "dist": 0, "alt": 12.0, "corner": "Start/Finish Line" },
+                    { "dist": 800, "alt": 10.3, "corner": "T1 Apex" },
+                    { "dist": 1100, "alt": 10.8, "corner": "T2 Apex" },
+                    { "dist": 1330, "alt": 11.2, "corner": "T3 Apex" },
+                    { "dist": 1730, "alt": 11.6, "corner": "T4 Apex" },
+                    { "dist": 1900, "alt": 11.4, "corner": "T5 Apex" },
+                    { "dist": 2210, "alt": 11.1, "corner": "T6 Apex (Hairpin)" },
+                    { "dist": 2610, "alt": 10.7, "corner": "T7 Apex" },
+                    { "dist": 2790, "alt": 11.2, "corner": "T8 Apex" },
+                    { "dist": 2940, "alt": 11.5, "corner": "T9 Apex" },
+                    { "dist": 3170, "alt": 12.0, "corner": "T10 Apex" },
+                    { "dist": 3420, "alt": 12.6, "corner": "T11 Apex (Peak 12.6m)" },
+                    { "dist": 3790, "alt": 11.8, "corner": "T12 Apex" },
+                    { "dist": 3990, "alt": 11.5, "corner": "T13 Apex" },
+                    { "dist": 4190, "alt": 11.2, "corner": "T14 Apex" },
+                    { "dist": 4520, "alt": 10.5, "corner": "T15 Apex" },
+                    { "dist": 4990, "alt": 10.8, "corner": "T16 Apex" },
+                    { "dist": 5400, "alt": 12.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Short Circuit": {
                 "aliases": ["Lusail Short Circuit"],
                 "ref_points": [
-                    { "dist": 0, "alt": 11.0, "corner": "Start/Finish Line" },
-                    { "dist": 400, "alt": 10.3, "corner": "T1 Apex (下坡煞車)" },
-                    { "dist": 900, "alt": 10.8, "corner": "T2/T3" },
-                    { "dist": 1250, "alt": 11.6, "corner": "T4 Apex (爬升開始)" },
-                    { "dist": 1400, "alt": 11.8, "corner": "T5 (進入 Short Link 分叉點)" },
-                    { "dist": 1650, "alt": 12.3, "corner": "Short Link Mid (小緩坡頂點)" },
-                    { "dist": 1900, "alt": 11.5, "corner": "Short Link Exit (下坡匯入)" },
-                    { "dist": 2150, "alt": 10.8, "corner": "Re-joining T15 Entry" },
-                    { "dist": 2500, "alt": 10.5, "corner": "T16 Apex (全場最低點)" },
-                    { "dist": 3100, "alt": 10.8, "corner": "T16 Exit / Main Straight" },
-                    { "dist": 3701, "alt": 11.0, "corner": "Start/Finish Line" },
+                    { "dist": 0, "alt": 12.0, "corner": "Start/Finish Line" },
+                    { "dist": 810, "alt": 10.3, "corner": "T1 Apex" },
+                    { "dist": 1010, "alt": 10.8, "corner": "T2 Apex" },
+                    { "dist": 1240, "alt": 11.2, "corner": "T3 Apex" },
+                    { "dist": 1300, "alt": 11.6, "corner": "T4 Apex" },
+                    { "dist": 1380, "alt": 11.8, "corner": "T5 Apex" },
+                    { "dist": 1530, "alt": 12.3, "corner": "T6 Apex (Short Link Peak)" },
+                    { "dist": 2070, "alt": 11.5, "corner": "T7 Apex" },
+                    { "dist": 2280, "alt": 11.0, "corner": "T8 Apex" },
+                    { "dist": 2490, "alt": 10.8, "corner": "T9 Apex" },
+                    { "dist": 2800, "alt": 10.5, "corner": "T10 Apex" },
+                    { "dist": 3280, "alt": 10.8, "corner": "T11 Apex" },
+                    { "dist": 3701, "alt": 12.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Autodromo Nazionale Monza": {
@@ -557,45 +569,31 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Autodromo Nazionale Monza"],
                 "ref_points": [
-                    { "dist": 0, "alt": 183.0, "corner": "Start/Finish" },
-                    { "dist": 400, "alt": 182.6, "corner": "T1 Braking" },
-                    { "dist": 650, "alt": 182.2, "corner": "Variante del Rettifilo" },
-                    { "dist": 1100, "alt": 183.1, "corner": "Curva Grande Entry" },
-                    { "dist": 1450, "alt": 183.8, "corner": "Curva Grande Mid" },
-                    { "dist": 1850, "alt": 184.5, "corner": "T4 Braking" },
-                    { "dist": 2150, "alt": 185.2, "corner": "Variante della Roggia" },
-                    { "dist": 2450, "alt": 183.5, "corner": "Lesmo 1 Entry" },
-                    { "dist": 2650, "alt": 182.8, "corner": "Lesmo 1 Apex" },
-                    { "dist": 2850, "alt": 181.5, "corner": "Lesmo 2 Apex (Low Point)" },
-                    { "dist": 3300, "alt": 183.0, "corner": "Serraglio Straight" },
-                    { "dist": 3800, "alt": 184.8, "corner": "Variante Ascari Braking" },
-                    { "dist": 4150, "alt": 186.2, "corner": "Ascari Apex (High Point)" },
-                    { "dist": 4600, "alt": 185.0, "corner": "Back Straight" },
-                    { "dist": 5100, "alt": 184.2, "corner": "Parabolica Entry" },
-                    { "dist": 5400, "alt": 183.5, "corner": "Parabolica Apex" },
-                    { "dist": 5793, "alt": 183.0, "corner": "Start/Finish" },
+                    { "dist": 0, "alt": 183.0, "corner": "Start/Finish Line" },
+                    { "dist": 940, "alt": 178.0, "corner": "T1 Apex (Prima Variante Right - Lowest 178m)" },
+                    { "dist": 970, "alt": 178.2, "corner": "T2 Apex (Prima Variante Left)" },
+                    { "dist": 1450, "alt": 183.8, "corner": "Curva Grande Apex" },
+                    { "dist": 2150, "alt": 185.2, "corner": "Variante della Roggia Apex" },
+                    { "dist": 2500, "alt": 188.0, "corner": "Lesmo 1 Apex" },
+                    { "dist": 2800, "alt": 190.8, "corner": "Lesmo 2 Apex (Peak 190.8m)" },
+                    { "dist": 3300, "alt": 183.0, "corner": "Serraglio Underpass" },
+                    { "dist": 4150, "alt": 186.2, "corner": "Variante Ascari Apex" },
+                    { "dist": 5130, "alt": 183.5, "corner": "T11 Apex (Curva Parabolica)" },
+                    { "dist": 5793, "alt": 183.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Curva Grande Circuit": {
                 "aliases": ["Monza Curva Grande Circuit"],
                 "ref_points": [
                     { "dist": 0, "alt": 183.0, "corner": "Start/Finish Line" },
-                    { "dist": 400, "alt": 182.8, "corner": "High Speed Approach (原本的 T1 煞車區)" },
-                    { "dist": 650, "alt": 182.4, "corner": "Flat-out through T1/T2 Zone" },
-                    { "dist": 1000, "alt": 183.2, "corner": "Curva Grande Entry" },
-                    { "dist": 1400, "alt": 183.8, "corner": "Curva Grande Apex (微爬升)" },
-                    { "dist": 1800, "alt": 184.6, "corner": "Variante della Roggia Braking" },
-                    { "dist": 2100, "alt": 185.2, "corner": "T4/T5 Apex" },
-                    { "dist": 2400, "alt": 183.5, "corner": "Lesmo 1 Entry" },
-                    { "dist": 2800, "alt": 181.5, "corner": "Lesmo 2 Apex (全場最低點)" },
-                    { "dist": 3450, "alt": 184.2, "corner": "Serraglio Straight (過橋底)" },
-                    { "dist": 4150, "alt": 186.2, "corner": "Variante Ascari Apex (全場最高點)" },
-                    { "dist": 4600, "alt": 185.1, "corner": "Back Straight" },
-                    { "dist": 5100, "alt": 184.3, "corner": "Parabolica Entry" },
-                    { "dist": 5400, "alt": 183.5, "corner": "Parabolica Apex" },
+                    { "dist": 1450, "alt": 183.8, "corner": "T1 Apex (Curva Grande)" },
+                    { "dist": 2100, "alt": 185.2, "corner": "Roggia Apex" },
+                    { "dist": 2800, "alt": 190.8, "corner": "Lesmo 2 Apex (Peak 190.8m)" },
+                    { "dist": 4150, "alt": 186.2, "corner": "Ascari Apex" },
+                    { "dist": 5170, "alt": 183.5, "corner": "T9 Apex (Parabolica)" },
                     { "dist": 5750, "alt": 183.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Algarve International Circuit": {
@@ -606,24 +604,25 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Algarve International Circuit"],
                 "ref_points": [
-                    { "dist": 0, "alt": 125.0, "corner": "Start/Finish" },
-                    { "dist": 300, "alt": 126.5, "corner": "T1 Braking (Crest)" },
-                    { "dist": 550, "alt": 118.0, "corner": "T1/T2 Descent" },
-                    { "dist": 850, "alt": 110.5, "corner": "T3 Hairpin (Bottom)" },
-                    { "dist": 1050, "alt": 118.0, "corner": "T4 Apex" },
-                    { "dist": 1250, "alt": 129.5, "corner": "T5 Hairpin (Climb)" },
-                    { "dist": 1500, "alt": 136.0, "corner": "T6" },
-                    { "dist": 1850, "alt": 146.5, "corner": "T8 Apex (Summit)" },
-                    { "dist": 2100, "alt": 128.0, "corner": "T9 Drop" },
-                    { "dist": 2350, "alt": 114.5, "corner": "T11 Descent" },
-                    { "dist": 2600, "alt": 111.0, "corner": "T12 (Low Point)" },
-                    { "dist": 2900, "alt": 115.5, "corner": "T13" },
-                    { "dist": 3300, "alt": 118.0, "corner": "T14 Entry" },
-                    { "dist": 3600, "alt": 122.5, "corner": "T15 Entry (Crest)" },
-                    { "dist": 4000, "alt": 128.0, "corner": "Galp Apex (Downhill)" },
-                    { "dist": 4653, "alt": 125.0, "corner": "Start/Finish" },
+                    { "dist": 0, "alt": 95.0, "corner": "Start/Finish Line" },
+                    { "dist": 410, "alt": 85.0, "corner": "T1 Apex (Primeira Blind Drop)" },
+                    { "dist": 570, "alt": 92.0, "corner": "T2 Apex (Lagos 1)" },
+                    { "dist": 735, "alt": 98.0, "corner": "T3 Apex (Lagos 2)" },
+                    { "dist": 870, "alt": 108.0, "corner": "T4 Apex (Climb)" },
+                    { "dist": 1460, "alt": 85.0, "corner": "T5 Apex (Tower Hairpin - Lowest 85m)" },
+                    { "dist": 1710, "alt": 105.0, "corner": "T6 Apex" },
+                    { "dist": 1925, "alt": 110.0, "corner": "T7 Apex" },
+                    { "dist": 2080, "alt": 115.0, "corner": "T8 Apex (Rollercoaster Crest - Peak 115m)" },
+                    { "dist": 2460, "alt": 92.0, "corner": "T9 Apex (Craig Jones Drop)" },
+                    { "dist": 2680, "alt": 108.0, "corner": "T10 Apex (Portimao 1)" },
+                    { "dist": 2760, "alt": 110.0, "corner": "T11 Apex (Portimao 2)" },
+                    { "dist": 2970, "alt": 114.0, "corner": "T12 Apex" },
+                    { "dist": 3200, "alt": 114.0, "corner": "T13 Apex" },
+                    { "dist": 3420, "alt": 102.0, "corner": "T14 Apex" },
+                    { "dist": 3870, "alt": 95.0, "corner": "T15 Apex (Galp Sweeper)" },
+                    { "dist": 4653, "alt": 95.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Sebring International Raceway": {
@@ -634,36 +633,24 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Sebring International Raceway"],
                 "ref_points": [
-                    { "dist": 0, "alt": 18.0, "corner": "Start/Finish" },
-                    { "dist": 350, "alt": 17.4, "corner": "T1 Apex" },
-                    { "dist": 800, "alt": 18.5, "corner": "T3" },
-                    { "dist": 1400, "alt": 19.2, "corner": "T5" },
-                    { "dist": 1850, "alt": 19.8, "corner": "T7 Hairpin" },
-                    { "dist": 2500, "alt": 19.0, "corner": "Fangio" },
-                    { "dist": 3200, "alt": 18.5, "corner": "Cunningham" },
-                    { "dist": 3800, "alt": 18.2, "corner": "T13 Tower" },
-                    { "dist": 4500, "alt": 17.8, "corner": "T15" },
-                    { "dist": 5000, "alt": 17.2, "corner": "T16" },
-                    { "dist": 5500, "alt": 16.5, "corner": "T17 Sunset (Lowest)" },
-                    { "dist": 5800, "alt": 17.5, "corner": "T17 Exit" },
-                    { "dist": 6019, "alt": 18.0, "corner": "Start/Finish" },
+                    { "dist": 0, "alt": 19.5, "corner": "Start/Finish Line" },
+                    { "dist": 530, "alt": 19.0, "corner": "T1 Apex" },
+                    { "dist": 2400, "alt": 18.5, "corner": "Hairpin (T7)" },
+                    { "dist": 4000, "alt": 20.1, "corner": "Ullmann Straight (Peak 20.1m)" },
+                    { "dist": 5570, "alt": 18.0, "corner": "T17 Apex (Sunset Bend - Lowest 18.0m)" },
+                    { "dist": 6019, "alt": 19.5, "corner": "Start/Finish Line" },
                 ]
             },
             "School Circuit": {
                 "aliases": ["Sebring School Circuit"],
                 "ref_points": [
-                    { "dist": 0, "alt": 18.0, "corner": "Start/Finish Line" },
-                    { "dist": 350, "alt": 17.4, "corner": "T1 Apex" },
-                    { "dist": 1000, "alt": 18.8, "corner": "T4" },
-                    { "dist": 1450, "alt": 19.5, "corner": "Entering School Link (T7 前切出)" },
+                    { "dist": 0, "alt": 19.5, "corner": "Start/Finish Line" },
+                    { "dist": 505, "alt": 19.0, "corner": "T1 Apex" },
                     { "dist": 1700, "alt": 19.2, "corner": "School Link Mid Section" },
-                    { "dist": 2000, "alt": 18.6, "corner": "Re-joining T14 (Conway)" },
-                    { "dist": 2350, "alt": 17.8, "corner": "T15" },
-                    { "dist": 2750, "alt": 16.6, "corner": "T17 Sunset Bend (Lowest Point)" },
-                    { "dist": 3050, "alt": 17.6, "corner": "T17 Exit" },
-                    { "dist": 3219, "alt": 18.0, "corner": "Start/Finish Line" },
+                    { "dist": 2760, "alt": 18.0, "corner": "T7 Apex (Sunset Bend - Lowest 18.0m)" },
+                    { "dist": 3219, "alt": 19.5, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Silverstone": {
@@ -674,52 +661,44 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Silverstone Grand Prix Circuit - ELMS"],
                 "ref_points": [
-                    { "dist": 0, "alt": 154.5, "corner": "Start of Lap (Near Woodcote Exit)" },
-                    { "dist": 200, "alt": 155.2, "corner": "Old National Straight" },
-                    { "dist": 380, "alt": 155.8, "corner": "T1 Apex (Copse - Highest Point)" },
-                    { "dist": 800, "alt": 154.0, "corner": "T2 (Maggots)" },
-                    { "dist": 1100, "alt": 152.5, "corner": "T3 (Becketts)" },
-                    { "dist": 1400, "alt": 151.2, "corner": "T4 (Chapel)" },
-                    { "dist": 2000, "alt": 150.5, "corner": "Hangar Straight" },
-                    { "dist": 2700, "alt": 152.8, "corner": "T7 (Stowe)" },
-                    { "dist": 3150, "alt": 151.2, "corner": "T8/T9 (Vale / Club)" },
-                    { "dist": 3550, "alt": 150.0, "corner": "Hamilton Straight (New Pits)" },
-                    { "dist": 3950, "alt": 149.2, "corner": "T12 (Abbey - 舊版 T1)" },
-                    { "dist": 4150, "alt": 148.8, "corner": "T13 (Farm Curve)" },
-                    { "dist": 4450, "alt": 148.0, "corner": "T15 (The Loop - Lowest Point)" },
-                    { "dist": 4700, "alt": 149.5, "corner": "T16 (Aintree)" },
-                    { "dist": 5200, "alt": 151.8, "corner": "Wellington Straight" },
-                    { "dist": 5550, "alt": 153.2, "corner": "Brooklands / Luffield" },
-                    { "dist": 5800, "alt": 154.5, "corner": "Woodcote Entry" },
-                    { "dist": 5890, "alt": 154.5, "corner": "Lap End / Crossing Line" },
+                    { "dist": 0, "alt": 153.5, "corner": "Start/Finish Line (Hamilton Straight)" },
+                    { "dist": 390, "alt": 156.3, "corner": "T1 Apex (Abbey - Peak 156.3m)" },
+                    { "dist": 600, "alt": 155.0, "corner": "Farm Curve" },
+                    { "dist": 1000, "alt": 147.5, "corner": "Village & The Loop Dip" },
+                    { "dist": 1400, "alt": 150.0, "corner": "Aintree" },
+                    { "dist": 2200, "alt": 152.0, "corner": "Brooklands" },
+                    { "dist": 2500, "alt": 152.0, "corner": "Luffield" },
+                    { "dist": 3200, "alt": 155.5, "corner": "Copse Apex" },
+                    { "dist": 3800, "alt": 154.0, "corner": "Maggots & Becketts" },
+                    { "dist": 4500, "alt": 149.0, "corner": "Hangar Straight" },
+                    { "dist": 5000, "alt": 150.5, "corner": "Stowe Corner" },
+                    { "dist": 5300, "alt": 145.0, "corner": "Vale Chicane (Lowest Point 145m)" },
+                    { "dist": 5600, "alt": 151.0, "corner": "Club Corner" },
+                    { "dist": 5890, "alt": 153.5, "corner": "Start/Finish Line" },
                 ]
             },
             "International Circuit": {
                 "aliases": ["Silverstone International Circuit"],
                 "ref_points": [
-                    { "dist": 0, "alt": 150.0, "corner": "Start Line (Hamilton Straight)" },
-                    { "dist": 450, "alt": 149.2, "corner": "Abbey / Farm" },
-                    { "dist": 850, "alt": 148.2, "corner": "The Loop (Lowest Point)" },
-                    { "dist": 1100, "alt": 149.5, "corner": "Aintree" },
-                    { "dist": 1300, "alt": 150.5, "corner": "Entering International Link" },
-                    { "dist": 1600, "alt": 152.0, "corner": "Link Mid (Crest)" },
-                    { "dist": 1900, "alt": 153.5, "corner": "Re-joining Stowe" },
-                    { "dist": 2300, "alt": 151.0, "corner": "Vale / Club" },
-                    { "dist": 2979, "alt": 150.0, "corner": "Finish" },
+                    { "dist": 0, "alt": 150.0, "corner": "Start/Finish Line" },
+                    { "dist": 290, "alt": 156.3, "corner": "T1 Apex (Abbey - Peak 156.3m)" },
+                    { "dist": 850, "alt": 148.2, "corner": "The Loop (Lowest 148.2m)" },
+                    { "dist": 1900, "alt": 153.5, "corner": "Stowe Rejoin" },
+                    { "dist": 2300, "alt": 145.0, "corner": "Vale Chicane" },
+                    { "dist": 2979, "alt": 150.0, "corner": "Start/Finish Line" },
                 ]
             },
             "National Circuit": {
                 "aliases": ["Silverstone National Circuit"],
                 "ref_points": [
-                    { "dist": 0, "alt": 155.0, "corner": "Start Line (Woodcote/Copse)" },
-                    { "dist": 350, "alt": 155.8, "corner": "Copse Apex (Highest)" },
-                    { "dist": 600, "alt": 154.5, "corner": "Becketts Entry" },
-                    { "dist": 900, "alt": 152.0, "corner": "National Link (橫穿段)" },
-                    { "dist": 1400, "alt": 150.5, "corner": "Re-joining Brooklands" },
+                    { "dist": 0, "alt": 155.0, "corner": "Start/Finish Line" },
+                    { "dist": 380, "alt": 155.8, "corner": "T1 Apex (Copse - Peak 155.8m)" },
+                    { "dist": 900, "alt": 152.0, "corner": "National Link" },
+                    { "dist": 1400, "alt": 150.5, "corner": "Rejoining Brooklands" },
                     { "dist": 1900, "alt": 153.5, "corner": "Luffield" },
-                    { "dist": 2639, "alt": 155.0, "corner": "Finish" },
+                    { "dist": 2639, "alt": 155.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Circuit de Spa-Francorchamps": {
@@ -731,53 +710,55 @@ TRACK_REGISTRY = {
                 "aliases": ["Circuit de Spa-Francorchamps", "Circuit de Spa-Francorchamps Endurance"],
                 "ref_points": [
                     { "dist": 0, "alt": 410.0, "corner": "Start/Finish Line (F1 Pits)" },
-                    { "dist": 250, "alt": 412.5, "corner": "La Source (Turn 1)" },
-                    { "dist": 450, "alt": 390.0, "corner": "Endurance Pits Exit (下坡開始)" },
-                    { "dist": 700, "alt": 358.0, "corner": "Eau Rouge (全場最低點)" },
-                    { "dist": 800, "alt": 375.0, "corner": "Raidillon Compression (急陡坡)" },
-                    { "dist": 950, "alt": 398.0, "corner": "Raidillon Crest (盲彎坡頂)" },
-                    { "dist": 1400, "alt": 440.0, "corner": "Kemmel Straight (持續爬升)" },
-                    { "dist": 1850, "alt": 468.0, "corner": "Les Combes Braking (全場最高點)" },
-                    { "dist": 2100, "alt": 460.0, "corner": "Malmedy" },
-                    { "dist": 2550, "alt": 445.0, "corner": "Bruxelles (Rivage - 下坡髮夾彎)" },
-                    { "dist": 2900, "alt": 425.0, "corner": "Speaker's Corner (No Name)" },
-                    { "dist": 3400, "alt": 395.0, "corner": "Pouhon Entry (Double Gauche)" },
-                    { "dist": 3800, "alt": 388.0, "corner": "Pouhon Exit" },
-                    { "dist": 4350, "alt": 390.0, "corner": "Fagnes (Campus)" },
-                    { "dist": 4850, "alt": 375.0, "corner": "Stavelot Corner" },
-                    { "dist": 5250, "alt": 370.0, "corner": "Courbe Paul Frère" },
-                    { "dist": 5800, "alt": 385.0, "corner": "Blanchimont 1 (微上坡高速彎)" },
-                    { "dist": 6250, "alt": 395.0, "corner": "Blanchimont 2" },
-                    { "dist": 6700, "alt": 405.0, "corner": "Bus Stop Braking Zone" },
-                    { "dist": 6850, "alt": 408.0, "corner": "Bus Stop Chicane" },
+                    { "dist": 270, "alt": 412.5, "corner": "T1 Apex (La Source Hairpin)" },
+                    { "dist": 600, "alt": 390.0, "corner": "T2 (Endurance Pits Drop)" },
+                    { "dist": 930, "alt": 358.0, "corner": "T3 Apex (Eau Rouge Compression - Lowest 358m)" },
+                    { "dist": 1020, "alt": 375.0, "corner": "T4 Apex (Raidillon Uphill)" },
+                    { "dist": 1160, "alt": 398.0, "corner": "T5 Apex (Raidillon Crest)" },
+                    { "dist": 1500, "alt": 440.0, "corner": "T6 (Kemmel Straight Climb)" },
+                    { "dist": 2310, "alt": 460.2, "corner": "T7 Apex (Les Combes 1 - Peak 460.2m)" },
+                    { "dist": 2390, "alt": 458.0, "corner": "T8 Apex (Les Combes 2)" },
+                    { "dist": 2540, "alt": 452.0, "corner": "T9 Apex (Malmedy)" },
+                    { "dist": 2950, "alt": 445.0, "corner": "T10 Apex (Bruxelles Hairpin)" },
+                    { "dist": 3180, "alt": 425.0, "corner": "T11 Apex (Speaker's Corner)" },
+                    { "dist": 3820, "alt": 388.0, "corner": "T12 Apex (Pouhon Double Gauche)" },
+                    { "dist": 4400, "alt": 390.0, "corner": "T13 Apex (Fagnes 1)" },
+                    { "dist": 4540, "alt": 385.0, "corner": "T14 Apex (Campus)" },
+                    { "dist": 4840, "alt": 375.0, "corner": "T15 Apex (Stavelot Corner)" },
+                    { "dist": 5070, "alt": 370.0, "corner": "T16 Apex (Courbe Paul Frère)" },
+                    { "dist": 5810, "alt": 385.0, "corner": "T17 Apex (Blanchimont 1)" },
+                    { "dist": 6090, "alt": 395.0, "corner": "T18 Apex (Blanchimont 2)" },
+                    { "dist": 6640, "alt": 405.0, "corner": "T19 Apex (Bus Stop 1)" },
+                    { "dist": 6690, "alt": 408.0, "corner": "T20 Apex (Bus Stop 2)" },
                     { "dist": 7004, "alt": 410.0, "corner": "Start/Finish Line" },
                 ]
             },
             "Endurance Circuit": {
                 "ref_points": [
                     { "dist": 0, "alt": 410.0, "corner": "Start/Finish Line (F1 Pits)" },
-                    { "dist": 250, "alt": 412.5, "corner": "La Source (Turn 1)" },
-                    { "dist": 450, "alt": 390.0, "corner": "Endurance Pits Exit (下坡開始)" },
-                    { "dist": 700, "alt": 358.0, "corner": "Eau Rouge (全場最低點)" },
-                    { "dist": 800, "alt": 375.0, "corner": "Raidillon Compression (急陡坡)" },
-                    { "dist": 950, "alt": 398.0, "corner": "Raidillon Crest (盲彎坡頂)" },
-                    { "dist": 1400, "alt": 440.0, "corner": "Kemmel Straight (持續爬升)" },
-                    { "dist": 1850, "alt": 468.0, "corner": "Les Combes Braking (全場最高點)" },
-                    { "dist": 2100, "alt": 460.0, "corner": "Malmedy" },
-                    { "dist": 2550, "alt": 445.0, "corner": "Bruxelles (Rivage - 下坡髮夾彎)" },
-                    { "dist": 2900, "alt": 425.0, "corner": "Speaker's Corner (No Name)" },
-                    { "dist": 3400, "alt": 395.0, "corner": "Pouhon Entry (Double Gauche)" },
-                    { "dist": 3800, "alt": 388.0, "corner": "Pouhon Exit" },
-                    { "dist": 4350, "alt": 390.0, "corner": "Fagnes (Campus)" },
-                    { "dist": 4850, "alt": 375.0, "corner": "Stavelot Corner" },
-                    { "dist": 5250, "alt": 370.0, "corner": "Courbe Paul Frère" },
-                    { "dist": 5800, "alt": 385.0, "corner": "Blanchimont 1 (微上坡高速彎)" },
-                    { "dist": 6250, "alt": 395.0, "corner": "Blanchimont 2" },
-                    { "dist": 6700, "alt": 405.0, "corner": "Bus Stop Braking Zone" },
-                    { "dist": 6850, "alt": 408.0, "corner": "Bus Stop Chicane" },
+                    { "dist": 270, "alt": 412.5, "corner": "T1 Apex (La Source Hairpin)" },
+                    { "dist": 600, "alt": 390.0, "corner": "T2 (Endurance Pits Drop)" },
+                    { "dist": 930, "alt": 358.0, "corner": "T3 Apex (Eau Rouge Compression - Lowest 358m)" },
+                    { "dist": 1020, "alt": 375.0, "corner": "T4 Apex (Raidillon Uphill)" },
+                    { "dist": 1160, "alt": 398.0, "corner": "T5 Apex (Raidillon Crest)" },
+                    { "dist": 1500, "alt": 440.0, "corner": "T6 (Kemmel Straight Climb)" },
+                    { "dist": 2310, "alt": 460.2, "corner": "T7 Apex (Les Combes 1 - Peak 460.2m)" },
+                    { "dist": 2390, "alt": 458.0, "corner": "T8 Apex (Les Combes 2)" },
+                    { "dist": 2540, "alt": 452.0, "corner": "T9 Apex (Malmedy)" },
+                    { "dist": 2950, "alt": 445.0, "corner": "T10 Apex (Bruxelles Hairpin)" },
+                    { "dist": 3180, "alt": 425.0, "corner": "T11 Apex (Speaker's Corner)" },
+                    { "dist": 3820, "alt": 388.0, "corner": "T12 Apex (Pouhon Double Gauche)" },
+                    { "dist": 4400, "alt": 390.0, "corner": "T13 Apex (Fagnes 1)" },
+                    { "dist": 4540, "alt": 385.0, "corner": "T14 Apex (Campus)" },
+                    { "dist": 4840, "alt": 375.0, "corner": "T15 Apex (Stavelot Corner)" },
+                    { "dist": 5070, "alt": 370.0, "corner": "T16 Apex (Courbe Paul Frère)" },
+                    { "dist": 5810, "alt": 385.0, "corner": "T17 Apex (Blanchimont 1)" },
+                    { "dist": 6090, "alt": 395.0, "corner": "T18 Apex (Blanchimont 2)" },
+                    { "dist": 6640, "alt": 405.0, "corner": "T19 Apex (Bus Stop 1)" },
+                    { "dist": 6690, "alt": 408.0, "corner": "T20 Apex (Bus Stop 2)" },
                     { "dist": 7004, "alt": 410.0, "corner": "Start/Finish Line" },
                 ]
-            },
+            }
         }
     },
     "Circuit de Barcelona": {
@@ -788,24 +769,72 @@ TRACK_REGISTRY = {
             "Default": {
                 "aliases": ["Circuit de Barcelona"],
                 "ref_points": [
-                    { "dist": 0, "alt": 145.5, "corner": "Start of Lap (Post-T16)" },
+                    { "dist": 0, "alt": 145.5, "corner": "Start of Lap (Post-T14)" },
                     { "dist": 400, "alt": 145.2, "corner": "Main Straight Entry" },
-                    { "dist": 700, "alt": 147.0, "corner": "T1 Braking Zone (Begin Climb)" },
-                    { "dist": 850, "alt": 152.0, "corner": "T1/T2 Apex (Elf - Elevation Peak 1)" },
-                    { "dist": 1100, "alt": 154.5, "corner": "T3 (Curvone)" },
-                    { "dist": 1350, "alt": 158.5, "corner": "T4 Apex (Repsol - High Point 1)" },
-                    { "dist": 1600, "alt": 152.0, "corner": "T5 (Seat - Downhill)" },
-                    { "dist": 1900, "alt": 144.5, "corner": "T7/T8 Apex (Low Point 1)" },
-                    { "dist": 2300, "alt": 155.0, "corner": "T9 Approach (Steep Climb)" },
-                    { "dist": 2550, "alt": 162.0, "corner": "T9 Apex (Campsa - Highest Point)" },
-                    { "dist": 2900, "alt": 154.0, "corner": "Back Straight (Descent)" },
-                    { "dist": 3300, "alt": 140.0, "corner": "T10 Braking (Lowest Point)" },
-                    { "dist": 3650, "alt": 143.5, "corner": "T12 (Banc de Sabadell)" },
-                    { "dist": 4100, "alt": 146.0, "corner": "T13 (New Fast Right)" },
-                    { "dist": 4450, "alt": 145.8, "corner": "T14-T15 Transition" },
+                    { "dist": 850, "alt": 152.0, "corner": "T1 Apex (Elf Right)" },
+                    { "dist": 950, "alt": 153.0, "corner": "T2 Apex (Elf Left)" },
+                    { "dist": 1200, "alt": 154.5, "corner": "T3 Apex (Curvone Long Right)" },
+                    { "dist": 1760, "alt": 158.5, "corner": "T4 Apex (Repsol Right)" },
+                    { "dist": 2130, "alt": 152.0, "corner": "T5 Apex (Seat Hairpin Downhill)" },
+                    { "dist": 2380, "alt": 146.0, "corner": "T6 Apex" },
+                    { "dist": 2560, "alt": 144.5, "corner": "T7 Apex" },
+                    { "dist": 2640, "alt": 145.0, "corner": "T8 Apex" },
+                    { "dist": 2910, "alt": 162.0, "corner": "T9 Apex (Campsa - Peak 162m)" },
+                    { "dist": 3500, "alt": 140.0, "corner": "T10 Apex (La Caixa Hairpin - Lowest 140m)" },
+                    { "dist": 3610, "alt": 143.5, "corner": "T11 Apex" },
+                    { "dist": 3790, "alt": 144.5, "corner": "T12 Apex (Banc de Sabadell)" },
+                    { "dist": 4070, "alt": 146.0, "corner": "T13 Apex (New Fast Right)" },
+                    { "dist": 4370, "alt": 145.8, "corner": "T14 Apex (Final Right Sweep)" },
                     { "dist": 4657, "alt": 145.5, "corner": "Lap End / Crossing Line" },
                 ]
-            },
+            }
         }
     },
+    "WeatherTech Raceway Laguna Seca": {
+        "display_name": "Laguna Seca",
+        "aliases": ["WeatherTech Raceway Laguna Seca", "Laguna Seca"],
+        "country": "United States",
+        "layouts": {
+            "Default": {
+                "aliases": ["WeatherTech Raceway Laguna Seca", "Laguna Seca"],
+                "ref_points": [
+                    { "dist": 0, "alt": 250.0, "corner": "Start/Finish Line" },
+                    { "dist": 240, "alt": 255.0, "corner": "T1 Apex (Andretti Approach)" },
+                    { "dist": 700, "alt": 252.0, "corner": "T2 Apex (Andretti Hairpin)" },
+                    { "dist": 1100, "alt": 260.0, "corner": "Turn 3 / Turn 4" },
+                    { "dist": 1500, "alt": 275.0, "corner": "Turn 5 (Begin Steep Climb)" },
+                    { "dist": 1850, "alt": 290.0, "corner": "Turn 6 (Rahal Straight Climb)" },
+                    { "dist": 2200, "alt": 305.0, "corner": "Turn 8 (Corkscrew Crest - Peak 305m)" },
+                    { "dist": 2350, "alt": 287.0, "corner": "Turn 8A (The Corkscrew Drop - 18m Vertical Drop)" },
+                    { "dist": 2600, "alt": 270.0, "corner": "Turn 9 (Rainey Curve)" },
+                    { "dist": 3000, "alt": 258.0, "corner": "Turn 10" },
+                    { "dist": 3290, "alt": 248.0, "corner": "T11 Apex (Hairpin - Lowest 248m)" },
+                    { "dist": 3602, "alt": 250.0, "corner": "Start/Finish Line" },
+                ]
+            }
+        }
+    },
+    "Daytona International Speedway": {
+        "display_name": "Daytona",
+        "aliases": ["Daytona International Speedway", "Daytona", "Daytona Road Course"],
+        "country": "United States",
+        "layouts": {
+            "Default": {
+                "aliases": ["Daytona International Speedway Road Course", "Daytona Road Course"],
+                "ref_points": [
+                    { "dist": 0, "alt": 12.0, "corner": "Start/Finish Line (Tri-Oval)" },
+                    { "dist": 460, "alt": 11.5, "corner": "T1 Apex (Leave High Banking)" },
+                    { "dist": 900, "alt": 3.0, "corner": "T1/T2 Infield (Flat Section - Lowest 3m)" },
+                    { "dist": 1400, "alt": 3.0, "corner": "International Horseshoe (T3)" },
+                    { "dist": 1900, "alt": 3.0, "corner": "T5 / T6 Kink" },
+                    { "dist": 2300, "alt": 12.5, "corner": "Rejoining Oval T1/T2 Banking (Peak 12.5m)" },
+                    { "dist": 3200, "alt": 12.5, "corner": "Superstretch (Back Straight)" },
+                    { "dist": 4000, "alt": 3.5, "corner": "Bus Stop Chicane (T8-T10)" },
+                    { "dist": 4500, "alt": 12.5, "corner": "East Banking (Oval T3/T4)" },
+                    { "dist": 5300, "alt": 12.5, "corner": "Tri-Oval High Banking" },
+                    { "dist": 5729, "alt": 12.0, "corner": "Start/Finish Line" },
+                ]
+            }
+        }
+    }
 }

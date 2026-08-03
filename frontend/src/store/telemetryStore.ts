@@ -206,6 +206,8 @@ export interface TelemetryState {
     toggleRideHeightViewMode: () => void;
     slipRatioViewMode: 'split' | 'merged';
     toggleSlipRatioViewMode: () => void;
+    pedalsViewMode: 'split' | 'merged';
+    togglePedalsViewMode: () => void;
     showSettings: boolean;
     chartConfigs: ChartConfig[];
     chartPresets: ChartPreset[];
@@ -516,10 +518,35 @@ export const getCategoryTemplateConfigs = (category: ChartCategory, state: {
     rideHeightViewMode: 'split' | 'merged';
     slipRatioViewMode: 'split' | 'merged';
     handlingViewMode: 'split' | 'merged';
+    pedalsViewMode: 'split' | 'merged';
 }): ChartConfig[] => {
     let configs = [...CATEGORY_CHART_CONFIGS[category]];
 
-    if (category === 'Tyres') {
+    if (category === 'Driver') {
+        let baseConfigs = configs.filter(c => c.id !== 'Throttle Pos' && c.id !== 'Brake Pos' && c.id !== 'PedalsMerged');
+        if (state.pedalsViewMode === 'merged') {
+            baseConfigs.push({
+                id: 'PedalsMerged',
+                alias: 'Throttle / Brake',
+                color: '#00ff00',
+                visible: true,
+                order: 2,
+                height: 140,
+                unit: '%'
+            });
+        } else {
+            const splitPedals = configs.filter(c => c.id === 'Throttle Pos' || c.id === 'Brake Pos');
+            if (splitPedals.length > 0) {
+                baseConfigs = [...baseConfigs, ...splitPedals];
+            } else {
+                baseConfigs.push(
+                    { id: 'Throttle Pos', alias: 'Throttle', color: '#00ff00', visible: true, order: 2, height: 120, unit: '%' },
+                    { id: 'Brake Pos', alias: 'Brake', color: '#ff0000', visible: true, order: 3, height: 120, unit: '%' }
+                );
+            }
+        }
+        configs = baseConfigs.sort((a, b) => a.order - b.order);
+    } else if (category === 'Tyres') {
         let baseConfigs = configs.filter(c => c.id !== 'TyresPressure' && c.id !== 'Slip Ratio');
 
         if (state.tyresPressureViewMode === 'split') {
@@ -724,6 +751,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     tyresPressureViewMode: (localStorage.getItem('tyres_pressure_view_mode') as 'split' | 'merged') || 'merged',
     rideHeightViewMode: (localStorage.getItem('ride_height_view_mode') as 'split' | 'merged') || 'merged',
     slipRatioViewMode: (localStorage.getItem('slip_ratio_view_mode') as 'split' | 'merged') || 'merged',
+    pedalsViewMode: (localStorage.getItem('pedals_view_mode') as 'split' | 'merged') || 'split',
 
     // Car Setup
     carSetupData: null,
@@ -1144,6 +1172,41 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const category = get().activeChartCategory;
         if (category === 'Tyres' || category === 'Handling') {
             get().setActiveChartCategory(category);
+        }
+    },
+    togglePedalsViewMode: () => {
+        const currentMode = get().pedalsViewMode;
+        const newMode = currentMode === 'split' ? 'merged' : 'split';
+        localStorage.setItem('pedals_view_mode', newMode);
+        set({ pedalsViewMode: newMode });
+
+        const { chartConfigs } = get();
+        let newConfigs = [...chartConfigs];
+        if (newMode === 'merged') {
+            newConfigs = newConfigs.filter(c => c.id !== 'Throttle Pos' && c.id !== 'Brake Pos');
+            if (!newConfigs.some(c => c.id === 'PedalsMerged')) {
+                newConfigs.push({
+                    id: 'PedalsMerged',
+                    alias: 'Throttle / Brake',
+                    color: '#00ff00',
+                    visible: true,
+                    order: 2,
+                    height: 140,
+                    unit: '%'
+                });
+            }
+        } else {
+            newConfigs = newConfigs.filter(c => c.id !== 'PedalsMerged');
+            if (!newConfigs.some(c => c.id === 'Throttle Pos')) {
+                newConfigs.push({ id: 'Throttle Pos', alias: 'Throttle', color: '#00ff00', visible: true, order: 2, height: 120, unit: '%' });
+            }
+            if (!newConfigs.some(c => c.id === 'Brake Pos')) {
+                newConfigs.push({ id: 'Brake Pos', alias: 'Brake', color: '#ff0000', visible: true, order: 3, height: 120, unit: '%' });
+            }
+        }
+        set({ chartConfigs: newConfigs.sort((a, b) => a.order - b.order) });
+        if (get().activeChartCategory === 'Driver') {
+            get().setActiveChartCategory('Driver');
         }
     },
     setIsProcessingTrack: (is: boolean) => set({ isProcessingTrack: is }),

@@ -132,6 +132,7 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
     const rideHeightViewMode = useTelemetryStore(state => state.rideHeightViewMode);
     const slipRatioViewMode = useTelemetryStore(state => state.slipRatioViewMode);
     const handlingViewMode = useTelemetryStore(state => state.handlingViewMode);
+    const pedalsViewMode = useTelemetryStore(state => state.pedalsViewMode);
 
     const [isResizing, setIsResizing] = React.useState(false);
     const [isResetting, setIsResetting] = React.useState(false);
@@ -160,7 +161,8 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
         (channel === 'Slip Ratio' && slipRatioViewMode === 'merged') ||
         (channel === 'RideHeights' && rideHeightViewMode === 'merged') ||
         channel === 'SuspPosFront' || channel === 'SuspPosRear' ||
-        channel === 'ThirdDeflectionMerged' || channel === 'HandlingMerged';
+        channel === 'ThirdDeflectionMerged' || channel === 'HandlingMerged' ||
+        channel === 'PedalsMerged';
 
     // Helper for bundled labels/colors
     const getBundledInfo = (idx: number) => {
@@ -200,6 +202,11 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
         if (isBundled && channel === 'HandlingMerged') {
             const labels = ['YAW', 'STEER'];
             const colors = ['#f43f5e', '#ff00ff'];
+            return { label: labels[idx], stroke: colors[idx] };
+        }
+        if (isBundled && channel === 'PedalsMerged') {
+            const labels = ['THROTTLE', 'BRAKE'];
+            const colors = ['#00ff00', '#ff2222'];
             return { label: labels[idx], stroke: colors[idx] };
         }
         return { label: alias, stroke: color };
@@ -493,6 +500,19 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
                 if (steer) {
                     currentSeries.push(steer.slice(startIdx, endIdx + 1));
                 }
+            } else if (channel === 'PedalsMerged') {
+                const tRaw = extractChannelData(telemetryData, 'Throttle Pos') || extractChannelData(telemetryData, 'Throttle');
+                const bRaw = extractChannelData(telemetryData, 'Brake Pos') || extractChannelData(telemetryData, 'Brake');
+                if (tRaw) {
+                    const tSliced = tRaw.slice(startIdx, endIdx + 1);
+                    smartScale(tSliced, 100);
+                    currentSeries.push(tSliced);
+                }
+                if (bRaw) {
+                    const bSliced = bRaw.slice(startIdx, endIdx + 1);
+                    smartScale(bSliced, 100);
+                    currentSeries.push(bSliced);
+                }
             } else {
                 for (let i = 0; i < 4; i++) {
                     const raw = extractChannelData(telemetryData, channel, i);
@@ -747,6 +767,11 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
                                     const r = alignAndExtract('Rear3rdDeflection');
                                     if (f) refSeries.push(f);
                                     if (r) refSeries.push(r);
+                                } else if (channel === 'PedalsMerged') {
+                                    const t = alignAndExtract('Throttle Pos');
+                                    const b = alignAndExtract('Brake Pos');
+                                    if (t) refSeries.push(t);
+                                    if (b) refSeries.push(b);
                                 } else {
                                     for (let i = 0; i < 4; i++) {
                                         const aligned = alignAndExtract(channel, i);
@@ -782,6 +807,11 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
                                     const r = alignAndExtract('Rear3rdDeflection');
                                     if (f) refSeries.push(f);
                                     if (r) refSeries.push(r);
+                                } else if (channel === 'PedalsMerged') {
+                                    const t = alignAndExtract('Throttle Pos');
+                                    const b = alignAndExtract('Brake Pos');
+                                    if (t) refSeries.push(t);
+                                    if (b) refSeries.push(b);
                                 } else {
                                     for (let i = 0; i < 4; i++) {
                                         const aligned = alignAndExtract(channel, i);
@@ -798,9 +828,9 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
                         if (isTireHeat) {
                             const carcRef = alignAndExtract('TyresCarcassTemp');
                             if (carcRef) refSeries.push(carcRef);
-                            refSeries.push(alignAndExtract('TyresTempInside')!);
-                            refSeries.push(alignAndExtract('TyresTempCentre')!);
-                            refSeries.push(alignAndExtract('TyresTempOutside')!);
+                            if (alignAndExtract('TyresTempInside')) refSeries.push(alignAndExtract('TyresTempInside')!);
+                            if (alignAndExtract('TyresTempCentre')) refSeries.push(alignAndExtract('TyresTempCentre')!);
+                            if (alignAndExtract('TyresTempOutside')) refSeries.push(alignAndExtract('TyresTempOutside')!);
                         } else if (isBundled) {
                             if (channel === 'RideHeights') {
                                 const f = alignAndExtract('FrontRideHeight', 0);
@@ -823,6 +853,11 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
                                 if (alignedYaw) refSeries.push(alignedYaw);
                                 const alignedSteer = alignAndExtract('Steering Angle');
                                 if (alignedSteer) refSeries.push(alignedSteer);
+                            } else if (channel === 'PedalsMerged') {
+                                const t = alignAndExtract('Throttle Pos');
+                                const b = alignAndExtract('Brake Pos');
+                                if (t) refSeries.push(t);
+                                if (b) refSeries.push(b);
                             } else {
                                 for (let i = 0; i < 4; i++) {
                                     const aligned = alignAndExtract(channel, i);
@@ -1299,9 +1334,13 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
         refSeries.forEach((s, i) => {
             const info = getBundledInfo(i);
             const isElectronics = activeChartCategory === 'Systems' && (channel === 'TC' || channel === 'ABS');
+            const refStroke = channel === 'PedalsMerged'
+                ? (i === 0 ? 'rgba(0, 255, 0, 0.45)' : 'rgba(255, 34, 34, 0.45)')
+                : 'rgba(218, 165, 32, 0.6)';
+
             uSeries.push({
                 label: `Ref ${info.label}`,
-                stroke: 'rgba(218, 165, 32, 0.6)', // Golden with opacity
+                stroke: refStroke,
                 width: isElectronics ? 2 : 2,
                 dash: [5, 5],
                 points: isElectronics ? {
@@ -1889,6 +1928,31 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
                                 {isNoABS ? "NO ABS DATA" : (alias || channel)}
                             </span>
 
+                            {/* View Mode Toggle for Pedals (Throttle & Brake) */}
+                            {(channel === 'Throttle Pos' || channel === 'Brake Pos' || channel === 'PedalsMerged') && (
+                                <Tooltip text={`Switch to ${pedalsViewMode === 'split' ? 'Merged Throttle/Brake' : 'Split'} View`}>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            useTelemetryStore.getState().togglePedalsViewMode();
+                                        }}
+                                        className="p-1 hover:bg-white/10 rounded-md transition-colors text-white/40 hover:text-white ml-1"
+                                    >
+                                        {pedalsViewMode === 'merged' ? (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" className="opacity-90">
+                                                <path d="M2 12h4c4 0 4-7 8-7h7m0 0l-3.5-3.5M21 5l-3.5 3.5" />
+                                                <path d="M6 12c4 0 4 7 8 7h7m0 0l-3.5-3.5M21 19l-3.5 3.5" />
+                                            </svg>
+                                        ) : (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" className="opacity-90">
+                                                <path d="M2 5h7c4 0 4 7 8 7h5m0 0l-3.5-3.5M22 12l-3.5 3.5" />
+                                                <path d="M2 19h7c4 0 4-7 8-7" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                </Tooltip>
+                            )}
+
                             {/* View Mode Toggle for Suspension */}
                             {((channel === 'Susp Pos' && wheelIndex === 0) || channel === 'SuspPosFront') && (
                                 <Tooltip text={`Switch to ${suspensionViewMode === 'split' ? '2-Panel Merged' : '4-Panel Split'} View`}>
@@ -2042,7 +2106,7 @@ export const TelemetryChart = React.memo<TelemetryChartProps>(({
                             )}
 
                             {/* Legend for Bundled Charts */}
-                            {isBundled && !isCollapsed && (
+                            {isBundled && !isCollapsed && channel !== 'PedalsMerged' && (
                                 <div className="flex items-center gap-2 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 ml-1">
                                     {(channel === 'RideHeights' || channel === 'SuspPosFront' || channel === 'SuspPosRear' || channel === 'ThirdDeflectionMerged' || channel === 'HandlingMerged' ? [0, 1] : [0, 1, 2, 3]).map((idx) => {
                                         const info = getBundledInfo(idx);

@@ -179,8 +179,8 @@ const TrackSurface = ({ points, center, zScale = 0, onHover, onHoverOut }: {
             x: p.x,
             y: p.y,
             z: (p.z || 0) * (zScale || 1.0),
-            width: p.width || 7.5,
-            lat_offset: p.lat || 0
+            width: Math.min(16.0, Math.max(4.0, p.width || 7.5)),
+            lat_offset: Math.min(10.0, Math.max(-10.0, p.lat_offset ?? p.lat ?? 0))
         })).filter(p => {
             // FILTER JUNK POINTS
             if (isNaN(p.x) || isNaN(p.y)) return false;
@@ -197,8 +197,8 @@ const TrackSurface = ({ points, center, zScale = 0, onHover, onHoverOut }: {
         const pLast = projected[projected.length - 1];
         const distStartEndSq = Math.pow(pFirst.x - pLast.x, 2) + Math.pow(pFirst.y - pLast.y, 2);
 
-        // RELAXED CLOSURE: Use 50m threshold for robust circuit completion
-        const isSelfClosing = distStartEndSq < 100 * 100;
+        // RELAXED CLOSURE: Use 35m threshold for robust circuit completion without accidental cross-map triangles
+        const isSelfClosing = distStartEndSq < 35 * 35;
 
         if (isSelfClosing) {
             // FORCE ALIGNMENT: Perfectly snap the last point to the first
@@ -209,24 +209,54 @@ const TrackSurface = ({ points, center, zScale = 0, onHover, onHoverOut }: {
             projected[lastIdx].width = pFirst.width;
 
             // For 3D, we don't want overlapping geometry faces.
-            // If the last point was just a "padding" point from 2D logic, removing it is cleaner.
-            if (distStartEndSq < 20 * 20) {
+            if (distStartEndSq < 15 * 15) {
                 projected.pop();
             }
         }
 
-        const rawNormals: { nx: number, ny: number }[] = [];
-        for (let i = 0; i < projected.length; i++) {
-            const nextIdx = (i + 1) % projected.length;
-            const prevIdx = (i - 1 + projected.length) % projected.length;
-            const next = projected[nextIdx];
-            const prev = projected[prevIdx];
+        // Smooth centerline positions first to prevent tangent direction noise
+        const smoothedPoints = projected.map((p, i) => {
+            let sx = 0, sy = 0, sz = 0, sc = 0;
+            const P_SMOOTH = 3;
+            for (let w = -P_SMOOTH; w <= P_SMOOTH; w++) {
+                const idx = (i + w + projected.length) % projected.length;
+                sx += projected[idx].x;
+                sy += projected[idx].y;
+                sz += projected[idx].z;
+                sc++;
+            }
+            return {
+                x: p.x,
+                y: p.y,
+                z: p.z,
+                smX: sx / sc,
+                smY: sy / sc,
+                smZ: sz / sc,
+                width: p.width,
+                lat_offset: p.lat_offset
+            };
+        });
 
-            // Tangent calculation using circular indexing
-            const dx = next.x - prev.x;
-            const dy = next.y - prev.y;
+        const rawNormals: { nx: number, ny: number }[] = [];
+        for (let i = 0; i < smoothedPoints.length; i++) {
+            const nextIdx = (i + 1) % smoothedPoints.length;
+            const prevIdx = (i - 1 + smoothedPoints.length) % smoothedPoints.length;
+            const next = smoothedPoints[nextIdx];
+            const prev = smoothedPoints[prevIdx];
+
+            // Tangent calculation using smoothed position gradient
+            const dx = next.smX - prev.smX;
+            const dy = next.smY - prev.smY;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            rawNormals.push(dist < 1e-6 ? { nx: 0, ny: 1 } : { nx: -dy / dist, ny: dx / dist });
+            if (dist < 1e-6) {
+                // Fallback to unsmoothed position tangent
+                const dx2 = next.x - prev.x;
+                const dy2 = next.y - prev.y;
+                const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+                rawNormals.push(dist2 < 1e-6 ? { nx: 0, ny: 1 } : { nx: -dy2 / dist2, ny: dx2 / dist2 });
+            } else {
+                rawNormals.push({ nx: -dy / dist, ny: dx / dist });
+            }
         }
 
         const vertices: number[] = [];
@@ -234,36 +264,48 @@ const TrackSurface = ({ points, center, zScale = 0, onHover, onHoverOut }: {
         const lEdges: number[] = [];
         const rEdges: number[] = [];
 
-        const N_SMOOTH = 10; // Slightly larger for elevation stability
-        const W_SMOOTH = 25;
+        const N_SMOOTH = 5; // Compact window to preserve sharp turn geometry
+        const W_SMOOTH = 15;
 
         for (let i = 0; i < projected.length; i++) {
             const p = projected[i];
 
-            // 1. Smooth Normal Calculation
-            let snx = 0, sny = 0, snc = 0;
+            // 1. Cosine-Weighted Normal Calculation (Prevents Hairpin Normal Cancellation)
+            let snx = 0, sny = 0, snw = 0;
             const refN = rawNormals[i];
             for (let w = -N_SMOOTH; w <= N_SMOOTH; w++) {
                 const ni = (i + w + rawNormals.length) % rawNormals.length;
                 const n = rawNormals[ni];
-                if (n.nx * refN.nx + n.ny * refN.ny > 0) {
-                    snx += n.nx; sny += n.ny; snc++;
+                const dot = n.nx * refN.nx + n.ny * refN.ny;
+                if (dot > 0.2) { // Cosine threshold prevents vector cancellation in 180-deg hairpins
+                    snx += n.nx * dot;
+                    sny += n.ny * dot;
+                    snw += dot;
                 }
             }
-            const nx = snx / (snc || 1);
-            const ny = sny / (snc || 1);
-            const nMag = Math.sqrt(nx * nx + ny * ny);
-            const nnx = nx / (nMag || 1);
-            const nny = ny / (nMag || 1);
 
-            // 2. Smooth Width Calculation
-            let sw = 0, swc = 0;
+            let nnx = refN.nx;
+            let nny = refN.ny;
+            if (snw > 1e-4) {
+                const nx = snx / snw;
+                const ny = sny / snw;
+                const nMag = Math.sqrt(nx * nx + ny * ny);
+                if (nMag > 0.2) {
+                    nnx = nx / nMag;
+                    nny = ny / nMag;
+                }
+            }
+
+            // 2. Smooth Width & Lateral Offset Calculation
+            let sw = 0, slat = 0, swc = 0;
             for (let w = -W_SMOOTH; w <= W_SMOOTH; w++) {
                 const wi = (i + w + projected.length) % projected.length;
-                sw += Math.abs(projected[wi].width); swc++;
+                sw += Math.abs(projected[wi].width);
+                slat += projected[wi].lat_offset;
+                swc++;
             }
-            const curWidth = Math.max(4.0, sw / (swc || 1));
-            const curLat = p.lat_offset;
+            const curWidth = Math.min(15.0, Math.max(4.5, sw / (swc || 1)));
+            const curLat = Math.min(10.0, Math.max(-10.0, slat / (swc || 1)));
 
             // Offset calculation
             const lOffset = curWidth + curLat;

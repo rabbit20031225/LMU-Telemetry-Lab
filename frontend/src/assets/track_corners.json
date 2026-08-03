@@ -549,7 +549,603 @@
       }
     ]
   },
-  "Paul Ricard": {},
+  "Paul Ricard": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 650,
+        "start": 560,
+        "end": 690,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T2",
+        "apex": 754,
+        "start": 690,
+        "end": 870,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": 1330,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T4",
+        "apex": 1400,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T5",
+        "apex": 1520,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T6",
+        "apex": 1640,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T7",
+        "apex": 1880,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": 2975,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": true
+      },
+      {
+        "name": "T9",
+        "apex": 3060,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": 3950,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": 4440,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": 4830,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": 5075,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": 5350,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15",
+        "apex": 5515,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Layout 1A": [
+      {
+        "name": "T1",
+        "apex": 685,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 835,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": 1290,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": 1370,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": 1485,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": 1615,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": 1860,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": 3845,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": 4350,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": 4750,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": 4990,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": 5260,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": 5425,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Layout 1A-V2": [
+      {
+        "name": "T1",
+        "apex": 650,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 755,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": 1355,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": 1410,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": 1530,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": 1660,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Layout 1A-V2-Short": [
+      {
+        "name": "T1",
+        "apex": 640,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Layout 3A": [
+      {
+        "name": "T1",
+        "apex": 515,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 650,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
   "Circuit of the Americas": {
     "Default": [
       {
@@ -889,7 +1485,282 @@
       }
     ]
   },
-  "Fuji Speedway": {},
+  "Fuji Speedway": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 770,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 930,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16",
+        "apex": 3680,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Classic Circuit": [
+      {
+        "name": "T1",
+        "apex": 660,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 920,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": 3660,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
   "Autodromo Internazionale Enzo e Dino Ferrari": {
     "Default": [
       {
@@ -1462,7 +2333,192 @@
       }
     ]
   },
-  "Autodromo Nazionale Monza": {},
+  "Autodromo Nazionale Monza": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 940,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": 970,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": 5130,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Curva Grande Circuit": [
+      {
+        "name": "T1",
+        "apex": 1450,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": 5170,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
   "Algarve International Circuit": {
     "Default": [
       {
@@ -1602,8 +2658,524 @@
       }
     ]
   },
-  "Sebring International Raceway": {},
-  "Silverstone": {},
+  "Sebring International Raceway": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 530,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T17",
+        "apex": 5570,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "School Circuit": [
+      {
+        "name": "T1",
+        "apex": 505,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": 2760,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Silverstone": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 390,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T17",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T18",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "International Circuit": [
+      {
+        "name": "T1",
+        "apex": 290,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "National Circuit": [
+      {
+        "name": "T1",
+        "apex": 380,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
   "Circuit de Spa-Francorchamps": {
     "Default": [
       {
@@ -2095,6 +3667,866 @@
         "start": 4300.0,
         "end": 4430.0,
         "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Circuit de La Sarthe": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 650,
+        "start": null,
+        "end": null,
+        "direction": "right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T17",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T18",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T19",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T20",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T21",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T22",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T23",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T24",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T25",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T26",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T27",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T28",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T29",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T30",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T31",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T32",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T33",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T34",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T35",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T36",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T37",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T38",
+        "apex": 13440,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ],
+    "Mulsanne Circuit": [
+      {
+        "name": "T1",
+        "apex": 650,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T14",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T15",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T16",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T17",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T18",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T19",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T20",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T21",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T22",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T23",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T24",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T25",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T26",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T27",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T28",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T29",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T30",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T31",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T32",
+        "apex": 13370,
+        "start": null,
+        "end": null,
+        "direction": "Right",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "WeatherTech Raceway Laguna Seca": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 240,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": 3290,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      }
+    ]
+  },
+  "Daytona International Speedway": {
+    "Default": [
+      {
+        "name": "T1",
+        "apex": 460,
+        "start": null,
+        "end": null,
+        "direction": "Left",
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T2",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T3",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T4",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T5",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T6",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T7",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T8",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T9",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T10",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T11",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T12",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
+        "is_preserved": false,
+        "connect_next": false
+      },
+      {
+        "name": "T13",
+        "apex": null,
+        "start": null,
+        "end": null,
+        "direction": null,
         "is_preserved": false,
         "connect_next": false
       }

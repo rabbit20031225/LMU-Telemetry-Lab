@@ -1194,5 +1194,80 @@
         }
       ]
     }
+  },
+  "WeatherTech Raceway Laguna Seca": {
+    "Default": {
+      "data_source": "C:\\Users\\rabbit\\Desktop\\antigravity project\\DuckDB_investigation\\track_turns_data_sources\\WeatherTech Raceway Laguna Seca\\Default\\WeatherTech-Raceway-Laguna-Seca-BMW-M4-LMGT3-L5-1m25s743_2026-07-30T15_11_46Z.duckdb",
+      "segments": [
+        {
+          "name": "Seg 1",
+          "end": 900.0,
+          "badgeSide": "right"
+        },
+        {
+          "name": "Seg 2",
+          "end": 1400.0
+        },
+        {
+          "name": "Seg 3",
+          "end": 1790.0,
+          "badgeSide": "right"
+        },
+        {
+          "name": "Seg 4",
+          "end": 2160.0
+        },
+        {
+          "name": "Seg 5",
+          "end": 2855.0
+        },
+        {
+          "name": "Seg 6",
+          "end": 3110.0,
+          "badgeSide": "right"
+        },
+        {
+          "name": "Seg 7",
+          "end": 3602.0
+        }
+      ]
+    }
+  },
+  "Daytona International Speedway": {
+    "Default": {
+      "data_source": "C:\\Users\\rabbit\\Desktop\\antigravity project\\DuckDB_investigation\\track_turns_data_sources\\Daytona International Speedway\\Default\\Daytona-International-Speedway-Road-Course-BMW-M4-LMGT3-L4-1m47s764_2026-07-30T14_58_32Z.duckdb",
+      "segments": [
+        {
+          "name": "Seg 1",
+          "end": 760.0
+        },
+        {
+          "name": "Seg 2",
+          "end": 1205.0
+        },
+        {
+          "name": "Seg 3",
+          "end": 1950.0
+        },
+        {
+          "name": "Seg 4",
+          "end": 2430.0
+        },
+        {
+          "name": "Seg 5",
+          "end": 3700.0,
+          "badgeSide": "right"
+        },
+        {
+          "name": "Seg 6",
+          "end": 4120.0,
+          "badgeSide": "right"
+        },
+        {
+          "name": "Seg 7",
+          "end": 5729.0
+        }
+      ]
+    }
   }
 }

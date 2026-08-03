@@ -19,3 +19,5 @@ lmu_version:1.3.1.2
 | **Silverstone** | Silverstone Grand Prix Circuit - ELMS(5.890km, 18 turns), Silverstone International Circuit(2.979km, 8 turns), Silverstone National Circuit(2.639km, 6 turns) | Silverstone Circuit | United Kingdom | Silverstone |
 | **Circuit de Spa-Francorchamps** | Circuit de Spa-Francorchamps(7.004km, 20 turns), Circuit de Spa-Francorchamps Endurance(7.004km, 20 turns) | Spa, Spa-Francorchamps | Belgium | Spa |
 | **Circuit de Barcelona** | Circuit de Barcelona(4.657km, 14 turns) | Circuit de Barcelona, Catalunya, Circuit de Barcelona-Catalunya | Spain | Barcelona |
+| **WeatherTech Raceway Laguna Seca** | WeatherTech Raceway Laguna Seca(3.602km, 11 turns) | WeatherTech Raceway Laguna Seca, Laguna Seca | United States | Laguna Seca |
+| **Daytona International Speedway** | Daytona International Speedway Road Course(5.729km, 13 turns) | Daytona, Daytona International Speedway | United States | Daytona |

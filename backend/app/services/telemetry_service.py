@@ -114,6 +114,8 @@ class TelemetryService:
                 t_end = final_boundaries[i+1] if i+1 < len(final_boundaries) else end_time
                 
                 duration = t_end - t_start
+                if duration < 5.0:
+                    continue
                 matched_time = next((x[1] for x in lap_times if abs(x[0] - t_end) < 0.5), None)
                 
                 s1_val = get_last_value(s1_events, t_end, t_start)
@@ -1010,6 +1012,7 @@ class TelemetryService:
                                 "lap": lap['lap'],
                                 "stint": lap.get('stint', 0),
                                 "startTime": lap['startTime'],
+                                "endTime": lap['endTime'],
                                 "duration": lap['duration'],
                                 "isValid": lap['isValid'],
                                 "s1": lap.get('s1'),
@@ -1067,16 +1070,17 @@ class TelemetryService:
             if os.path.exists(output_path):
                 os.remove(output_path)
 
-            # 2. Determine GPS Time row range
+            # 2. Determine GPS Time row range:
+            # We want to start from the first point >= start_time
+            # and end at the first point > end_time (to ensure we capture the boundary points on both sides for interpolation).
             tables = [t[0] for t in con.execute("SHOW TABLES").fetchall()]
             max_rows = con.execute('SELECT COUNT(*) FROM "GPS Time"').fetchone()[0]
-            row_range = con.execute(f"""
-                SELECT min(rowid), max(rowid)
-                FROM "GPS Time"
-                WHERE value >= {start_time} AND value <= {end_time}
-            """).fetchone()
-            min_row_100 = row_range[0] if row_range and row_range[0] is not None else 0
-            max_row_100 = row_range[1] if row_range and row_range[1] is not None else max_rows - 1
+            
+            min_row_val = con.execute(f'SELECT min(rowid) FROM "GPS Time" WHERE value >= {start_time}').fetchone()[0]
+            max_row_val = con.execute(f'SELECT min(rowid) FROM "GPS Time" WHERE value > {end_time}').fetchone()[0]
+            
+            min_row_100 = min_row_val if min_row_val is not None else 0
+            max_row_100 = max_row_val if max_row_val is not None else max_rows - 1
 
             COPY_WHOLE = {"metadata", "channelsList"}
 
@@ -1098,7 +1102,11 @@ class TelemetryService:
                     tables_data[table] = con.execute(f'SELECT * FROM "{table}"').df()
 
                 elif table == "Lap":
-                    tables_data[table] = pd.DataFrame({'ts': [0.0], 'value': [0]}).astype({'ts': 'float64', 'value': 'uint16'})
+                    # Write Lap 0 start (0.0) and Lap 1 start (end_time - start_time) to define the exact lap boundary!
+                    tables_data[table] = pd.DataFrame({
+                        'ts': [0.0, float(end_time - start_time)], 
+                        'value': [0, 1]
+                    }).astype({'ts': 'float64', 'value': 'uint16'})
 
                 elif table == "Lap Time":
                     # Force duration to match target_lap for consistency

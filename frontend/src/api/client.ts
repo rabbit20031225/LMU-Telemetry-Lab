@@ -333,6 +333,30 @@ export const apiClient = {
         });
     },
 
+    async listDiscordShares(carClass: string): Promise<{ shares: any[] }> {
+        return this._fetchJson(`/discord/shares?car_class=${carClass}`);
+    },
+
+    async downloadDiscordShare(
+        telemetryUrl: string,
+        telemetryFilename: string,
+        setupUrl?: string,
+        setupFilename?: string,
+        profileId: string = 'guest'
+    ): Promise<{ success: boolean; telemetry_path: string; setup_downloaded: boolean }> {
+        return this._fetchJson('/discord/shares/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                profile_id: profileId,
+                telemetry_url: telemetryUrl,
+                telemetry_filename: telemetryFilename,
+                setup_url: setupUrl || null,
+                setup_filename: setupFilename || null
+            })
+        });
+    },
+
     async _fetchJson(path: string, options: RequestInit = {}): Promise<any> {
         const res = await fetch(`${API_BASE}${path}`, options);
         if (!res.ok) {

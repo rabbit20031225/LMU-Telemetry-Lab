@@ -286,7 +286,6 @@ export const DiscordShareModal: React.FC<DiscordShareModalProps> = ({ isOpen, on
                                                 required
                                                 value={discordHandle}
                                                 onChange={(e) => setDiscordHandle(e.target.value)}
-                                                placeholder="e.g. hungyc"
                                                 className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-[14px] text-white focus:outline-none focus:border-[#5865F2] focus:ring-1 focus:ring-[#5865F2]/50 transition-all placeholder:text-gray-600"
                                             />
                                         </div>

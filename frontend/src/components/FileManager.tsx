@@ -16,9 +16,15 @@ const DEFAULT_LMU_PATH = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Le 
 
 interface FileManagerProps {
     onClose?: () => void;
+    highlightedSessionId?: string | null;
+    clearHighlightedSessionId?: () => void;
 }
 
-export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
+export const FileManager: React.FC<FileManagerProps> = ({ 
+    onClose, 
+    highlightedSessionId, 
+    clearHighlightedSessionId 
+}) => {
     const sessions = useTelemetryStore(state => state.sessions);
     const currentSessionId = useTelemetryStore(state => state.currentSessionId);
     const selectSession = useTelemetryStore(state => state.selectSession);
@@ -401,6 +407,19 @@ export const FileManager: React.FC<FileManagerProps> = ({ onClose }) => {
             }, 100);
         }
     }, []); // Only on mount
+
+    React.useEffect(() => {
+        if (highlightedSessionId && sessions.length > 0) {
+            const sessionExists = sessions.some(s => s.id === highlightedSessionId);
+            if (sessionExists) {
+                console.log("[DEBUG] Scrolling to highlighted session:", highlightedSessionId);
+                setTimeout(() => {
+                    expandAndScrollToSession(highlightedSessionId, sessions, true);
+                    if (clearHighlightedSessionId) clearHighlightedSessionId();
+                }, 300);
+            }
+        }
+    }, [highlightedSessionId, sessions]);
 
     const handleUploadClick = async () => {
         try {

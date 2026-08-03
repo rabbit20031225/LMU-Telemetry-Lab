@@ -93,6 +93,7 @@ export interface ReferenceLap {
     lap: number;
     stint: number;
     startTime: number;
+    endTime?: number;
     duration: number;
     isValid: boolean;
     s1?: number;

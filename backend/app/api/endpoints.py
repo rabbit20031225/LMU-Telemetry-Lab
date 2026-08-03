@@ -9,6 +9,7 @@ import shutil
 from datetime import datetime
 from ..services.telemetry_service import TelemetryService
 from ..services.profiles_service import ProfilesService
+from ..services.discord_service import DiscordService
 from ..services.elevation_service import get_3d_track_data
 import duckdb
 import numpy as np
@@ -77,8 +78,7 @@ async def get_3d_track(
     profile_id: Optional[str] = Query("guest")
 ):
     """Get 3D track path (X, Y, Z) for visualization."""
-    data_dir, _ = get_contextual_dirs(profile_id)
-    db_path = os.path.join(data_dir, session_id)
+    db_path = resolve_db_path(session_id, profile_id)
     
     logger.info(f"API: GET /track3d - Session: {session_id}, Lap: {lap}, Profile: {profile_id}")
     
@@ -202,6 +202,31 @@ def get_contextual_dirs(profile_id: Optional[str] = "guest"):
         ProfilesService.get_profile_data_dir(p_id),
         ProfilesService.get_profile_cache_dir(p_id)
     )
+
+def resolve_db_path(session_id: str, profile_id: Optional[str] = "guest") -> str:
+    """Resolve database path, downloading it to temp cache if it is a Discord session ID."""
+    if session_id.startswith("discord__"):
+        thread_id = session_id.split("__", 1)[1]
+        
+        # Temp cache directory in backend
+        cache_dir = os.path.join(APP_DATA_ROOT, "cache", "discord_temp")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        temp_path = os.path.join(cache_dir, f"{thread_id}.duckdb")
+        if not os.path.exists(temp_path):
+            logger.info(f"Downloading Discord session database for thread {thread_id}...")
+            # Fetch thread attachments info
+            atts = DiscordService.get_thread_attachments(thread_id)
+            if not atts or not atts.get("telemetry"):
+                raise HTTPException(status_code=404, detail="Discord telemetry attachment not found.")
+            # Stream download to temp_path
+            DiscordService.download_discord_file(atts["telemetry"]["url"], temp_path)
+            logger.info(f"Successfully downloaded Discord session database to {temp_path}")
+            
+        return temp_path
+    else:
+        data_dir, _ = get_contextual_dirs(profile_id)
+        return os.path.join(data_dir, session_id)
 
 logger = logging.getLogger(__name__)
 
@@ -608,8 +633,7 @@ async def export_session_setup(session_id: str, request: Request, custom_car_mod
 
     logger.info(f"API: GET /setup/export - Session: {session_id}, custom_car_model: {custom_car_model}, profile_id: {profile_id}")
 
-    data_dir, _ = get_contextual_dirs(profile_id)
-    db_path = os.path.join(data_dir, session_id)
+    db_path = resolve_db_path(session_id, profile_id)
     if not os.path.exists(db_path):
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
 
@@ -657,8 +681,7 @@ async def export_session_setup(session_id: str, request: Request, custom_car_mod
 @router.get("/sessions/{session_id}/setup")
 async def get_session_setup(session_id: str, profile_id: Optional[str] = Query("guest")):
     """Get structured car setup data from a session's DuckDB metadata."""
-    data_dir, _ = get_contextual_dirs(profile_id)
-    db_path = os.path.join(data_dir, session_id)
+    db_path = resolve_db_path(session_id, profile_id)
     if not os.path.exists(db_path):
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
 
@@ -816,9 +839,7 @@ async def get_session_setup(session_id: str, profile_id: Optional[str] = Query("
 @router.get("/sessions/{session_id}/laps")
 async def get_session_laps(session_id: str, profile_id: Optional[str] = Query("guest")):
     """Get summary of laps for a session with robust logging."""
-    data_dir, _ = get_contextual_dirs(profile_id)
-    logger.info(f"API: GET /laps - Profile: {profile_id}, Session: {session_id}")
-    db_path = os.path.join(data_dir, session_id)
+    db_path = resolve_db_path(session_id, profile_id)
     if not os.path.exists(db_path):
         logger.error(f"Database NOT FOUND: {db_path}")
         raise HTTPException(status_code=404, detail=f"Database not found: {session_id}")
@@ -859,7 +880,7 @@ async def get_telemetry(
     """Get fused telemetry data with robust logging."""
     data_dir, cache_dir = get_contextual_dirs(profile_id)
     logger.info(f"API: GET /telemetry - Profile: {profile_id}, Session: {session_id}, Freq: {freq}, Stint: {stint_id}")
-    db_path = os.path.join(data_dir, session_id)
+    db_path = resolve_db_path(session_id, profile_id)
     if not os.path.exists(db_path):
         logger.error(f"Database NOT FOUND: {db_path}")
         raise HTTPException(status_code=404, detail="Session not found")
@@ -1011,8 +1032,8 @@ async def export_session_lap(session_id: str, lap_number: int, request: Request,
         custom_car_model = q_custom
 
     logger.info(f"API: GET /export/lap - Session: {session_id}, Lap: {lap_number}, custom_car_model: {custom_car_model}, profile_id: {profile_id}")
-    data_dir, cache_dir = get_contextual_dirs(profile_id)
-    db_path = os.path.join(data_dir, session_id)
+    _, cache_dir = get_contextual_dirs(profile_id)
+    db_path = resolve_db_path(session_id, profile_id)
     if not os.path.exists(db_path):
         raise HTTPException(status_code=404, detail="Session not found")
         
@@ -1215,9 +1236,15 @@ async def discord_share_session_lap(session_id: str, request: DiscordShareReques
         user_id = member_data.get("user_id")
         driver_mention = f"<@{user_id}>"
         
+        # Only append layout name if it is different from track_name and not empty
+        if layout_name and layout_name != track_name:
+            track_display = f"{track_name} ({layout_name})"
+        else:
+            track_display = track_name
+            
         header_block = (
             f"### Telemetry Shared by {driver_mention}\n\n"
-            f"* **Track:** {track_name} ({layout_name})\n"
+            f"* **Track:** {track_display}\n"
             f"* **Car:** {friendly_car}\n"
             f"* **Lap Time:** {lap_time_str}\n\n"
             f"---\n\n"
@@ -1248,6 +1275,55 @@ async def discord_share_session_lap(session_id: str, request: DiscordShareReques
     except Exception as e:
         logger.error(f"Discord sharing failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+class DiscordDownloadRequest(BaseModel):
+    profile_id: Optional[str] = "guest"
+    telemetry_url: str
+    telemetry_filename: str
+    setup_url: Optional[str] = None
+    setup_filename: Optional[str] = None
+
+@router.get("/discord/shares")
+async def list_discord_shares(car_class: str):
+    """Retrieve shared laps list for a specific car class from Discord Forum."""
+    shares = DiscordService.list_shared_laps(car_class)
+    return {"shares": shares}
+
+@router.post("/discord/shares/download")
+async def download_discord_share(request: DiscordDownloadRequest):
+    """Download telemetry and optional setup from Discord and place in user profile data folder."""
+    data_dir, cache_dir = get_contextual_dirs(request.profile_id)
+    
+    # 1. Validate filenames to prevent directory traversal
+    telemetry_filename = os.path.basename(request.telemetry_filename)
+    if not telemetry_filename.endswith(".duckdb"):
+        raise HTTPException(status_code=400, detail="Invalid telemetry file type. Must end in .duckdb")
+        
+    telemetry_path = os.path.join(data_dir, telemetry_filename)
+    
+    # 2. Download telemetry
+    try:
+        DiscordService.download_discord_file(request.telemetry_url, telemetry_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download telemetry file: {str(e)}")
+        
+    # 3. Download setup if present
+    setup_downloaded = False
+    if request.setup_url and request.setup_filename:
+        setup_filename = os.path.basename(request.setup_filename)
+        if setup_filename.endswith(".svm"):
+            setup_path = os.path.join(data_dir, setup_filename)
+            try:
+                DiscordService.download_discord_file(request.setup_url, setup_path)
+                setup_downloaded = True
+            except Exception as e:
+                logger.error(f"Failed to download setup file: {e}")
+                
+    return {
+        "success": True,
+        "telemetry_path": telemetry_path,
+        "setup_downloaded": setup_downloaded
+    }
 
 @router.get("/debug/env")
 async def debug_env():

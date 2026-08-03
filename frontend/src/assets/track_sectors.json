@@ -176,5 +176,19 @@
       "S2": "left",
       "S3": "right"
     }
+  },
+  "Daytona International Speedway": {
+    "Default": {
+      "S1": "left",
+      "S2": "left",
+      "S3": "left"
+    }
+  },
+  "WeatherTech Raceway Laguna Seca": {
+    "Default": {
+      "S1": "right",
+      "S2": "right",
+      "S3": "right"
+    }
   }
 }

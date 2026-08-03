@@ -120,6 +120,7 @@ export const SettingsOverlay: React.FC = () => {
     const rideHeightViewMode = useTelemetryStore(state => state.rideHeightViewMode);
     const slipRatioViewMode = useTelemetryStore(state => state.slipRatioViewMode);
     const handlingViewMode = useTelemetryStore(state => state.handlingViewMode);
+    const pedalsViewMode = useTelemetryStore(state => state.pedalsViewMode);
 
     const [activeSettingsCategory, setActiveSettingsCategory] = useState('Driver');
 
@@ -150,7 +151,8 @@ export const SettingsOverlay: React.FC = () => {
             thirdDeflectionViewMode,
             rideHeightViewMode,
             slipRatioViewMode,
-            handlingViewMode
+            handlingViewMode,
+            pedalsViewMode
         });
         const custom = JSON.parse(localStorage.getItem('custom_chart_settings') || '{}');
 
@@ -167,7 +169,7 @@ export const SettingsOverlay: React.FC = () => {
     }, [
         activeSettingsCategory, chartConfigs,
         tyresPressureViewMode, suspensionViewMode, thirdDeflectionViewMode,
-        rideHeightViewMode, slipRatioViewMode, handlingViewMode
+        rideHeightViewMode, slipRatioViewMode, handlingViewMode, pedalsViewMode
     ]);
 
     const handleDragStart = (e: React.DragEvent, idx: number) => {

@@ -12,6 +12,11 @@ TRACK_ELEVATION_METADATA = {
     "cota": 40.9,
     "qatar": 5.0,
     "paul ricard": 12.0,
+    "silverstone": 11.3,
+    "barcelona": 22.0,
+    "catalunya": 22.0,
+    "laguna seca": 55.0,
+    "daytona": 9.5,
 }
 
 def get_track_range(track_name):
